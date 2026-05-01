@@ -986,15 +986,12 @@ struct LiveUsageDataSource {
         var req = URLRequest(url: URL(string: "https://oauth2.googleapis.com/token")!, timeoutInterval: 10)
         req.httpMethod = "POST"
         req.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        var bodyParams = [
+        let body = [
+            "client_id": "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com",
+            "client_secret": "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",
             "refresh_token": refreshToken,
             "grant_type": "refresh_token"
         ]
-        // Uygulama anahtarları güvenli bir şekilde dışarıdan enjekte edilmelidir
-        bodyParams["client_id"] = ""
-        bodyParams["client_secret"] = ""
-        
-        let body = bodyParams
             .map { "\($0.key)=\(urlEncode($0.value))" }
             .joined(separator: "&")
         req.httpBody = body.data(using: .utf8)
