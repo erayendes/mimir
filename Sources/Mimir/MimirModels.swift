@@ -6,8 +6,8 @@ struct ServiceStatus: Identifiable {
     let iconName: String
     let sessionResetAt: Date?
     let weeklyResetAt: Date?
-    let sessionUsagePercent: Int?
-    let weeklyUsagePercent: Int?
+    let sessionRemainingPercent: Int?
+    let weeklyRemainingPercent: Int?
     let models: [ModelStatus]
     let isAvailable: Bool
     let statusNote: String?
@@ -17,8 +17,8 @@ struct ServiceStatus: Identifiable {
         iconName: String,
         sessionResetAt: Date?,
         weeklyResetAt: Date?,
-        sessionUsagePercent: Int? = nil,
-        weeklyUsagePercent: Int? = nil,
+        sessionRemainingPercent: Int? = nil,
+        weeklyRemainingPercent: Int? = nil,
         models: [ModelStatus],
         isAvailable: Bool,
         statusNote: String?
@@ -27,8 +27,8 @@ struct ServiceStatus: Identifiable {
         self.iconName = iconName
         self.sessionResetAt = sessionResetAt
         self.weeklyResetAt = weeklyResetAt
-        self.sessionUsagePercent = sessionUsagePercent
-        self.weeklyUsagePercent = weeklyUsagePercent
+        self.sessionRemainingPercent = sessionRemainingPercent
+        self.weeklyRemainingPercent = weeklyRemainingPercent
         self.models = models
         self.isAvailable = isAvailable
         self.statusNote = statusNote
@@ -38,13 +38,13 @@ struct ServiceStatus: Identifiable {
 struct ModelStatus: Identifiable {
     let id = UUID()
     let name: String
-    let usagePercent: Int
+    let remainingPercent: Int
     let resetAt: Date?
     let valueText: String?
 
-    init(name: String, usagePercent: Int, resetAt: Date?, valueText: String? = nil) {
+    init(name: String, remainingPercent: Int, resetAt: Date?, valueText: String? = nil) {
         self.name = name
-        self.usagePercent = usagePercent
+        self.remainingPercent = remainingPercent
         self.resetAt = resetAt
         self.valueText = valueText
     }

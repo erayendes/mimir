@@ -29,9 +29,9 @@ struct LiveUsageDataSource {
                 sessionResetAt: nil,
                 weeklyResetAt: nil,
                 models: [
-                    ModelStatus(name: "Claude", usagePercent: 0, resetAt: nil),
-                    ModelStatus(name: "Gemini Pro", usagePercent: 0, resetAt: nil),
-                    ModelStatus(name: "Gemini Flash", usagePercent: 0, resetAt: nil)
+                    ModelStatus(name: "Claude", remainingPercent: 0, resetAt: nil),
+                    ModelStatus(name: "Gemini Pro", remainingPercent: 0, resetAt: nil),
+                    ModelStatus(name: "Gemini Flash", remainingPercent: 0, resetAt: nil)
                 ],
                 isAvailable: false,
                 statusNote: "no local source"
@@ -42,7 +42,7 @@ struct LiveUsageDataSource {
                 sessionResetAt: nil,
                 weeklyResetAt: nil,
                 models: [
-                    ModelStatus(name: "Design", usagePercent: 0, resetAt: nil)
+                    ModelStatus(name: "Design", remainingPercent: 0, resetAt: nil)
                 ],
                 isAvailable: false,
                 statusNote: "no local source"
@@ -62,8 +62,8 @@ struct LiveUsageDataSource {
                 sessionResetAt: nil,
                 weeklyResetAt: nil,
                 models: [
-                    ModelStatus(name: "Flash", usagePercent: 0, resetAt: nil),
-                    ModelStatus(name: "Pro", usagePercent: 0, resetAt: nil)
+                    ModelStatus(name: "Flash", remainingPercent: 0, resetAt: nil),
+                    ModelStatus(name: "Pro", remainingPercent: 0, resetAt: nil)
                 ],
                 isAvailable: false,
                 statusNote: "no local source"
@@ -135,12 +135,12 @@ struct LiveUsageDataSource {
             iconName: "claude",
             sessionResetAt: fiveHour.resetAt,
             weeklyResetAt: sevenDay.resetAt,
-            sessionUsagePercent: remainingPercent(fromUsed: fiveHour.utilization),
-            weeklyUsagePercent: remainingPercent(fromUsed: sevenDay.utilization),
+            sessionRemainingPercent: remainingPercent(fromUsed: fiveHour.utilization),
+            weeklyRemainingPercent: remainingPercent(fromUsed: sevenDay.utilization),
             models: [
                 ModelStatus(
                     name: "Design",
-                    usagePercent: remainingPercent(fromUsed: design.utilization),
+                    remainingPercent: remainingPercent(fromUsed: design.utilization),
                     resetAt: design.resetAt ?? sevenDay.resetAt
                 )
             ],
@@ -154,6 +154,14 @@ struct LiveUsageDataSource {
     }
 
     private func fetchCodex() async -> ServiceStatus {
+        if let apiStatus = await fetchCodexUsageAPI() {
+            return apiStatus
+        }
+
+        return fetchCodexLocalSessions()
+    }
+
+    private func fetchCodexLocalSessions() -> ServiceStatus {
         let base = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex/sessions")
         guard let file = latestJSONLFile(in: base),
               let text = try? String(contentsOf: file, encoding: .utf8) else {
@@ -182,7 +190,7 @@ struct LiveUsageDataSource {
             if let c = rl.credits {
                 if sessionRemaining == nil && c.balance == "0" { sessionRemaining = 0 }
                 if models.isEmpty {
-                    models.append(ModelStatus(name: "Credits", usagePercent: 0, resetAt: nil, valueText: c.balance))
+                    models.append(ModelStatus(name: "Credits", remainingPercent: 0, resetAt: nil, valueText: c.balance))
                 }
             }
 
@@ -208,12 +216,69 @@ struct LiveUsageDataSource {
             iconName: "codex",
             sessionResetAt: sessionReset,
             weeklyResetAt: weeklyReset,
-            sessionUsagePercent: sessionRemaining ?? 100,
-            weeklyUsagePercent: weeklyRemaining ?? 100,
+            sessionRemainingPercent: sessionRemaining ?? 100,
+            weeklyRemainingPercent: weeklyRemaining ?? 100,
             models: models,
             isAvailable: true,
             statusNote: statusNote
         )
+    }
+
+    private func fetchCodexUsageAPI() async -> ServiceStatus? {
+        guard let authState = readCodexAuthState(),
+              let accessToken = await codexAccessToken(from: authState) else {
+            return nil
+        }
+
+        if let status = await fetchCodexUsageAPI(accessToken: accessToken, accountID: codexAccountID(from: authState.auth)) {
+            return status
+        }
+
+        guard let refreshed = await refreshCodexAccessToken(authState: authState) else {
+            return nil
+        }
+
+        return await fetchCodexUsageAPI(accessToken: refreshed, accountID: codexAccountID(from: authState.auth))
+    }
+
+    private func fetchCodexUsageAPI(accessToken: String, accountID: String?) async -> ServiceStatus? {
+        var req = URLRequest(url: URL(string: "https://chatgpt.com/backend-api/wham/usage")!, timeoutInterval: 10)
+        req.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        req.setValue("Mimir", forHTTPHeaderField: "User-Agent")
+        if let accountID, !accountID.isEmpty {
+            req.setValue(accountID, forHTTPHeaderField: "ChatGPT-Account-Id")
+        }
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: req)
+            guard (response as? HTTPURLResponse).map({ 200 ... 299 ~= $0.statusCode }) == true,
+                  let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let rateLimit = root["rate_limit"] as? [String: Any] else {
+                return nil
+            }
+
+            let session = codexAPIWindow(rateLimit["primary_window"])
+            let weekly = codexAPIWindow(rateLimit["secondary_window"])
+            var models: [ModelStatus] = []
+            if let balance = codexCreditsBalance(from: root["credits"]) {
+                models.append(ModelStatus(name: "Credits", remainingPercent: 0, resetAt: nil, valueText: balance))
+            }
+
+            return ServiceStatus(
+                name: "Codex",
+                iconName: "codex",
+                sessionResetAt: session.resetAt,
+                weeklyResetAt: weekly.resetAt,
+                sessionRemainingPercent: session.usedPercent.map(remainingPercent(fromUsed:)) ?? 100,
+                weeklyRemainingPercent: weekly.usedPercent.map(remainingPercent(fromUsed:)) ?? 100,
+                models: models,
+                isAvailable: true,
+                statusNote: "chatgpt usage api"
+            )
+        } catch {
+            return nil
+        }
     }
 
     private func fetchGemini() async -> ServiceStatus {
@@ -253,8 +318,8 @@ struct LiveUsageDataSource {
             sessionResetAt: [proReset, flashReset].compactMap { $0 }.sorted().first,
             weeklyResetAt: nil,
             models: [
-                ModelStatus(name: "Flash", usagePercent: max(0, min(100, flashRemaining)), resetAt: flashReset),
-                ModelStatus(name: "Pro", usagePercent: max(0, min(100, proRemaining)), resetAt: proReset)
+                ModelStatus(name: "Flash", remainingPercent: max(0, min(100, flashRemaining)), resetAt: flashReset),
+                ModelStatus(name: "Pro", remainingPercent: max(0, min(100, proRemaining)), resetAt: proReset)
             ],
             isAvailable: true,
             statusNote: "google quota api"
@@ -312,7 +377,7 @@ struct LiveUsageDataSource {
                 credits = readAntigravityAICreditsFromStateDB()
             }
             if let credits {
-                normalized.append(ModelStatus(name: "AI Credits", usagePercent: 0, resetAt: nil, valueText: "\(credits)"))
+                normalized.append(ModelStatus(name: "AI Credits", remainingPercent: 0, resetAt: nil, valueText: "\(credits)"))
             }
             return ServiceStatus(
                 name: "Antigravity",
@@ -508,7 +573,7 @@ struct LiveUsageDataSource {
 
         var normalized = normalizeAntigravityModels(payload)
         if let credits = extractAntigravityAICredits(from: payload) {
-            normalized.append(ModelStatus(name: "AI Credits", usagePercent: 0, resetAt: nil, valueText: "\(credits)"))
+            normalized.append(ModelStatus(name: "AI Credits", remainingPercent: 0, resetAt: nil, valueText: "\(credits)"))
         }
         return ServiceStatus(
             name: "Antigravity",
@@ -561,9 +626,9 @@ struct LiveUsageDataSource {
         let configs = antigravityModelConfigs(from: root)
         guard !configs.isEmpty else {
             return [
-                ModelStatus(name: "Claude", usagePercent: 0, resetAt: nil),
-                ModelStatus(name: "Gemini Pro", usagePercent: 0, resetAt: nil),
-                ModelStatus(name: "Gemini Flash", usagePercent: 0, resetAt: nil)
+                ModelStatus(name: "Claude", remainingPercent: 0, resetAt: nil),
+                ModelStatus(name: "Gemini Pro", remainingPercent: 0, resetAt: nil),
+                ModelStatus(name: "Gemini Flash", remainingPercent: 0, resetAt: nil)
             ]
         }
 
@@ -588,7 +653,7 @@ struct LiveUsageDataSource {
             let remaining = doubleValue(quota["remainingFraction"]) ?? 0
             let remainingPercent = Int(min(100, max(0, remaining * 100)).rounded())
             let reset = (quota["resetTime"] as? String).flatMap { parseISO8601($0) }
-            let status = ModelStatus(name: "", usagePercent: max(0, min(100, remainingPercent)), resetAt: reset)
+            let status = ModelStatus(name: "", remainingPercent: max(0, min(100, remainingPercent)), resetAt: reset)
 
             if rawName.contains("claude") || rawName.contains("gpt-oss") || rawName.contains("model_openai_gpt_oss") {
                 claude.append(status)
@@ -661,8 +726,8 @@ struct LiveUsageDataSource {
 
     private func pickModel(_ name: String, from candidates: [ModelStatus]) -> ModelStatus {
         guard let best = candidates.sorted(by: { lhs, rhs in
-            if lhs.usagePercent != rhs.usagePercent {
-                return lhs.usagePercent < rhs.usagePercent
+            if lhs.remainingPercent != rhs.remainingPercent {
+                return lhs.remainingPercent < rhs.remainingPercent
             }
             switch (lhs.resetAt, rhs.resetAt) {
             case let (l?, r?):
@@ -675,9 +740,9 @@ struct LiveUsageDataSource {
                 return false
             }
         }).first else {
-            return ModelStatus(name: name, usagePercent: 0, resetAt: nil)
+            return ModelStatus(name: name, remainingPercent: 0, resetAt: nil)
         }
-        return ModelStatus(name: name, usagePercent: best.usagePercent, resetAt: best.resetAt)
+        return ModelStatus(name: name, remainingPercent: best.remainingPercent, resetAt: best.resetAt)
     }
 
     private func mergeClaudeWindows(root: [String: Any], baseKey: String) -> (utilization: Double, resetAt: Date?) {
@@ -699,7 +764,7 @@ struct LiveUsageDataSource {
             iconName: iconName,
             sessionResetAt: nil,
             weeklyResetAt: nil,
-            models: models.map { ModelStatus(name: $0, usagePercent: 0, resetAt: nil) },
+            models: models.map { ModelStatus(name: $0, remainingPercent: 0, resetAt: nil) },
             isAvailable: false,
             statusNote: note ?? "source unavailable"
         )
@@ -743,6 +808,162 @@ struct LiveUsageDataSource {
             return CodexWindowSummary(usedPercent: 0, resetAt: nil)
         }
         return CodexWindowSummary(usedPercent: used, resetAt: reset)
+    }
+
+    private func codexAPIWindow(_ raw: Any?) -> (usedPercent: Double?, resetAt: Date?) {
+        guard let obj = raw as? [String: Any] else {
+            return (nil, nil)
+        }
+
+        let used = doubleValue(obj["used_percent"])
+        let reset = doubleValue(obj["reset_at"]).map { Date(timeIntervalSince1970: $0) }
+        return (used, reset)
+    }
+
+    private func codexCreditsBalance(from raw: Any?) -> String? {
+        guard let obj = raw as? [String: Any] else { return nil }
+        if let balance = obj["balance"] as? String, !balance.isEmpty { return balance }
+        if let balance = doubleValue(obj["balance"]) {
+            return balance.rounded() == balance ? String(Int(balance)) : String(balance)
+        }
+        return nil
+    }
+
+    private func readCodexAuthState() -> CodexAuthState? {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        var paths: [URL] = []
+        if let codexHome = ProcessInfo.processInfo.environment["CODEX_HOME"],
+           !codexHome.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            paths.append(URL(fileURLWithPath: codexHome).appendingPathComponent("auth.json"))
+        }
+        paths.append(home.appendingPathComponent(".codex/auth.json"))
+        paths.append(home.appendingPathComponent(".config/codex/auth.json"))
+
+        for path in paths {
+            guard let data = try? Data(contentsOf: path),
+                  let auth = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  codexAccessToken(in: auth) != nil || codexRefreshToken(in: auth) != nil else {
+                continue
+            }
+            return CodexAuthState(path: path, auth: auth)
+        }
+        return nil
+    }
+
+    private func codexAccessToken(from state: CodexAuthState) async -> String? {
+        guard let accessToken = codexAccessToken(in: state.auth) else {
+            return await refreshCodexAccessToken(authState: state)
+        }
+
+        if let expiresAt = jwtExpiry(accessToken), expiresAt.timeIntervalSinceNow <= 300 {
+            return await refreshCodexAccessToken(authState: state) ?? accessToken
+        }
+        return accessToken
+    }
+
+    private func codexAccessToken(in auth: [String: Any]) -> String? {
+        if let token = auth["access_token"] as? String, !token.isEmpty { return token }
+        if let tokens = auth["tokens"] as? [String: Any],
+           let token = tokens["access_token"] as? String,
+           !token.isEmpty {
+            return token
+        }
+        return nil
+    }
+
+    private func codexRefreshToken(in auth: [String: Any]) -> String? {
+        if let token = auth["refresh_token"] as? String, !token.isEmpty { return token }
+        if let tokens = auth["tokens"] as? [String: Any],
+           let token = tokens["refresh_token"] as? String,
+           !token.isEmpty {
+            return token
+        }
+        return nil
+    }
+
+    private func codexAccountID(from auth: [String: Any]) -> String? {
+        if let accountID = auth["account_id"] as? String, !accountID.isEmpty { return accountID }
+        if let tokens = auth["tokens"] as? [String: Any] {
+            if let accountID = tokens["account_id"] as? String, !accountID.isEmpty { return accountID }
+            if let idToken = tokens["id_token"] as? String,
+               let accountID = codexAccountID(fromJWT: idToken) {
+                return accountID
+            }
+        }
+        if let idToken = auth["id_token"] as? String,
+           let accountID = codexAccountID(fromJWT: idToken) {
+            return accountID
+        }
+        return nil
+    }
+
+    private func codexAccountID(fromJWT token: String) -> String? {
+        guard let payload = decodeJWTPayload(token),
+              let auth = payload["https://api.openai.com/auth"] as? [String: Any],
+              let accountID = auth["chatgpt_account_id"] as? String,
+              !accountID.isEmpty else {
+            return nil
+        }
+        return accountID
+    }
+
+    private func refreshCodexAccessToken(authState: CodexAuthState) async -> String? {
+        guard let refreshToken = codexRefreshToken(in: authState.auth) else {
+            return codexAccessToken(in: authState.auth)
+        }
+
+        var req = URLRequest(url: URL(string: "https://auth.openai.com/oauth/token")!, timeoutInterval: 10)
+        req.httpMethod = "POST"
+        req.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        let body = [
+            "grant_type": "refresh_token",
+            "client_id": "app_EMoamEEZ73f0CkXaXp7hrann",
+            "refresh_token": refreshToken
+        ]
+            .map { "\($0.key)=\(urlEncode($0.value))" }
+            .joined(separator: "&")
+        req.httpBody = body.data(using: .utf8)
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: req)
+            guard (response as? HTTPURLResponse).map({ 200 ... 299 ~= $0.statusCode }) == true,
+                  let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let accessToken = root["access_token"] as? String,
+                  !accessToken.isEmpty else {
+                return codexAccessToken(in: authState.auth)
+            }
+            writeCodexAuth(existing: authState, refreshed: root)
+            return accessToken
+        } catch {
+            return codexAccessToken(in: authState.auth)
+        }
+    }
+
+    private func writeCodexAuth(existing state: CodexAuthState, refreshed: [String: Any]) {
+        var auth = state.auth
+        var tokens = auth["tokens"] as? [String: Any] ?? [:]
+        if let token = refreshed["access_token"] as? String {
+            tokens["access_token"] = token
+            auth["access_token"] = token
+        }
+        if let token = refreshed["refresh_token"] as? String {
+            tokens["refresh_token"] = token
+            auth["refresh_token"] = token
+        }
+        if let token = refreshed["id_token"] as? String {
+            tokens["id_token"] = token
+            auth["id_token"] = token
+        }
+        if !tokens.isEmpty {
+            auth["tokens"] = tokens
+        }
+        auth["last_refresh"] = ISO8601DateFormatter().string(from: Date())
+
+        guard JSONSerialization.isValidJSONObject(auth),
+              let data = try? JSONSerialization.data(withJSONObject: auth, options: [.prettyPrinted, .sortedKeys]) else {
+            return
+        }
+        try? data.write(to: state.path, options: .atomic)
     }
 
     private func readClaudeToken() -> String? {
@@ -958,6 +1179,31 @@ struct LiveUsageDataSource {
         return nil
     }
 
+    private func decodeJWTPayload(_ token: String) -> [String: Any]? {
+        let parts = token.split(separator: ".")
+        guard parts.count >= 2 else { return nil }
+        var base64 = String(parts[1])
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        let padding = (4 - base64.count % 4) % 4
+        if padding > 0 {
+            base64 += String(repeating: "=", count: padding)
+        }
+        guard let data = Data(base64Encoded: base64),
+              let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        return payload
+    }
+
+    private func jwtExpiry(_ token: String) -> Date? {
+        guard let payload = decodeJWTPayload(token),
+              let exp = doubleValue(payload["exp"]) else {
+            return nil
+        }
+        return Date(timeIntervalSince1970: exp)
+    }
+
     private func readAntigravityCockpitAccount() -> [String: Any]? {
         let path = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".antigravity_cockpit/credentials.json")
         guard let data = try? Data(contentsOf: path),
@@ -1109,6 +1355,11 @@ private struct CodexRateWindow: Decodable {
     let resets_at: Int?
 }
 
+private struct CodexAuthState {
+    let path: URL
+    let auth: [String: Any]
+}
+
 private struct CodexWindowSummary {
     let usedPercent: Double
     let resetAt: Date?
@@ -1119,5 +1370,3 @@ private struct GeminiQuotaBucket {
     let remainingFraction: Double
     let resetAt: Date?
 }
-
-
