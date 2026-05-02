@@ -294,8 +294,8 @@ private struct ServiceCard: View {
                     limitRows
                 }
             } else {
-                LabelRow(title: "Session", value: limitValue(percent: service.sessionUsagePercent, resetAt: service.sessionResetAt))
-                LabelRow(title: "Weekly", value: limitValue(percent: service.weeklyUsagePercent, resetAt: service.weeklyResetAt))
+                LabelRow(title: "Session", value: limitValue(percent: service.sessionRemainingPercent, resetAt: service.sessionResetAt))
+                LabelRow(title: "Weekly", value: limitValue(percent: service.weeklyRemainingPercent, resetAt: service.weeklyResetAt))
             }
         }
         .padding(.horizontal, 12)
@@ -317,14 +317,14 @@ private struct ServiceCard: View {
     @ViewBuilder
     private var limitRows: some View {
         if service.name == "Claude" || service.name == "Codex" {
-            LimitMetricRow(title: "Session", percent: service.sessionUsagePercent, resetAt: service.sessionResetAt, now: now)
-            LimitMetricRow(title: "Weekly", percent: service.weeklyUsagePercent, resetAt: service.weeklyResetAt, now: now)
+            LimitMetricRow(title: "Session", percent: service.sessionRemainingPercent, resetAt: service.sessionResetAt, now: now)
+            LimitMetricRow(title: "Weekly", percent: service.weeklyRemainingPercent, resetAt: service.weeklyResetAt, now: now)
         }
 
         ForEach(service.models) { model in
             LimitMetricRow(
                 title: model.name,
-                percent: model.valueText == nil ? model.usagePercent : nil,
+                percent: model.valueText == nil ? model.remainingPercent : nil,
                 resetAt: model.resetAt,
                 valueText: model.valueText,
                 now: now
@@ -342,9 +342,9 @@ private struct ServiceCard: View {
 
         switch (clampedPercent, resetText) {
         case let (percent?, reset?):
-            return "%\(percent) (\(reset))"
+            return "\(percent)% left (\(reset))"
         case let (percent?, nil):
-            return "%\(percent)"
+            return "\(percent)% left"
         case let (nil, reset?):
             return reset
         case (nil, nil):
@@ -398,7 +398,7 @@ private struct LimitMetricRow: View {
         }
 
         if let percent {
-            return "%\(max(0, min(100, percent)))"
+            return "\(max(0, min(100, percent)))% left"
         }
 
         return "n/a"
