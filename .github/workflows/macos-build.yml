@@ -1,0 +1,11 @@
+name: macOS Build
+on:
+  pull_request:
+  workflow_dispatch:
+jobs:
+  build-release-smoke:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: swift --version
+      - run: swift build -c release
