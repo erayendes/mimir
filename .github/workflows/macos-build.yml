@@ -1,11 +1,36 @@
 name: macOS Build
+
 on:
   pull_request:
   workflow_dispatch:
+
 jobs:
   build-release-smoke:
     runs-on: macos-latest
+    timeout-minutes: 20
+
     steps:
-      - uses: actions/checkout@v4
-      - run: swift --version
-      - run: swift build -c release
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Swift Version
+        run: swift --version
+
+      - name: Release Build
+        run: swift build -c release
+
+      - name: Build app bundle
+        run: ./script/build_and_run.sh run
+
+      - name: Create DMG
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          hdiutil create -volname "Mimir" -srcfolder "dist/Mimir.app" -ov -format UDZO "dist/Mimir.dmg"
+          ls -lh dist/Mimir.dmg
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Mimir-dmg
+          path: dist/Mimir.dmg
