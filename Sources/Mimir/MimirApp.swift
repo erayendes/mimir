@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import Sentry
 import SwiftUI
 import UserNotifications
 
@@ -24,9 +25,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var globalEventMonitor: Any?
     private var cancellables: Set<AnyCancellable> = []
     private var lowQuotaNotified: Set<String> = []
+    private var cachedIconNormal: NSImage?
+    private var cachedIconLow: NSImage?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        SentrySDK.start { options in
+            options.dsn = "https://66d3b6b50b79ba45dc89e86329579302@o4511381595291648.ingest.us.sentry.io/4511537599086592"
+            options.debug = true
+            options.sendDefaultPii = true
+            options.tracesSampleRate = 1.0
+        }
+
         NSApp.setActivationPolicy(.accessory)
+
+        if let url = Bundle.main.url(forResource: "AppIcon", withExtension: "png"),
+           let source = NSImage(contentsOf: url) {
+            cachedIconNormal = buildStatusIcon(source: source, isLow: false)
+            cachedIconLow    = buildStatusIcon(source: source, isLow: true)
+        }
 
         UNUserNotificationCenter.current().getNotificationSettings { settings in
             if settings.authorizationStatus == .notDetermined {
@@ -47,11 +63,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         item.button?.action = #selector(togglePopover(_:))
         statusItem = item
 
+        SentrySDK.startProfiler()
         store.refresh()
+        SentrySDK.stopProfiler()
+
         refreshStatusTitle()
         store.$services
             .receive(on: RunLoop.main)
-            .sink { [weak self] _ in
+            .sink { [weak self] services in
+                let crumb = Breadcrumb()
+                crumb.category = "services.refresh"
+                crumb.message = services
+                    .map { "\($0.name): \($0.isAvailable ? "ok" : "unavailable")" }
+                    .joined(separator: ", ")
+                crumb.level = services.contains(where: { !$0.isAvailable }) ? .warning : .info
+                SentrySDK.addBreadcrumb(crumb)
                 self?.refreshStatusTitle()
             }
             .store(in: &cancellables)
@@ -126,39 +152,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func refreshStatusTitle() {
-        let iconSize = NSSize(width: 24, height: 24)
-        let image: NSImage
-        if let url = Bundle.main.url(forResource: "AppIcon", withExtension: "png"),
-           let source = NSImage(contentsOf: url) {
-            let canvas = NSImage(size: iconSize)
-            canvas.lockFocus()
-            NSGraphicsContext.current?.imageInterpolation = .high
-            let clip = NSBezierPath(ovalIn: NSRect(origin: .zero, size: iconSize))
-            clip.addClip()
-            source.draw(in: NSRect(origin: .zero, size: iconSize),
-                        from: NSRect(origin: .zero, size: source.size),
-                        operation: .sourceOver, fraction: isQuotaLow ? 0.5 : 1.0)
-            if isQuotaLow {
-                NSColor.systemRed.withAlphaComponent(0.45).setFill()
-                NSBezierPath(ovalIn: NSRect(origin: .zero, size: iconSize)).fill()
-            }
-            canvas.unlockFocus()
-            image = canvas
+        let isLow = isQuotaLow
+        if let icon = isLow ? cachedIconLow : cachedIconNormal {
+            statusItem?.button?.image = icon
         } else {
-            let canvas = NSImage(size: iconSize, flipped: false) { rect in
-                (self.isQuotaLow ? NSColor.systemRed : NSColor.labelColor).setFill()
-                NSBezierPath(ovalIn: rect.insetBy(dx: 1, dy: 1)).fill()
+            let size = NSSize(width: 18, height: 18)
+            let fallback = NSImage(size: size, flipped: false) { [isLow] rect in
+                (isLow ? NSColor.systemRed : NSColor.labelColor).setFill()
+                NSBezierPath(ovalIn: rect.insetBy(dx: 2, dy: 2)).fill()
                 return true
             }
-            image = canvas
+            fallback.isTemplate = false
+            statusItem?.button?.image = fallback
         }
-        image.isTemplate = false
-        statusItem?.button?.image = image
+        statusItem?.button?.contentTintColor = nil
         statusItem?.button?.title = ""
         statusItem?.button?.imagePosition = .imageOnly
-        statusItem?.button?.toolTip = store.services.isEmpty ? "Loading..." : store.services.map(\.name).joined(separator: " | ")
-
+        statusItem?.button?.toolTip = store.services.isEmpty
+            ? "Loading..."
+            : store.services.map(\.name).joined(separator: " | ")
         checkNotifications()
+    }
+
+    private func buildStatusIcon(source: NSImage, isLow: Bool) -> NSImage {
+        let iconSize = NSSize(width: 22, height: 22)
+        let img = NSImage(size: iconSize, flipped: false) { rect in
+            NSGraphicsContext.current?.imageInterpolation = .high
+            source.draw(in: rect, from: NSRect(origin: .zero, size: source.size),
+                        operation: .sourceOver, fraction: 1.0)
+            if isLow {
+                let d: CGFloat = 7
+                NSColor.systemRed.setFill()
+                NSBezierPath(ovalIn: NSRect(x: rect.maxX - d, y: rect.minY, width: d, height: d)).fill()
+            }
+            return true
+        }
+        img.isTemplate = false
+        return img
     }
 
     private var isQuotaLow: Bool {
