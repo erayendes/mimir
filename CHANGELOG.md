@@ -25,7 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Icon was hard to see on dark menu bars — replaced with new high-contrast design
 - `contentTintColor` now explicitly reset on each refresh to prevent stale tint state
 
-### [1.1.0] - 2026-05-02
+### [0.2] - 2026-05-02
 
 #### Added
 - Live Codex usage fetching from the ChatGPT usage API using local Codex OAuth auth, with automatic token refresh
@@ -35,7 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Standardized quota display across all providers to show remaining percentage (`NN% left`)
 - Reset countdown is now shown inline in the same row as the percentage
 
-### [1.0.0] - 2026-04-01
+### [0.1] - 2026-04-01
 
 #### Added
 - Menu bar app with popover for Claude, Codex, Gemini, and Antigravity
@@ -48,9 +48,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Build and install script (`script/build_and_run.sh`)
 - Automated DMG release pipeline via GitHub Actions
 
-[Unreleased]: https://github.com/erayendes/mimir/compare/v1.1.0...HEAD
-[1.1.0]: https://github.com/erayendes/mimir/compare/v1.0.0...v1.1.0
-[1.0.0]: https://github.com/erayendes/mimir/releases/tag/v1.0.0
+[Unreleased]: https://github.com/erayendes/mimir/compare/v0.2...HEAD
+[0.2]: https://github.com/erayendes/mimir/compare/v0.1...v0.2
+[0.1]: https://github.com/erayendes/mimir/releases/tag/v0.1
 
 ---
 
@@ -77,7 +77,7 @@ sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) k
 - Koyu menü çubuklarında ikon zor seçiliyordu — yüksek kontrastlı yeni tasarımla giderildi
 - `contentTintColor` her yenilemede artık açıkça sıfırlanıyor, eski renk kirliliği engellendi
 
-### [1.1.0] - 2026-05-02
+### [0.2] - 2026-05-02
 
 #### Eklendi
 - Yerel Codex OAuth kimlik doğrulaması kullanılarak ChatGPT kullanım API'sinden canlı Codex kullanım verisi çekme ve otomatik token yenileme
@@ -87,7 +87,7 @@ sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) k
 - Tüm sağlayıcılarda kota gösterimi kalan yüzde olarak standartlaştırıldı (`%NN kaldı`)
 - Yenileme geri sayımı artık yüzdeyle aynı satırda gösteriliyor
 
-### [1.0.0] - 2026-04-01
+### [0.1] - 2026-04-01
 
 #### Eklendi
 - Claude, Codex, Gemini ve Antigravity için popover'lı menü çubuğu uygulaması
@@ -100,6 +100,6 @@ sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) k
 - Derleme ve kurulum scripti (`script/build_and_run.sh`)
 - GitHub Actions üzerinden otomatik DMG release pipeline'ı
 
-[Yayımlanmadı]: https://github.com/erayendes/mimir/compare/v1.1.0...HEAD
-[1.1.0]: https://github.com/erayendes/mimir/compare/v1.0.0...v1.1.0
-[1.0.0]: https://github.com/erayendes/mimir/releases/tag/v1.0.0
+[Yayımlanmadı]: https://github.com/erayendes/mimir/compare/v0.2...HEAD
+[0.2]: https://github.com/erayendes/mimir/compare/v0.1...v0.2
+[0.1]: https://github.com/erayendes/mimir/releases/tag/v0.1
