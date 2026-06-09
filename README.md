@@ -50,6 +50,18 @@ cd mimir
 
 Mimir never sends any personal data or API keys to remote servers. All data is fetched locally by reading tool log files (`~/.codex`, `~/.claude`, etc.) and macOS Keychain entries created by the respective apps.
 
+#### Roadmap
+
+**Services:** Gemini, ChatGPT, Grok
+
+**Credit tracking:** Claude, Codex, Antigravity
+
+**Installation:** Homebrew (`brew install --cask mimir`)
+
+**App:** Limit notifications · Per-service toggle
+
+Have a suggestion? [Open an issue](https://github.com/erayendes/mimir/issues).
+
 #### Contributing
 
 Bug reports and pull requests are welcome. For major changes, please open an issue first.
@@ -103,6 +115,18 @@ cd mimir
 #### Gizlilik ve Güvenlik
 
 Mimir, kişisel verilerinizi veya API anahtarlarınızı hiçbir zaman uzak sunuculara göndermez. Tüm veriler yerel olarak araç log dosyaları (`~/.codex`, `~/.claude` vb.) ve ilgili uygulamaların oluşturduğu macOS Keychain kayıtları okunarak elde edilir.
+
+#### Yol Haritası
+
+**Servisler:** Gemini, ChatGPT, Grok
+
+**Kredi takibi:** Claude, Codex, Antigravity
+
+**Kurulum:** Homebrew (`brew install --cask mimir`)
+
+**Uygulama:** Limit bildirimleri · Servis bazlı açma/kapama
+
+Bir öneriniz mi var? [Issue açın](https://github.com/erayendes/mimir/issues).
 
 #### Katkıda Bulunma
 
