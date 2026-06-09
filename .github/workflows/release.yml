@@ -13,7 +13,9 @@ jobs:
 
       - name: Extract version
         id: version
-        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+        env:
+          REF: ${{ github.ref_name }}
+        run: echo "VERSION=${REF#v}" >> $GITHUB_OUTPUT
 
       - name: Build release
         env:
