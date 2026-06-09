@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import SwiftUI
+import UserNotifications
 
 @main
 struct MimirApp: App {
@@ -22,9 +23,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var localEventMonitor: Any?
     private var globalEventMonitor: Any?
     private var cancellables: Set<AnyCancellable> = []
+    private var lowQuotaNotified: Set<String> = []
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            if settings.authorizationStatus == .notDetermined {
+                UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+            }
+        }
 
         popover.behavior = .transient
         popover.contentSize = NSSize(width: 360, height: 500)
@@ -66,6 +74,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if popover.isShown {
             closePopover(sender)
         } else {
+            store.refresh()
+            refreshStatusTitle()
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             NSApp.activate(ignoringOtherApps: true)
             startPopoverDismissMonitors()
@@ -117,17 +127,63 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func refreshStatusTitle() {
         statusItem?.button?.title = ""
-        
-        // SF Symbol ikonunu kullan (m.circle.fill)
+
         let config = NSImage.SymbolConfiguration(pointSize: 15, weight: .semibold)
         if let image = NSImage(systemSymbolName: "m.circle.fill", accessibilityDescription: "Mimir")?
             .withSymbolConfiguration(config) {
             image.isTemplate = true
             statusItem?.button?.image = image
         }
-        
+
         statusItem?.button?.imagePosition = .imageOnly
         statusItem?.button?.toolTip = store.services.isEmpty ? "Loading..." : store.services.map(\.name).joined(separator: " | ")
+
+        let isLow = store.services.filter(\.isAvailable).contains { svc in
+            let percents: [Int?] = [svc.sessionRemainingPercent, svc.weeklyRemainingPercent]
+                + svc.models.map { Optional($0.remainingPercent) }
+            return percents.compactMap { $0 }.contains { $0 < 20 }
+        }
+        statusItem?.button?.contentTintColor = isLow ? .systemRed : .labelColor
+
+        checkNotifications()
+    }
+
+    private func checkNotifications() {
+        for service in store.services {
+            let checks: [(key: String, label: String, percent: Int?)] =
+                [("\(service.name)-session", "5h Session", service.sessionRemainingPercent),
+                 ("\(service.name)-weekly", "Weekly", service.weeklyRemainingPercent)]
+                + service.models.map { ("\(service.name)-\($0.name)", $0.name, Optional($0.remainingPercent)) }
+
+            for check in checks {
+                guard let percent = check.percent else { continue }
+
+                if percent < 20, !lowQuotaNotified.contains(check.key) {
+                    sendNotification(
+                        identifier: check.key,
+                        title: "⚠️ \(service.name) \(check.label)",
+                        body: "\(percent)% left"
+                    )
+                    lowQuotaNotified.insert(check.key)
+                } else if percent >= 80, lowQuotaNotified.contains(check.key) {
+                    sendNotification(
+                        identifier: "\(check.key)-refilled",
+                        title: "✅ \(service.name) \(check.label)",
+                        body: "Refilled — \(percent)% available"
+                    )
+                    lowQuotaNotified.remove(check.key)
+                }
+            }
+        }
+    }
+
+    private func sendNotification(identifier: String, title: String, body: String) {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        let req = UNNotificationRequest(identifier: identifier, content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(req)
     }
 }
 
@@ -148,8 +204,8 @@ private struct PopoverView: View {
                             ServiceCard(service: service, now: context.date)
                         }
                     }
-                    .padding(.top, PopoverMetrics.edgeInset * 1.1)
-                    .padding(.bottom, PopoverMetrics.edgeInset)
+                    .padding(.top, PopoverMetrics.edgeInset + 10)
+                    .padding(.bottom, PopoverMetrics.edgeInset + 10)
                     .padding(.horizontal, PopoverMetrics.edgeInset)
                 }
 
@@ -249,16 +305,16 @@ private struct PopoverBackdrop: View {
                 )
         }
         .overlay {
-                LinearGradient(
-                    colors: [
-                        Color.white.opacity(0.06),
-                        Color.clear,
-                        Color.black.opacity(0.10)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .blendMode(.softLight)
+            LinearGradient(
+                colors: [
+                    Color.white.opacity(0.06),
+                    Color.clear,
+                    Color.black.opacity(0.10)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .blendMode(.softLight)
         }
         .ignoresSafeArea()
     }
@@ -289,13 +345,8 @@ private struct ServiceCard: View {
                 Spacer(minLength: 0)
             }
 
-            if usesLimitRows {
-                VStack(alignment: .leading, spacing: 10) {
-                    limitRows
-                }
-            } else {
-                LabelRow(title: "Session", value: limitValue(percent: service.sessionRemainingPercent, resetAt: service.sessionResetAt))
-                LabelRow(title: "Weekly", value: limitValue(percent: service.weeklyRemainingPercent, resetAt: service.weeklyResetAt))
+            VStack(alignment: .leading, spacing: 10) {
+                limitRows
             }
         }
         .padding(.horizontal, 12)
@@ -316,9 +367,13 @@ private struct ServiceCard: View {
 
     @ViewBuilder
     private var limitRows: some View {
-        if service.name == "Claude" || service.name == "Codex" {
-            LimitMetricRow(title: "Session", percent: service.sessionRemainingPercent, resetAt: service.sessionResetAt, now: now)
+        if hasServiceQuotas {
+            LimitMetricRow(title: "5h Session", percent: service.sessionRemainingPercent, resetAt: service.sessionResetAt, now: now)
             LimitMetricRow(title: "Weekly", percent: service.weeklyRemainingPercent, resetAt: service.weeklyResetAt, now: now)
+
+            if !service.models.isEmpty {
+                Divider().opacity(0.4)
+            }
         }
 
         ForEach(service.models) { model in
@@ -332,24 +387,8 @@ private struct ServiceCard: View {
         }
     }
 
-    private var usesLimitRows: Bool {
-        true
-    }
-
-    private func limitValue(percent: Int?, resetAt: Date?) -> String {
-        let clampedPercent = percent.map { max(0, min(100, $0)) }
-        let resetText = resetAt.map { TimeFormatter.duration(from: $0.timeIntervalSince(now)) }
-
-        switch (clampedPercent, resetText) {
-        case let (percent?, reset?):
-            return "\(percent)% left (\(reset))"
-        case let (percent?, nil):
-            return "\(percent)% left"
-        case let (nil, reset?):
-            return reset
-        case (nil, nil):
-            return "n/a"
-        }
+    private var hasServiceQuotas: Bool {
+        service.name == "Claude" || service.name == "Codex"
     }
 }
 
@@ -360,28 +399,38 @@ private struct LimitMetricRow: View {
     var valueText: String?
     let now: Date
 
+    private static let clockFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm"
+        return f
+    }()
+
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text(title)
-                    .font(.system(size: 14, weight: .medium, design: .default))
-                    .foregroundStyle(Color.primary.opacity(0.80))
-                    .lineLimit(1)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Color.primary.opacity(0.78))
 
-                Spacer(minLength: 8)
+                if !percentLabel.isEmpty {
+                    Text(percentLabel)
+                        .font(.system(size: 12, weight: .regular))
+                        .foregroundStyle(Color.secondary.opacity(0.62))
+                }
 
-                HStack(alignment: .firstTextBaseline, spacing: 5) {
-                    Text(primaryValue)
-                        .font(.system(size: 14, weight: .medium, design: .default))
-                        .monospacedDigit()
+                Spacer(minLength: 6)
+
+                if let clock = clockStr, let rel = relativeStr {
+                    Text(clock)
+                        .font(.system(size: 13, weight: .medium).monospacedDigit())
                         .foregroundStyle(valueColor)
-
-                    if let resetValue {
-                        Text(resetValue)
-                            .font(.system(size: 12, weight: .regular, design: .default))
-                            .monospacedDigit()
-                            .foregroundStyle(Color.secondary.opacity(0.66))
-                    }
+                    Text("(\(rel))")
+                        .font(.system(size: 11, weight: .regular).monospacedDigit())
+                        .foregroundStyle(Color.secondary.opacity(0.58))
+                } else if let valueText {
+                    Text(valueText)
+                        .font(.system(size: 13, weight: .medium).monospacedDigit())
+                        .foregroundStyle(Color.primary.opacity(0.80))
                 }
             }
 
@@ -392,42 +441,32 @@ private struct LimitMetricRow: View {
         .padding(.vertical, 1)
     }
 
-    private var primaryValue: String {
-        if let valueText {
-            return valueText
-        }
-
-        if let percent {
-            return "\(max(0, min(100, percent)))% left"
-        }
-
-        return "n/a"
+    private var percentLabel: String {
+        guard let percent else { return "" }
+        return "(\(max(0, min(100, percent)))% left)"
     }
 
-    private var resetValue: String? {
-        resetAt.map { TimeFormatter.duration(from: $0.timeIntervalSince(now)) }
+    private var clockStr: String? {
+        guard let resetAt, resetAt.timeIntervalSince(now) > 0 else { return nil }
+        return Self.clockFormatter.string(from: resetAt)
+    }
+
+    private var relativeStr: String? {
+        guard let resetAt, resetAt.timeIntervalSince(now) > 0 else { return nil }
+        return TimeFormatter.duration(from: resetAt.timeIntervalSince(now))
     }
 
     private var valueColor: Color {
-        guard percent != nil else {
-            return Color.primary.opacity(0.82)
-        }
-
+        guard percent != nil else { return Color.primary.opacity(0.82) }
         return metricTint.opacity(0.90)
     }
 
     private var metricTint: Color {
-        guard let percent else {
-            return Color.primary.opacity(0.58)
-        }
-
+        guard let percent else { return Color.primary.opacity(0.58) }
         switch max(0, min(100, percent)) {
-        case 0...25:
-            return Color(nsColor: .systemRed)
-        case 26...60:
-            return Color(nsColor: .systemYellow)
-        default:
-            return Color(nsColor: .systemGreen)
+        case 0...25:  return Color(nsColor: .systemRed)
+        case 26...60: return Color(nsColor: .systemYellow)
+        default:      return Color(nsColor: .systemGreen)
         }
     }
 }
@@ -473,21 +512,5 @@ private struct BrandIconView: View {
                 .foregroundStyle(.primary.opacity(0.5))
                 .accessibilityHidden(true)
         }
-    }
-}
-
-private struct LabelRow: View {
-    let title: String
-    let value: String
-
-    var body: some View {
-        HStack {
-            Text(title)
-                .foregroundStyle(.secondary)
-            Spacer()
-            Text(value)
-                .monospacedDigit()
-        }
-        .font(.system(size: 12))
     }
 }

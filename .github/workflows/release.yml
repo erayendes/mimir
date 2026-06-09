@@ -1,0 +1,42 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version
+        id: version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+      - name: Build release
+        env:
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        run: ./script/release.sh "$VERSION"
+
+      - name: Compute SHA256
+        id: sha
+        env:
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
+          ZIP="dist/Mimir-${VERSION}.zip"
+          echo "SHA256=$(shasum -a 256 "$ZIP" | awk '{print $1}')" >> $GITHUB_OUTPUT
+          echo "ZIP=$ZIP" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.VERSION }}
+          ZIP: ${{ steps.sha.outputs.ZIP }}
+          SHA256: ${{ steps.sha.outputs.SHA256 }}
+        run: |
+          gh release create "v${VERSION}" \
+            --title "Mimir v${VERSION}" \
+            --notes "**SHA256:** \`${SHA256}\`" \
+            "$ZIP"
