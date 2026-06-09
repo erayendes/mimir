@@ -853,7 +853,8 @@ struct LiveUsageDataSource {
     }
 
     private func extractFlag(_ key: String, from command: String) -> String? {
-        let pattern = "\(NSRegularExpression.escapedPattern(for: key))\\s+([^\\s]+)"
+        // Handles both --key value and --key=value styles
+        let pattern = "\(NSRegularExpression.escapedPattern(for: key))(?:[\\s=]+)([^\\s]+)"
         guard let regex = try? NSRegularExpression(pattern: pattern) else { return nil }
         let ns = command as NSString
         let range = NSRange(location: 0, length: ns.length)

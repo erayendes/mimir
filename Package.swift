@@ -10,9 +10,15 @@ let package = Package(
     products: [
         .executable(name: "Mimir", targets: ["Mimir"])
     ],
+    dependencies: [
+        .package(url: "https://github.com/getsentry/sentry-cocoa", from: "9.16.1"),
+    ],
     targets: [
         .executableTarget(
             name: "Mimir",
+            dependencies: [
+                .product(name: "Sentry", package: "sentry-cocoa")
+            ],
             resources: [
                 .copy("Resources")
             ]
