@@ -42,7 +42,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         )
 
-        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.button?.target = self
         item.button?.action = #selector(togglePopover(_:))
         statusItem = item
@@ -126,26 +126,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func refreshStatusTitle() {
-        statusItem?.button?.title = ""
-
-        let config = NSImage.SymbolConfiguration(pointSize: 15, weight: .semibold)
-        if let image = NSImage(systemSymbolName: "m.circle.fill", accessibilityDescription: "Mimir")?
-            .withSymbolConfiguration(config) {
-            image.isTemplate = true
-            statusItem?.button?.image = image
+        let iconSize = NSSize(width: 24, height: 24)
+        let image: NSImage
+        if let url = Bundle.main.url(forResource: "AppIcon", withExtension: "png"),
+           let source = NSImage(contentsOf: url) {
+            let canvas = NSImage(size: iconSize)
+            canvas.lockFocus()
+            NSGraphicsContext.current?.imageInterpolation = .high
+            let clip = NSBezierPath(ovalIn: NSRect(origin: .zero, size: iconSize))
+            clip.addClip()
+            source.draw(in: NSRect(origin: .zero, size: iconSize),
+                        from: NSRect(origin: .zero, size: source.size),
+                        operation: .sourceOver, fraction: isQuotaLow ? 0.5 : 1.0)
+            if isQuotaLow {
+                NSColor.systemRed.withAlphaComponent(0.45).setFill()
+                NSBezierPath(ovalIn: NSRect(origin: .zero, size: iconSize)).fill()
+            }
+            canvas.unlockFocus()
+            image = canvas
+        } else {
+            let canvas = NSImage(size: iconSize, flipped: false) { rect in
+                (self.isQuotaLow ? NSColor.systemRed : NSColor.labelColor).setFill()
+                NSBezierPath(ovalIn: rect.insetBy(dx: 1, dy: 1)).fill()
+                return true
+            }
+            image = canvas
         }
-
+        image.isTemplate = false
+        statusItem?.button?.image = image
+        statusItem?.button?.title = ""
         statusItem?.button?.imagePosition = .imageOnly
         statusItem?.button?.toolTip = store.services.isEmpty ? "Loading..." : store.services.map(\.name).joined(separator: " | ")
 
-        let isLow = store.services.filter(\.isAvailable).contains { svc in
+        checkNotifications()
+    }
+
+    private var isQuotaLow: Bool {
+        store.services.filter(\.isAvailable).contains { svc in
             let percents: [Int?] = [svc.sessionRemainingPercent, svc.weeklyRemainingPercent]
                 + svc.models.map { Optional($0.remainingPercent) }
             return percents.compactMap { $0 }.contains { $0 < 20 }
         }
-        statusItem?.button?.contentTintColor = isLow ? .systemRed : .labelColor
-
-        checkNotifications()
     }
 
     private func checkNotifications() {
