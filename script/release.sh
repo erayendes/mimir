@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Kullanım: ./script/release.sh 1.0.0
+# Kullanım: ./script/release.sh 1.0
 set -euo pipefail
 
 VERSION="${1:-}"
 if [ -z "$VERSION" ]; then
-  echo "Kullanım: $0 <versiyon>  (örn. 1.0.0)" >&2
+  echo "Kullanım: $0 <versiyon>  (örn. 1.0)" >&2
   exit 1
 fi
 
