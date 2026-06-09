@@ -342,12 +342,13 @@ struct LiveUsageDataSource {
             return nil
         }
         let command = String(row)
-        guard let pid = command.split(separator: " ").first.map(String.init),
+        guard let pidStr = command.split(separator: " ").first.map(String.init),
+              let pidInt = Int(pidStr),
               let csrf = extractFlag("--csrf_token", from: command) else {
             return nil
         }
 
-        let ports = runShell("lsof -nP -iTCP -sTCP:LISTEN -p \(pid) | awk '{print $9}' | sed -E 's/.*:([0-9]+)->?.*/\\1/' | sed -E 's/.*:([0-9]+)$/\\1/' | sort -u")
+        let ports = runShell("lsof -nP -iTCP -sTCP:LISTEN -p \(pidInt) | awk '{print $9}' | sed -E 's/.*:([0-9]+)->?.*/\\1/' | sed -E 's/.*:([0-9]+)$/\\1/' | sort -u")
             .split(separator: "\n")
             .compactMap { Int($0) }
         guard !ports.isEmpty else {
@@ -357,7 +358,14 @@ struct LiveUsageDataSource {
         let body = "{\"metadata\":{\"ideName\":\"antigravity\",\"extensionName\":\"antigravity\",\"locale\":\"en\",\"ideVersion\":\"unknown\"}}"
         var payload: [String: Any]?
         for p in ports {
-            let out = runShell("curl -ks --max-time 2 -H 'X-Codeium-Csrf-Token: \(csrf)' -H 'Connect-Protocol-Version: 1' -H 'Content-Type: application/json' --data '\(body)' https://127.0.0.1:\(p)/exa.language_server_pb.LanguageServerService/GetUserStatus")
+            let out = runCommand("/usr/bin/curl", [
+                "-ks", "--max-time", "2",
+                "-H", "X-Codeium-Csrf-Token: \(csrf)",
+                "-H", "Connect-Protocol-Version: 1",
+                "-H", "Content-Type: application/json",
+                "--data", body,
+                "https://127.0.0.1:\(p)/exa.language_server_pb.LanguageServerService/GetUserStatus"
+            ])
             if let data = out.data(using: .utf8),
                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                json["userStatus"] != nil {
