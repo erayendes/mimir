@@ -31,9 +31,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         SentrySDK.start { options in
             options.dsn = "https://66d3b6b50b79ba45dc89e86329579302@o4511381595291648.ingest.us.sentry.io/4511537599086592"
+            #if DEBUG
             options.debug = true
-            options.sendDefaultPii = true
-            options.tracesSampleRate = 1.0
+            #else
+            options.debug = false
+            #endif
+            options.sendDefaultPii = false
+            options.tracesSampleRate = 0.1
         }
 
         NSApp.setActivationPolicy(.accessory)

@@ -288,8 +288,8 @@ struct LiveUsageDataSource {
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         req.setValue("antigravity/unknown darwin/arm64", forHTTPHeaderField: "User-Agent")
-        let body = projectID.map { "{\"project\":\"\($0)\"}" } ?? "{}"
-        req.httpBody = body.data(using: .utf8)
+        let bodyObj: [String: Any] = projectID.map { ["project": $0] } ?? [:]
+        req.httpBody = try? JSONSerialization.data(withJSONObject: bodyObj)
 
         do {
             let (data, response) = try await URLSession.shared.data(for: req)
@@ -696,6 +696,7 @@ struct LiveUsageDataSource {
             return
         }
         try? data.write(to: state.path, options: .atomic)
+        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: state.path.path)
     }
 
     private func readClaudeToken() -> String? {
@@ -838,7 +839,9 @@ struct LiveUsageDataSource {
     }
 
     private func urlEncode(_ value: String) -> String {
-        value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? value
+        var allowed = CharacterSet.urlQueryAllowed
+        allowed.remove(charactersIn: "&=+#")
+        return value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value
     }
 
     private func parseISO8601(_ raw: String) -> Date? {
