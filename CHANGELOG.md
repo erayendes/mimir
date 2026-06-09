@@ -11,8 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+### [1.0] - 2026-06-10
+
 #### Added
 - Sentry crash and error monitoring (SDK 9.16.1) with breadcrumbs on every service refresh
+- Automated `.zip` release pipeline via GitHub Actions on `v*` tag push
 
 #### Changed
 - Menu bar icon updated to new Mimir/Viking design with RGBA transparent background
@@ -20,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Low-quota indicator changed from red overlay to a red dot badge on the icon corner
 - `--csrf_token` flag parsing now supports both space-separated and `=`-style formats
 - Status item switched from `variableLength` to `squareLength` to prevent invisible zero-width button on macOS Sequoia
+- Antigravity OAuth credentials now read from local credentials file instead of being hardcoded
 
 #### Fixed
 - Menu bar icon failed to appear on macOS Sequoia when SF Symbol loading returned nil silently — replaced with `AppIcon.png` loaded via `Bundle.main`
@@ -30,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Security
 - Fixed command injection in Antigravity language server integration: `csrf_token` read from `ps` output was interpolated directly into a shell string passed to `/bin/zsh -lc`, allowing a malicious process to execute arbitrary commands; replaced with direct `Process` + argument array call to `curl`, bypassing the shell entirely
 - PID parsed from `ps` output is now validated as `Int` before use in shell commands
+- Removed hardcoded Google OAuth client credentials from source code
 
 ### [0.2] - 2026-05-02
 
@@ -54,7 +59,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Build and install script (`script/build_and_run.sh`)
 - Automated DMG release pipeline via GitHub Actions
 
-[Unreleased]: https://github.com/erayendes/mimir/compare/v0.2...HEAD
+[Unreleased]: https://github.com/erayendes/mimir/compare/v1.0...HEAD
+[1.0]: https://github.com/erayendes/mimir/compare/v0.2...v1.0
 [0.2]: https://github.com/erayendes/mimir/compare/v0.1...v0.2
 [0.1]: https://github.com/erayendes/mimir/releases/tag/v0.1
 
@@ -69,8 +75,11 @@ sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) k
 
 ### [Yayımlanmadı]
 
+### [1.0] - 2026-06-10
+
 #### Eklendi
 - Sentry çökme ve hata izleme entegrasyonu (SDK 9.16.1); her servis yenilemesinde breadcrumb kaydı
+- `v*` tag push'uyla GitHub Actions üzerinden otomatik `.zip` release pipeline'ı
 
 #### Değişti
 - Menü çubuğu ikonu RGBA saydam arka planlı yeni Mimir/Viking tasarımıyla güncellendi
@@ -78,6 +87,7 @@ sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) k
 - Düşük-kota göstergesi kırmızı örtü yerine ikon köşesindeki kırmızı nokta rozetine dönüştürüldü
 - `--csrf_token` bayrak ayrıştırması artık hem boşluklu hem `=` biçimini destekliyor
 - macOS Sequoia'da sıfır genişlikli görünmez butonu önlemek için status item `variableLength` yerine `squareLength` olarak değiştirildi
+- Antigravity OAuth kimlik bilgileri artık kaynak kodda sabit değil, yerel credentials dosyasından okunuyor
 
 #### Düzeltildi
 - macOS Sequoia'da SF Symbol yüklemesi sessizce nil döndürdüğünde menü çubuğu ikonu görünmüyordu — `Bundle.main` üzerinden `AppIcon.png` yüklenerek giderildi
@@ -88,6 +98,7 @@ sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) k
 #### Güvenlik
 - Antigravity dil sunucusu entegrasyonundaki komut enjeksiyonu açığı giderildi: `ps` çıktısından okunan `csrf_token` doğrudan `/bin/zsh -lc` shell dizgisine ekleniyor ve keyfi komut çalıştırmaya izin veriyordu; `runShell` yerine argümanları dizi olarak geçen doğrudan `Process` + `curl` çağrısı kullanıldı, shell devreye girmiyor
 - `ps` çıktısından alınan PID, shell komutlarında kullanılmadan önce `Int` olarak doğrulanıyor
+- Kaynak koddan hardcoded Google OAuth client credentials kaldırıldı
 
 ### [0.2] - 2026-05-02
 
@@ -112,6 +123,7 @@ sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) k
 - Derleme ve kurulum scripti (`script/build_and_run.sh`)
 - GitHub Actions üzerinden otomatik DMG release pipeline'ı
 
-[Yayımlanmadı]: https://github.com/erayendes/mimir/compare/v0.2...HEAD
+[Yayımlanmadı]: https://github.com/erayendes/mimir/compare/v1.0...HEAD
+[1.0]: https://github.com/erayendes/mimir/compare/v0.2...v1.0
 [0.2]: https://github.com/erayendes/mimir/compare/v0.1...v0.2
 [0.1]: https://github.com/erayendes/mimir/releases/tag/v0.1
