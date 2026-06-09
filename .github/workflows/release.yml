@@ -22,14 +22,50 @@ jobs:
       - name: Build release
         env:
           VERSION: ${{ steps.version.outputs.VERSION }}
+          SKIP_ZIP: "true"
         run: ./script/release.sh "$VERSION"
 
-      - name: Compute SHA256
+      - name: Import signing certificate
+        env:
+          CERT_DATA: ${{ secrets.DEVELOPER_ID_CERT }}
+          CERT_PASSWORD: ${{ secrets.DEVELOPER_ID_CERT_PASSWORD }}
+        run: |
+          echo "$CERT_DATA" | base64 --decode > /tmp/cert.p12
+          security create-keychain -p "" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "" build.keychain
+          security import /tmp/cert.p12 -k build.keychain -P "$CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
+          rm /tmp/cert.p12
+
+      - name: Sign app
+        run: |
+          codesign --force --deep --sign "Developer ID Application: Eray Endes (926AC5V2UG)" \
+            --options runtime \
+            --timestamp \
+            dist/Mimir.app
+
+      - name: Notarize
+        env:
+          APPLE_ID: ${{ secrets.NOTARIZATION_APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.NOTARIZATION_PASSWORD }}
+        run: |
+          ditto -c -k --keepParent dist/Mimir.app /tmp/mimir_notarize.zip
+          xcrun notarytool submit /tmp/mimir_notarize.zip \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_PASSWORD" \
+            --team-id "926AC5V2UG" \
+            --wait
+          xcrun stapler staple dist/Mimir.app
+          rm /tmp/mimir_notarize.zip
+
+      - name: Package
         id: sha
         env:
           VERSION: ${{ steps.version.outputs.VERSION }}
         run: |
           ZIP="dist/Mimir-${VERSION}.zip"
+          cd dist && zip -qr "Mimir-${VERSION}.zip" Mimir.app && cd ..
           echo "SHA256=$(shasum -a 256 "$ZIP" | awk '{print $1}')" >> $GITHUB_OUTPUT
           echo "ZIP=$ZIP" >> $GITHUB_OUTPUT
 
@@ -40,7 +76,6 @@ jobs:
           ZIP: ${{ steps.sha.outputs.ZIP }}
           SHA256: ${{ steps.sha.outputs.SHA256 }}
         run: |
-          # CHANGELOG'dan ilgili version bloğunu çıkar (İngilizce bölüm)
           awk "/^### \[${VERSION}\]/{found=1; next} found && /^### \[/{exit} found{print}" CHANGELOG.md > release_notes.md
           echo "" >> release_notes.md
           echo "**SHA256:** \`${SHA256}\`" >> release_notes.md

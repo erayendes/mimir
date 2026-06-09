@@ -66,6 +66,13 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << PLIST
 </plist>
 PLIST
 
+echo "✓ dist/Mimir.app hazır"
+
+if [ "${SKIP_ZIP:-false}" = "true" ]; then
+  echo "  (zip atlandı — CI imzalama sonrası paketleyecek)"
+  exit 0
+fi
+
 echo "→ Zip oluşturuluyor: $ZIP_NAME"
 rm -f "$ZIP_PATH"
 cd "$DIST_DIR"
