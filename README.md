@@ -51,21 +51,21 @@ Mimir never sends any personal data or API keys to remote servers. All data is f
 #### Roadmap
 
 **🔌 New services**
-- [ ] Gemini — Pro and Flash quota tracking
-- [ ] ChatGPT — usage and subscription limits
-- [ ] Grok — usage tracking
+- [ ] **Gemini** — Pro and Flash quota tracking via Google Cloud Quota API
+- [ ] **ChatGPT** — usage and subscription limit tracking
+- [ ] **Grok** — usage tracking
 
 **💳 Credit tracking**
-- [ ] Claude — credit and billing usage
-- [ ] Codex — premium credit balance
-- [ ] Antigravity — credit usage per model
+- [ ] **Claude** — credit and billing usage
+- [ ] **Codex** — premium credit balance
+- [ ] **Antigravity** — credit usage per model
 
 **📦 Installation**
-- [ ] Homebrew — `brew install --cask mimir`
+- [ ] **Homebrew** — `brew install --cask mimir` support
 
 **🔔 App**
 - [ ] Notifications when a limit is close to being reached
-- [ ] Per-service enable/disable toggle
+- [ ] Per-service enable/disable toggle in preferences
 
 > [!TIP]
 > Have a suggestion? [Open an issue](https://github.com/erayendes/mimir/issues).
@@ -125,17 +125,17 @@ Mimir, kişisel verilerinizi veya API anahtarlarınızı hiçbir zaman uzak sunu
 #### Yol Haritası
 
 **🔌 Yeni servisler**
-- [ ] Gemini — Pro ve Flash kota takibi
-- [ ] ChatGPT — kullanım ve abonelik limitleri
-- [ ] Grok — kullanım takibi
+- [ ] **Gemini** — Google Cloud Quota API ile Pro ve Flash kota takibi
+- [ ] **ChatGPT** — kullanım ve abonelik limit takibi
+- [ ] **Grok** — kullanım takibi
 
 **💳 Kredi takibi**
-- [ ] Claude — kredi ve fatura kullanımı
-- [ ] Codex — premium kredi bakiyesi
-- [ ] Antigravity — model bazlı kredi kullanımı
+- [ ] **Claude** — kredi ve fatura kullanımı
+- [ ] **Codex** — premium kredi bakiyesi
+- [ ] **Antigravity** — model bazlı kredi kullanımı
 
 **📦 Kurulum**
-- [ ] Homebrew — `brew install --cask mimir`
+- [ ] **Homebrew** — `brew install --cask mimir` desteği
 
 **🔔 Uygulama**
 - [ ] Limit dolmak üzereyken bildirim
