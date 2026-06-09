@@ -30,8 +30,6 @@ Mimir is a lightweight macOS menu bar app that shows real-time usage limits and 
 | **Codex** | ChatGPT usage API + local JSONL fallback |
 | **Antigravity** | Local language server + Cockpit |
 
-More services coming — see the [Roadmap](ROADMAP.md).
-
 #### Installation
 
 **Requirements:** macOS 14.0 (Sonoma) or later · Swift 6.0+ (for building from source)
@@ -52,15 +50,25 @@ Mimir never sends any personal data or API keys to remote servers. All data is f
 
 #### Roadmap
 
-**Services:** Gemini, ChatGPT, Grok
+**🔌 New services**
+- [ ] Gemini — Pro and Flash quota tracking
+- [ ] ChatGPT — usage and subscription limits
+- [ ] Grok — usage tracking
 
-**Credit tracking:** Claude, Codex, Antigravity
+**💳 Credit tracking**
+- [ ] Claude — credit and billing usage
+- [ ] Codex — premium credit balance
+- [ ] Antigravity — credit usage per model
 
-**Installation:** Homebrew (`brew install --cask mimir`)
+**📦 Installation**
+- [ ] Homebrew — `brew install --cask mimir`
 
-**App:** Limit notifications · Per-service toggle
+**🔔 App**
+- [ ] Notifications when a limit is close to being reached
+- [ ] Per-service enable/disable toggle
 
-Have a suggestion? [Open an issue](https://github.com/erayendes/mimir/issues).
+> [!TIP]
+> Have a suggestion? [Open an issue](https://github.com/erayendes/mimir/issues).
 
 #### Contributing
 
@@ -96,8 +104,6 @@ Mimir, Claude, Codex, Gemini ve Antigravity gibi AI araçlarınızın kullanım 
 | **Codex** | ChatGPT kullanım API'si + yerel JSONL yedeği |
 | **Antigravity** | Yerel dil sunucusu + Cockpit |
 
-Daha fazla servis yolda — [Yol Haritası](ROADMAP.md)'na bakın.
-
 #### Kurulum
 
 **Gereksinimler:** macOS 14.0 (Sonoma) veya üzeri · Swift 6.0+ (kaynak koddan derleme için)
@@ -118,15 +124,25 @@ Mimir, kişisel verilerinizi veya API anahtarlarınızı hiçbir zaman uzak sunu
 
 #### Yol Haritası
 
-**Servisler:** Gemini, ChatGPT, Grok
+**🔌 Yeni servisler**
+- [ ] Gemini — Pro ve Flash kota takibi
+- [ ] ChatGPT — kullanım ve abonelik limitleri
+- [ ] Grok — kullanım takibi
 
-**Kredi takibi:** Claude, Codex, Antigravity
+**💳 Kredi takibi**
+- [ ] Claude — kredi ve fatura kullanımı
+- [ ] Codex — premium kredi bakiyesi
+- [ ] Antigravity — model bazlı kredi kullanımı
 
-**Kurulum:** Homebrew (`brew install --cask mimir`)
+**📦 Kurulum**
+- [ ] Homebrew — `brew install --cask mimir`
 
-**Uygulama:** Limit bildirimleri · Servis bazlı açma/kapama
+**🔔 Uygulama**
+- [ ] Limit dolmak üzereyken bildirim
+- [ ] Tercihlerden servis bazlı açma/kapama
 
-Bir öneriniz mi var? [Issue açın](https://github.com/erayendes/mimir/issues).
+> [!TIP]
+> Bir öneriniz mi var? [Issue açın](https://github.com/erayendes/mimir/issues).
 
 #### Katkıda Bulunma
 
