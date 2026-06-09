@@ -42,8 +42,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         NSApp.setActivationPolicy(.accessory)
 
-        if let url = Bundle.main.url(forResource: "AppIcon", withExtension: "png"),
-           let source = NSImage(contentsOf: url) {
+        if let source = Bundle.main.url(forResource: "AppIcon", withExtension: "png")
+            .flatMap({ NSImage(contentsOf: $0) }) {
             cachedIconNormal = buildStatusIcon(source: source, isLow: false)
             cachedIconLow    = buildStatusIcon(source: source, isLow: true)
         }
@@ -182,6 +182,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let iconSize = NSSize(width: 22, height: 22)
         let img = NSImage(size: iconSize, flipped: false) { rect in
             NSGraphicsContext.current?.imageInterpolation = .high
+            NSBezierPath(ovalIn: rect).addClip()
             source.draw(in: rect, from: NSRect(origin: .zero, size: source.size),
                         operation: .sourceOver, fraction: 1.0)
             if isLow {
