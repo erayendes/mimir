@@ -317,6 +317,9 @@ struct LiveUsageDataSource {
         let cacheRoot = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".antigravity_cockpit/cache/quota_api_v1_plugin/authorized")
         guard let file = latestFile(in: cacheRoot, pathExtension: "json"),
+              let attrs = try? FileManager.default.attributesOfItem(atPath: file.path),
+              let modDate = attrs[.modificationDate] as? Date,
+              Date().timeIntervalSince(modDate) < 6 * 3_600,
               let data = try? Data(contentsOf: file),
               let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return nil
