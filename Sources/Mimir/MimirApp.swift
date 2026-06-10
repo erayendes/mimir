@@ -54,18 +54,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .store(in: &cancellables)
 
         UNUserNotificationCenter.current().getNotificationSettings { settings in
-            if settings.authorizationStatus == .notDetermined {
-                UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+            Task { @MainActor in
+                if settings.authorizationStatus == .notDetermined {
+                    try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])
+                }
             }
         }
 
         popover.behavior = .transient
-        popover.contentSize = NSSize(width: 360, height: 500)
-        popover.contentViewController = NSHostingController(
+        let hosting = NSHostingController(
             rootView: PopoverView(store: store) { [weak self] in
                 self?.closePopover(nil)
             }
         )
+        hosting.sizingOptions = .preferredContentSize
+        popover.contentViewController = hosting
 
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.button?.target = self
@@ -257,6 +260,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 private struct PopoverView: View {
     @ObservedObject var store: UsageStore
     let onDismiss: () -> Void
+    @State private var contentHeight: CGFloat = PopoverMetrics.maxHeight
+
+    private var needsScrolling: Bool {
+        contentHeight > PopoverMetrics.maxHeight
+    }
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { context in
@@ -274,21 +282,41 @@ private struct PopoverView: View {
                     .padding(.top, PopoverMetrics.edgeInset + 10)
                     .padding(.bottom, PopoverMetrics.edgeInset + 10)
                     .padding(.horizontal, PopoverMetrics.edgeInset)
+                    .background {
+                        GeometryReader { proxy in
+                            Color.clear.preference(key: PopoverContentHeightKey.self, value: proxy.size.height)
+                        }
+                    }
                 }
 
-                EdgeFadeOverlay(edge: .top)
-                    .allowsHitTesting(false)
+                if needsScrolling {
+                    EdgeFadeOverlay(edge: .top)
+                        .allowsHitTesting(false)
 
-                EdgeFadeOverlay(edge: .bottom)
-                    .allowsHitTesting(false)
+                    EdgeFadeOverlay(edge: .bottom)
+                        .allowsHitTesting(false)
+                }
             }
         }
+        .onPreferenceChange(PopoverContentHeightKey.self) { contentHeight = $0 }
+        .frame(width: PopoverMetrics.width)
+        .frame(height: min(contentHeight, PopoverMetrics.maxHeight))
+    }
+}
+
+private struct PopoverContentHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = PopoverMetrics.maxHeight
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
     }
 }
 
 private enum PopoverMetrics {
     static let edgeInset: CGFloat = 15
     static let fadeHeight: CGFloat = 58
+    static let width: CGFloat = 360
+    static let maxHeight: CGFloat = 500
 }
 
 private struct EdgeFadeOverlay: View {
