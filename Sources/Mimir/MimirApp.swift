@@ -191,7 +191,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSBezierPath(ovalIn: rect).addClip()
             source.draw(in: rect, from: NSRect(origin: .zero, size: source.size),
                         operation: .sourceOver, fraction: 1.0)
-            let isDark = NSAppearance.current?.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            let isDark = NSAppearance.currentDrawing().bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
             if !isDark {
                 // Tint icon black for light menu bar: sourceAtop replaces opaque pixels with black
                 // while preserving the alpha mask of the drawn icon.
