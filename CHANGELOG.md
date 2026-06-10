@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+### [1.2.2] - 2026-06-10
+
+#### Fixed
+- App crashed immediately on launch on macOS 26 (Tahoe) — `UNUserNotificationCenter.getNotificationSettings` callback was called on a background thread while Swift 6 strict concurrency treated the closure as `@MainActor`-isolated, causing `dispatch_assert_queue_fail` → `EXC_BREAKPOINT`; switched to the async `notificationSettings()` API which suspends and resumes correctly
+
 ### [1.2] - 2026-06-10
 
 #### Fixed
@@ -78,7 +83,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Build and install script (`script/build_and_run.sh`)
 - Automated DMG release pipeline via GitHub Actions
 
-[Unreleased]: https://github.com/erayendes/mimir/compare/v1.2...HEAD
+[Unreleased]: https://github.com/erayendes/mimir/compare/v1.2.2...HEAD
+[1.2.2]: https://github.com/erayendes/mimir/compare/v1.2...v1.2.2
 [1.2]: https://github.com/erayendes/mimir/compare/v1.1...v1.2
 [1.1]: https://github.com/erayendes/mimir/compare/v1.0...v1.1
 [1.0]: https://github.com/erayendes/mimir/compare/v0.2...v1.0
@@ -95,6 +101,11 @@ Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
 
 ### [Yayımlanmadı]
+
+### [1.2.2] - 2026-06-10
+
+#### Düzeltildi
+- macOS 26 (Tahoe) üzerinde uygulama açılışta çöküyordu — `UNUserNotificationCenter.getNotificationSettings` callback'i arka plan thread'inde çağrılıyordu; Swift 6 strict concurrency kapatmayı `@MainActor`-izole sayınca `dispatch_assert_queue_fail` → `EXC_BREAKPOINT` hatasına yol açıyordu; async `notificationSettings()` API'sine geçilerek düzeltildi
 
 ### [1.2] - 2026-06-10
 
@@ -163,7 +174,8 @@ sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) k
 - Derleme ve kurulum scripti (`script/build_and_run.sh`)
 - GitHub Actions üzerinden otomatik DMG release pipeline'ı
 
-[Yayımlanmadı]: https://github.com/erayendes/mimir/compare/v1.2...HEAD
+[Yayımlanmadı]: https://github.com/erayendes/mimir/compare/v1.2.2...HEAD
+[1.2.2]: https://github.com/erayendes/mimir/compare/v1.2...v1.2.2
 [1.2]: https://github.com/erayendes/mimir/compare/v1.1...v1.2
 [1.1]: https://github.com/erayendes/mimir/compare/v1.0...v1.1
 [1.0]: https://github.com/erayendes/mimir/compare/v0.2...v1.0
