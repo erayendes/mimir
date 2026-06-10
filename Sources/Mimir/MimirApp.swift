@@ -31,9 +31,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         SentrySDK.start { options in
             options.dsn = "https://66d3b6b50b79ba45dc89e86329579302@o4511381595291648.ingest.us.sentry.io/4511537599086592"
-            options.debug = true
+            options.debug = false
             options.sendDefaultPii = true
-            options.tracesSampleRate = 1.0
+            options.tracesSampleRate = 0.2
         }
 
         NSApp.setActivationPolicy(.accessory)
@@ -63,10 +63,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         item.button?.action = #selector(togglePopover(_:))
         statusItem = item
 
-        SentrySDK.startProfiler()
         store.refresh()
-        SentrySDK.stopProfiler()
-
         refreshStatusTitle()
         store.$services
             .receive(on: RunLoop.main)
@@ -92,6 +89,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         timer?.invalidate()
         stopPopoverDismissMonitors()
+        SentrySDK.flush(timeout: 2)
     }
 
     @objc private func togglePopover(_ sender: Any?) {
