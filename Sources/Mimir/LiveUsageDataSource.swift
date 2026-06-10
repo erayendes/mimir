@@ -257,7 +257,7 @@ struct LiveUsageDataSource {
     }
 
     private func fetchAntigravity() async -> ServiceStatus {
-        let defaults = ["Gemini Flash", "Gemini Pro", "Claude"]
+        let defaults = ["Gemini", "Claude"]
         if let authorized = await fetchAntigravityAuthorized(models: defaults) {
             return authorized
         }
@@ -339,7 +339,7 @@ struct LiveUsageDataSource {
     }
 
     private func fetchAntigravityLocalLanguageServer(models defaults: [String]) -> ServiceStatus? {
-        let processRows = runShell("ps -ax -o pid=,command= | grep language_server_macos | grep antigravity | grep -v grep")
+        let processRows = runShell("ps -ax -o pid=,command= | grep 'bin/language_server' | grep antigravity | grep -v grep")
             .split(separator: "\n")
         guard let row = processRows.first else {
             return nil
@@ -396,15 +396,13 @@ struct LiveUsageDataSource {
         let configs = antigravityModelConfigs(from: root)
         guard !configs.isEmpty else {
             return [
-                ModelStatus(name: "Claude", remainingPercent: 0, resetAt: nil),
-                ModelStatus(name: "Gemini Pro", remainingPercent: 0, resetAt: nil),
-                ModelStatus(name: "Gemini Flash", remainingPercent: 0, resetAt: nil)
+                ModelStatus(name: "Gemini", remainingPercent: 0, resetAt: nil),
+                ModelStatus(name: "Claude", remainingPercent: 0, resetAt: nil)
             ]
         }
 
+        var gemini: [ModelStatus] = []
         var claude: [ModelStatus] = []
-        var pro: [ModelStatus] = []
-        var flash: [ModelStatus] = []
 
         for c in configs {
             guard let quota = c["quotaInfo"] as? [String: Any] else { continue }
@@ -425,18 +423,15 @@ struct LiveUsageDataSource {
             let reset = (quota["resetTime"] as? String).flatMap { parseISO8601($0) }.map { projectAntigravityReset($0) }
             let status = ModelStatus(name: "", remainingPercent: max(0, min(100, remainingPercent)), resetAt: reset)
 
-            if rawName.contains("claude") || rawName.contains("gpt-oss") || rawName.contains("model_openai_gpt_oss") {
+            if rawName.contains("gemini") {
+                gemini.append(status)
+            } else if rawName.contains("claude") || rawName.contains("gpt-oss") || rawName.contains("model_openai_gpt_oss") {
                 claude.append(status)
-            } else if rawName.contains("gemini") && rawName.contains("pro") {
-                pro.append(status)
-            } else if rawName.contains("gemini") && rawName.contains("flash") {
-                flash.append(status)
             }
         }
 
         return [
-            pickModel("Gemini Flash", from: flash),
-            pickModel("Gemini Pro", from: pro),
+            pickModel("Gemini", from: gemini),
             pickModel("Claude", from: claude)
         ]
     }
