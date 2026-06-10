@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+### [1.1] - 2026-06-10
+
+#### Changed
+- Menu bar now uses dedicated `MenuIcon.png` instead of `AppIcon.png` for better visibility
+- `AppIcon.png` updated to full-bleed design (no padding/border)
+
+#### Fixed
+- Menu bar icon invisible in light theme — `MenuIcon.png` is now a proper template image
+- `NSAppearance.currentDrawing()` replaced with correct API for macOS 14+
+
 ### [1.0] - 2026-06-10
 
 #### Added
@@ -59,7 +69,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Build and install script (`script/build_and_run.sh`)
 - Automated DMG release pipeline via GitHub Actions
 
-[Unreleased]: https://github.com/erayendes/mimir/compare/v1.0...HEAD
+[Unreleased]: https://github.com/erayendes/mimir/compare/v1.1...HEAD
+[1.1]: https://github.com/erayendes/mimir/compare/v1.0...v1.1
 [1.0]: https://github.com/erayendes/mimir/compare/v0.2...v1.0
 [0.2]: https://github.com/erayendes/mimir/compare/v0.1...v0.2
 [0.1]: https://github.com/erayendes/mimir/releases/tag/v0.1
@@ -74,6 +85,16 @@ Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
 
 ### [Yayımlanmadı]
+
+### [1.1] - 2026-06-10
+
+#### Değişti
+- Menü çubuğu artık `AppIcon.png` yerine ayrı `MenuIcon.png` kullanıyor — daha iyi görünürlük
+- `AppIcon.png` tam kenarlı tasarımla güncellendi (kenar boşluğu/çerçeve yok)
+
+#### Düzeltildi
+- Açık temada menü çubuğu ikonu görünmüyordu — `MenuIcon.png` artık doğru template image olarak işaretlendi
+- macOS 14+ için `NSAppearance.currentDrawing()` yerine doğru API kullanıldı
 
 ### [1.0] - 2026-06-10
 
@@ -123,7 +144,8 @@ sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) k
 - Derleme ve kurulum scripti (`script/build_and_run.sh`)
 - GitHub Actions üzerinden otomatik DMG release pipeline'ı
 
-[Yayımlanmadı]: https://github.com/erayendes/mimir/compare/v1.0...HEAD
+[Yayımlanmadı]: https://github.com/erayendes/mimir/compare/v1.1...HEAD
+[1.1]: https://github.com/erayendes/mimir/compare/v1.0...v1.1
 [1.0]: https://github.com/erayendes/mimir/compare/v0.2...v1.0
 [0.2]: https://github.com/erayendes/mimir/compare/v0.1...v0.2
 [0.1]: https://github.com/erayendes/mimir/releases/tag/v0.1
