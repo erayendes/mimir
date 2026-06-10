@@ -72,10 +72,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         item.button?.action = #selector(togglePopover(_:))
         statusItem = item
 
-        SentrySDK.startProfiler()
         store.refresh()
-        SentrySDK.stopProfiler()
-
         refreshStatusTitle()
         store.$services
             .receive(on: RunLoop.main)
@@ -101,6 +98,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         timer?.invalidate()
         stopPopoverDismissMonitors()
+        SentrySDK.flush(timeout: 2)
     }
 
     @objc private func togglePopover(_ sender: Any?) {
@@ -193,8 +191,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         operation: .sourceOver, fraction: 1.0)
             let isDark = NSAppearance.currentDrawing().bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
             if !isDark {
-                // Tint icon black for light menu bar: sourceAtop replaces opaque pixels with black
-                // while preserving the alpha mask of the drawn icon.
                 ctx.compositingOperation = .sourceAtop
                 NSColor.black.setFill()
                 NSBezierPath(ovalIn: rect).fill()
@@ -203,7 +199,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if isLow {
                 let d: CGFloat = 6
                 NSColor.systemRed.setFill()
-                // Position inside the inscribed oval (bottom-right quadrant)
                 NSBezierPath(ovalIn: NSRect(x: rect.maxX - 8, y: rect.minY + 1, width: d, height: d)).fill()
             }
             return true
