@@ -53,12 +53,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             .sink { [weak self] _ in self?.refreshStatusTitle() }
             .store(in: &cancellables)
 
-        Task { @MainActor in
-            let center = UNUserNotificationCenter.current()
-            let settings = await center.notificationSettings()
-            if settings.authorizationStatus == .notDetermined {
-                try? await center.requestAuthorization(options: [.alert, .sound])
-            }
+        UNUserNotificationCenter.current().getNotificationSettings { @Sendable settings in
+            guard settings.authorizationStatus == .notDetermined else { return }
+            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
         }
 
         popover.behavior = .transient
