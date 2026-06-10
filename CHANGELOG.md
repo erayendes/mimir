@@ -11,6 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+### [1.2] - 2026-06-10
+
+#### Fixed
+- Antigravity language server detection was looking for `language_server_macos` but binary is `bin/language_server`
+- Antigravity Cockpit cache files older than 6 hours are now skipped — stale cache was showing 100% quota after exhaustion
+- Gemini model variants (Flash/Pro, all tiers) merged into a single "Gemini" entry for cleaner display
+- Claude model variants and GPT-OSS merged into a single "Claude" entry
+- Removed misused `startProfiler`/`stopProfiler` calls; Sentry now flushes properly on app terminate
+
 ### [1.1] - 2026-06-10
 
 #### Changed
@@ -69,7 +78,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Build and install script (`script/build_and_run.sh`)
 - Automated DMG release pipeline via GitHub Actions
 
-[Unreleased]: https://github.com/erayendes/mimir/compare/v1.1...HEAD
+[Unreleased]: https://github.com/erayendes/mimir/compare/v1.2...HEAD
+[1.2]: https://github.com/erayendes/mimir/compare/v1.1...v1.2
 [1.1]: https://github.com/erayendes/mimir/compare/v1.0...v1.1
 [1.0]: https://github.com/erayendes/mimir/compare/v0.2...v1.0
 [0.2]: https://github.com/erayendes/mimir/compare/v0.1...v0.2
@@ -85,6 +95,15 @@ Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
 
 ### [Yayımlanmadı]
+
+### [1.2] - 2026-06-10
+
+#### Düzeltildi
+- Antigravity dil sunucusu tespiti `language_server_macos` arıyordu; binary `bin/language_server` olarak düzeltildi
+- 6 saatten eski Antigravity Cockpit cache dosyaları artık atlanıyor — eski cache kota bitmesine rağmen %100 gösteriyordu
+- Gemini model varyantları (Flash/Pro, tüm katmanlar) tek "Gemini" girdisinde birleştirildi
+- Claude model varyantları ve GPT-OSS tek "Claude" girdisinde birleştirildi
+- Hatalı `startProfiler`/`stopProfiler` çağrıları kaldırıldı; Sentry uygulama kapanışında artık doğru flush yapıyor
 
 ### [1.1] - 2026-06-10
 
@@ -144,7 +163,8 @@ sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) k
 - Derleme ve kurulum scripti (`script/build_and_run.sh`)
 - GitHub Actions üzerinden otomatik DMG release pipeline'ı
 
-[Yayımlanmadı]: https://github.com/erayendes/mimir/compare/v1.1...HEAD
+[Yayımlanmadı]: https://github.com/erayendes/mimir/compare/v1.2...HEAD
+[1.2]: https://github.com/erayendes/mimir/compare/v1.1...v1.2
 [1.1]: https://github.com/erayendes/mimir/compare/v1.0...v1.1
 [1.0]: https://github.com/erayendes/mimir/compare/v0.2...v1.0
 [0.2]: https://github.com/erayendes/mimir/compare/v0.1...v0.2
