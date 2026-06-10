@@ -42,11 +42,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         NSApp.setActivationPolicy(.accessory)
 
-        if let source = Bundle.main.url(forResource: "AppIcon", withExtension: "png")
+        if let source = Bundle.main.url(forResource: "MenuIcon", withExtension: "png")
             .flatMap({ NSImage(contentsOf: $0) }) {
             cachedIconNormal = buildStatusIcon(source: source, isLow: false)
             cachedIconLow    = buildStatusIcon(source: source, isLow: true)
         }
+
+        NSApp.publisher(for: \.effectiveAppearance)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in self?.refreshStatusTitle() }
+            .store(in: &cancellables)
 
         UNUserNotificationCenter.current().getNotificationSettings { settings in
             if settings.authorizationStatus == .notDetermined {
@@ -181,14 +186,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func buildStatusIcon(source: NSImage, isLow: Bool) -> NSImage {
         let iconSize = NSSize(width: 22, height: 22)
         let img = NSImage(size: iconSize, flipped: false) { rect in
-            NSGraphicsContext.current?.imageInterpolation = .high
+            guard let ctx = NSGraphicsContext.current else { return true }
+            ctx.imageInterpolation = .high
             NSBezierPath(ovalIn: rect).addClip()
             source.draw(in: rect, from: NSRect(origin: .zero, size: source.size),
                         operation: .sourceOver, fraction: 1.0)
+            let isDark = NSAppearance.current?.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            if !isDark {
+                // Tint icon black for light menu bar: sourceAtop replaces opaque pixels with black
+                // while preserving the alpha mask of the drawn icon.
+                ctx.compositingOperation = .sourceAtop
+                NSColor.black.setFill()
+                NSBezierPath(ovalIn: rect).fill()
+                ctx.compositingOperation = .sourceOver
+            }
             if isLow {
-                let d: CGFloat = 7
+                let d: CGFloat = 6
                 NSColor.systemRed.setFill()
-                NSBezierPath(ovalIn: NSRect(x: rect.maxX - d, y: rect.minY, width: d, height: d)).fill()
+                // Position inside the inscribed oval (bottom-right quadrant)
+                NSBezierPath(ovalIn: NSRect(x: rect.maxX - 8, y: rect.minY + 1, width: d, height: d)).fill()
             }
             return true
         }

@@ -36,6 +36,7 @@ if [ -f "$ROOT_DIR/Sources/Mimir/Resources/Mimir.icns" ]; then
 fi
 cp -R "$ROOT_DIR/Sources/Mimir/Resources/BrandIcons" "$APP_RESOURCES/" 2>/dev/null || true
 cp "$ROOT_DIR/Sources/Mimir/Resources/AppIcon.png" "$APP_RESOURCES/" 2>/dev/null || true
+cp "$ROOT_DIR/Sources/Mimir/Resources/MenuIcon.png" "$APP_RESOURCES/" 2>/dev/null || true
 
 cat >"$INFO_PLIST" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>

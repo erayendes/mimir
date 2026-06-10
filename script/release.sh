@@ -36,6 +36,7 @@ chmod +x "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
   cp "$ROOT_DIR/Sources/Mimir/Resources/Mimir.icns" "$APP_BUNDLE/Contents/Resources/"
 cp -R "$ROOT_DIR/Sources/Mimir/Resources/BrandIcons" "$APP_BUNDLE/Contents/Resources/" 2>/dev/null || true
 cp "$ROOT_DIR/Sources/Mimir/Resources/AppIcon.png" "$APP_BUNDLE/Contents/Resources/" 2>/dev/null || true
+cp "$ROOT_DIR/Sources/Mimir/Resources/MenuIcon.png" "$APP_BUNDLE/Contents/Resources/" 2>/dev/null || true
 
 cat > "$APP_BUNDLE/Contents/Info.plist" << PLIST
 <?xml version="1.0" encoding="UTF-8"?>
