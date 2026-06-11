@@ -22,8 +22,14 @@ cd "$ROOT_DIR"
 pkill -x "$APP_NAME" >/dev/null 2>&1 || true
 
 echo "→ Derleniyor: $APP_NAME $VERSION"
-swift build -c release
+# -g: release build'de debug bilgisi üret ki dSYM çıkarılabilsin (Sentry sembolleştirme)
+swift build -c release -Xswiftc -g
 BUILD_DIR="$(swift build -c release --show-bin-path)"
+
+echo "→ dSYM çıkarılıyor"
+rm -rf "$DIST_DIR/$APP_NAME.app.dSYM"
+mkdir -p "$DIST_DIR"
+dsymutil "$BUILD_DIR/$APP_NAME" -o "$DIST_DIR/$APP_NAME.app.dSYM"
 
 rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_BUNDLE/Contents/MacOS"

@@ -43,6 +43,13 @@ jobs:
             attempt=$((attempt+1))
           done
 
+      - name: Upload dSYM to Sentry
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        run: |
+          curl -sL https://sentry.io/get-cli/ | SENTRY_CLI_VERSION=2.46.0 bash
+          sentry-cli debug-files upload --org milowda --project mimir "dist/Mimir.app.dSYM"
+
       - name: Import signing certificate
         env:
           CERT_DATA: ${{ secrets.DEVELOPER_ID_CERT }}
