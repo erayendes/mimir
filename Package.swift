@@ -11,7 +11,7 @@ let package = Package(
         .executable(name: "Mimir", targets: ["Mimir"])
     ],
     dependencies: [
-        .package(url: "https://github.com/getsentry/sentry-cocoa", from: "9.16.1"),
+        .package(url: "https://github.com/getsentry/sentry-cocoa", from: "9.17.0"),
     ],
     targets: [
         .executableTarget(
