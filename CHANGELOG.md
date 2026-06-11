@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+### [1.3] - 2026-06-10
+
 #### Added
 - In-app update check ([#20](https://github.com/erayendes/mimir/issues/20)): on launch and once per day, Mimir queries the GitHub Releases API and shows an unobtrusive banner at the top of the popover when a newer version is available; tapping it opens the release page in the browser
 - Antigravity quota snapshot: the last live reading is persisted to disk, so quota and reset time stay visible after the IDE/Cockpit closes — until each model's reset time passes, after which the card is marked "güncel değil" instead of showing stale numbers
@@ -94,7 +96,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Build and install script (`script/build_and_run.sh`)
 - Automated DMG release pipeline via GitHub Actions
 
-[Unreleased]: https://github.com/erayendes/mimir/compare/v1.2.2...HEAD
+[Unreleased]: https://github.com/erayendes/mimir/compare/v1.3...HEAD
+[1.3]: https://github.com/erayendes/mimir/compare/v1.2.2...v1.3
 [1.2.2]: https://github.com/erayendes/mimir/compare/v1.2...v1.2.2
 [1.2]: https://github.com/erayendes/mimir/compare/v1.1...v1.2
 [1.1]: https://github.com/erayendes/mimir/compare/v1.0...v1.1
@@ -196,7 +199,8 @@ sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) k
 - Derleme ve kurulum scripti (`script/build_and_run.sh`)
 - GitHub Actions üzerinden otomatik DMG release pipeline'ı
 
-[Yayımlanmadı]: https://github.com/erayendes/mimir/compare/v1.2.2...HEAD
+[Yayımlanmadı]: https://github.com/erayendes/mimir/compare/v1.3...HEAD
+[1.3]: https://github.com/erayendes/mimir/compare/v1.2.2...v1.3
 [1.2.2]: https://github.com/erayendes/mimir/compare/v1.2...v1.2.2
 [1.2]: https://github.com/erayendes/mimir/compare/v1.1...v1.2
 [1.1]: https://github.com/erayendes/mimir/compare/v1.0...v1.1
