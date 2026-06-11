@@ -38,6 +38,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             #endif
             options.sendDefaultPii = false
             options.tracesSampleRate = 0.1
+            // SentryBreadcrumbTracker swizzles AppKit from a background queue, which
+            // trips macOS 26's strict main-thread assertions (MIMIR-2). We only use
+            // manual breadcrumbs, so the automatic tracker is safe to disable.
+            options.enableAutoBreadcrumbTracking = false
         }
 
         NSApp.setActivationPolicy(.accessory)
