@@ -4,7 +4,9 @@ import Foundation
 final class UsageStore: ObservableObject {
     @Published var services: [ServiceStatus] = LiveUsageDataSource.fallbackServices()
     @Published var isRefreshing = false
+    @Published var availableUpdate: AvailableUpdate?
     private let source = LiveUsageDataSource()
+    private var lastUpdateCheck: Date?
 
     func refresh() {
         guard !isRefreshing else { return }
@@ -18,9 +20,48 @@ final class UsageStore: ObservableObject {
             self.isRefreshing = false
         }
     }
+
+    /// Check GitHub for a newer release. Runs at most once per 24h (the timer calls it
+    /// every tick; the first call after launch always runs since lastUpdateCheck is nil).
+    /// Non-blocking and silent: any network/parse failure leaves the banner untouched.
+    func checkForUpdate() {
+        if let last = lastUpdateCheck, Date().timeIntervalSince(last) < 24 * 3_600 { return }
+        lastUpdateCheck = Date()
+        guard let current = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
+              !current.isEmpty else {
+            return  // dev builds carry no version string — skip rather than nag
+        }
+        Task {
+            guard let update = await LiveUsageDataSource.fetchLatestRelease(current: current) else { return }
+            self.availableUpdate = update
+        }
+    }
 }
 
 struct LiveUsageDataSource {
+    /// Fetch the latest GitHub release and return it only if newer than `current`.
+    static func fetchLatestRelease(current: String) async -> AvailableUpdate? {
+        guard let url = URL(string: "https://api.github.com/repos/erayendes/mimir/releases/latest") else {
+            return nil
+        }
+        var req = URLRequest(url: url, timeoutInterval: 8)
+        req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        req.setValue("Mimir", forHTTPHeaderField: "User-Agent")
+
+        guard let (data, response) = try? await URLSession.shared.data(for: req),
+              (response as? HTTPURLResponse).map({ 200 ... 299 ~= $0.statusCode }) == true,
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let tag = root["tag_name"] as? String,
+              VersionCompare.isNewer(tag, than: current) else {
+            return nil
+        }
+
+        let pageURL = (root["html_url"] as? String).flatMap(URL.init)
+            ?? URL(string: "https://github.com/erayendes/mimir/releases/latest")!
+        let version = tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
+        return AvailableUpdate(version: version, url: pageURL)
+    }
+
     static func fallbackServices() -> [ServiceStatus] {
         [
             ServiceStatus(
@@ -259,19 +300,88 @@ struct LiveUsageDataSource {
     private func fetchAntigravity() async -> ServiceStatus {
         let defaults = ["Gemini", "Claude"]
         if let authorized = await fetchAntigravityAuthorized(models: defaults) {
+            saveAntigravitySnapshot(authorized)
             return authorized
         }
         if let cached = fetchAntigravityCockpitCache(models: defaults) {
             return cached
         }
         if let local = fetchAntigravityLocalLanguageServer(models: defaults) {
+            saveAntigravitySnapshot(local)
             return local
+        }
+        // Live sources gone (IDE/Cockpit closed). Fall back to the last snapshot we
+        // captured while one was open — valid until its reset time passes.
+        if let snapshot = fetchAntigravitySnapshot() {
+            return snapshot
         }
 
         let note = readAntigravityCockpitAccount() == nil
             ? "open Antigravity or Cockpit"
             : "antigravity auth failed"
         return unavailableService(name: "Antigravity", iconName: "antigravity", models: defaults, note: note)
+    }
+
+    private var antigravitySnapshotURL: URL {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/Mimir/antigravity_snapshot.json")
+    }
+
+    /// Persist the last live Antigravity reading so it can be shown while the IDE is closed.
+    private func saveAntigravitySnapshot(_ service: ServiceStatus) {
+        guard service.isAvailable, !service.models.isEmpty else { return }
+        let iso = ISO8601DateFormatter()
+        let models: [[String: Any]] = service.models.map { m in
+            var dict: [String: Any] = ["name": m.name, "remainingPercent": m.remainingPercent]
+            if let reset = m.resetAt { dict["resetAt"] = iso.string(from: reset) }
+            if let valueText = m.valueText { dict["valueText"] = valueText }
+            return dict
+        }
+        let payload: [String: Any] = ["models": models]
+        guard let data = try? JSONSerialization.data(withJSONObject: payload) else { return }
+        let url = antigravitySnapshotURL
+        try? FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? data.write(to: url)
+    }
+
+    /// Read the persisted snapshot. Shows the last-known values until the earliest
+    /// reset time passes; after that the quota has refilled so the cached numbers are
+    /// stale and the card is marked "güncel değil" instead of showing wrong percentages.
+    private func fetchAntigravitySnapshot() -> ServiceStatus? {
+        guard let data = try? Data(contentsOf: antigravitySnapshotURL),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let rawModels = root["models"] as? [[String: Any]], !rawModels.isEmpty else {
+            return nil
+        }
+
+        let now = Date()
+        // A cached number stays accurate only until that model's quota resets; after the
+        // reset the quota has refilled, so drop it. Each model is judged on its own clock.
+        let valid: [ModelStatus] = rawModels.compactMap { dict in
+            guard let name = dict["name"] as? String,
+                  let resetStr = dict["resetAt"] as? String,
+                  let reset = parseISO8601(resetStr), now < reset else { return nil }
+            let percent = dict["remainingPercent"] as? Int ?? 0
+            return ModelStatus(name: name, remainingPercent: percent, resetAt: reset,
+                               valueText: dict["valueText"] as? String)
+        }
+
+        // Every cached model has passed its reset → numbers are stale, don't show them.
+        guard !valid.isEmpty else {
+            return unavailableService(name: "Antigravity", iconName: "antigravity",
+                                      models: ["Gemini", "Claude"], note: "güncel değil")
+        }
+
+        return ServiceStatus(
+            name: "Antigravity",
+            iconName: "antigravity",
+            sessionResetAt: valid.compactMap(\.resetAt).min(),
+            weeklyResetAt: nil,
+            models: valid,
+            isAvailable: true,
+            statusNote: "antigravity snapshot"
+        )
     }
 
     private func fetchAntigravityAuthorized(models defaults: [String]) async -> ServiceStatus? {
@@ -351,7 +461,9 @@ struct LiveUsageDataSource {
             return nil
         }
 
-        let ports = runShell("lsof -nP -iTCP -sTCP:LISTEN -p \(pidInt) | awk '{print $9}' | sed -E 's/.*:([0-9]+)->?.*/\\1/' | sed -E 's/.*:([0-9]+)$/\\1/' | sort -u")
+        // -a ANDs the filters; without it lsof ORs -iTCP and -p, returning every
+        // listening port on the system and forcing dozens of curl probes that blow the timeout.
+        let ports = runShell("lsof -a -nP -iTCP -sTCP:LISTEN -p \(pidInt) | awk '{print $9}' | sed -E 's/.*:([0-9]+)->?.*/\\1/' | sed -E 's/.*:([0-9]+)$/\\1/' | sort -u")
             .split(separator: "\n")
             .compactMap { Int($0) }
         guard !ports.isEmpty else {

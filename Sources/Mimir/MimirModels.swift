@@ -50,6 +50,32 @@ struct ModelStatus: Identifiable {
     }
 }
 
+struct AvailableUpdate: Equatable {
+    let version: String   // e.g. "1.2.3" (without the leading "v")
+    let url: URL          // GitHub release page
+}
+
+enum VersionCompare {
+    /// Parse "v1.2.3" / "1.2.3" into numeric components, ignoring any pre-release suffix.
+    static func components(_ raw: String) -> [Int] {
+        let trimmed = raw.hasPrefix("v") ? String(raw.dropFirst()) : raw
+        let core = trimmed.split(separator: "-").first.map(String.init) ?? trimmed
+        return core.split(separator: ".").map { Int($0) ?? 0 }
+    }
+
+    /// True when `latest` is a strictly higher version than `current`.
+    static func isNewer(_ latest: String, than current: String) -> Bool {
+        let l = components(latest)
+        let c = components(current)
+        for i in 0 ..< max(l.count, c.count) {
+            let lv = i < l.count ? l[i] : 0
+            let cv = i < c.count ? c[i] : 0
+            if lv != cv { return lv > cv }
+        }
+        return false
+    }
+}
+
 enum TimeFormatter {
     static func duration(from interval: TimeInterval) -> String {
         let clamped = max(0, Int(interval.rounded(.down)))

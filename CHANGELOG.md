@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+#### Added
+- In-app update check ([#20](https://github.com/erayendes/mimir/issues/20)): on launch and once per day, Mimir queries the GitHub Releases API and shows an unobtrusive banner at the top of the popover when a newer version is available; tapping it opens the release page in the browser
+- Antigravity quota snapshot: the last live reading is persisted to disk, so quota and reset time stay visible after the IDE/Cockpit closes — until each model's reset time passes, after which the card is marked "güncel değil" instead of showing stale numbers
+
+#### Fixed
+- Antigravity quota and reset time were not shown even with the IDE open — the `lsof` port lookup was missing the `-a` flag, so the `-iTCP`/`-p` filters were OR'd instead of AND'd, returning every listening port on the system; probing dozens of wrong ports blew the 8-second fetch timeout and produced no data. Added `-a` so only the language server's own ports are probed
+
 ### [1.2.2] - 2026-06-10
 
 #### Fixed
@@ -101,6 +108,13 @@ Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
 
 ### [Yayımlanmadı]
+
+#### Eklendi
+- Uygulama içi güncelleme kontrolü ([#20](https://github.com/erayendes/mimir/issues/20)): açılışta ve günde bir kez Mimir, GitHub Releases API'sini sorgular ve daha yeni bir sürüm varsa popover'ın üstünde göze batmayan bir banner gösterir; tıklandığında release sayfası tarayıcıda açılır
+- Antigravity kota anlık görüntüsü: son canlı okuma diske kaydedilir, böylece IDE/Cockpit kapandıktan sonra da kota ve reset saati görünür kalır — her modelin reset saati geçene kadar; geçtikten sonra kart eski değer yerine "güncel değil" olarak işaretlenir
+
+#### Düzeltildi
+- IDE açık olmasına rağmen Antigravity kotası ve reset saati görünmüyordu — `lsof` port aramasında `-a` bayrağı eksikti, bu yüzden `-iTCP`/`-p` filtreleri AND yerine OR'lanıyor ve sistemdeki tüm dinleyen portlar dönüyordu; onlarca yanlış portu denemek 8 saniyelik zaman aşımını patlatıp veriyi boş bırakıyordu. `-a` eklenerek yalnızca dil sunucusunun kendi portları sorgulanıyor
 
 ### [1.2.2] - 2026-06-10
 

@@ -87,10 +87,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.refreshStatusTitle()
             }
             .store(in: &cancellables)
+        store.checkForUpdate()
         timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.store.refresh()
                 self?.refreshStatusTitle()
+                self?.store.checkForUpdate()
             }
         }
     }
@@ -272,6 +274,9 @@ private struct PopoverView: View {
 
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: PopoverMetrics.edgeInset) {
+                        if let update = store.availableUpdate {
+                            UpdateBanner(update: update)
+                        }
                         ForEach(store.services) { service in
                             ServiceCard(service: service, now: context.date)
                         }
@@ -314,6 +319,65 @@ private enum PopoverMetrics {
     static let fadeHeight: CGFloat = 58
     static let width: CGFloat = 360
     static let maxHeight: CGFloat = 500
+}
+
+private struct UpdateBanner: View {
+    let update: AvailableUpdate
+
+    var body: some View {
+        Button {
+            NSWorkspace.shared.open(update.url)
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "arrow.down.circle.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Color.accentColor)
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text("New version available")
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                        .foregroundStyle(Color.primary.opacity(0.86))
+                    Text("v\(update.version)")
+                        .font(.system(size: 11, weight: .regular, design: .rounded))
+                        .foregroundStyle(Color.secondary.opacity(0.72))
+                }
+
+                Spacer(minLength: 6)
+
+                HStack(spacing: 3) {
+                    Text("Download")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 9, weight: .bold))
+                }
+                .foregroundStyle(Color.accentColor)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 11)
+            .background {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(Color.accentColor.opacity(0.12))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .stroke(Color.accentColor.opacity(0.28), lineWidth: 1)
+                    }
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        }
+        .buttonStyle(PressableButtonStyle())
+        .transition(.move(edge: .top).combined(with: .opacity))
+    }
+}
+
+/// Subtle press feedback — the row scales down slightly while held, so it feels
+/// responsive to the click rather than static. (Emil: buttons must feel pressed.)
+private struct PressableButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .opacity(configuration.isPressed ? 0.9 : 1)
+            .animation(.easeOut(duration: 0.14), value: configuration.isPressed)
+    }
 }
 
 private struct EdgeFadeOverlay: View {
