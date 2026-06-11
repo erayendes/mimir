@@ -98,12 +98,23 @@ struct LiveUsageDataSource {
         ]
     }
 
+    /// Explains how Antigravity quota is sourced and why it may not be current. Surfaced
+    /// behind the (i) icon on the Antigravity card.
+    static let antigravityInfo = """
+    Kota, Antigravity'nin yerel dil sunucusundan okunur. Güncel veri için \
+    Antigravity'nin açık olması gerekir; kapalıyken en son görülen değerler gösterilir.
+    """
+
     func fetchAll() async -> [ServiceStatus] {
         let order = ["Antigravity", "Claude", "Codex"]
         return await withTaskGroup(of: ServiceStatus.self) { group in
             group.addTask { await withTimeout(seconds: 8) { await fetchClaude() } ?? Self.fallbackServices().first(where: { $0.name == "Claude" })! }
             group.addTask { await withTimeout(seconds: 8) { await fetchCodex() } ?? Self.fallbackServices().first(where: { $0.name == "Codex" })! }
-            group.addTask { await withTimeout(seconds: 8) { await fetchAntigravity() } ?? Self.fallbackServices().first(where: { $0.name == "Antigravity" })! }
+            group.addTask {
+                let status = await withTimeout(seconds: 8) { await fetchAntigravity() }
+                    ?? Self.fallbackServices().first(where: { $0.name == "Antigravity" })!
+                return status.withInfoText(Self.antigravityInfo)
+            }
 
             var out: [ServiceStatus] = []
             for await item in group {
@@ -356,21 +367,32 @@ struct LiveUsageDataSource {
         }
 
         let now = Date()
-        // A cached number stays accurate only until that model's quota resets; after the
-        // reset the quota has refilled, so drop it. Each model is judged on its own clock.
-        let valid: [ModelStatus] = rawModels.compactMap { dict in
-            guard let name = dict["name"] as? String,
-                  let resetStr = dict["resetAt"] as? String,
-                  let reset = parseISO8601(resetStr), now < reset else { return nil }
+        let cached: [ModelStatus] = rawModels.compactMap { dict in
+            guard let name = dict["name"] as? String else { return nil }
             let percent = dict["remainingPercent"] as? Int ?? 0
+            let reset = (dict["resetAt"] as? String).flatMap { parseISO8601($0) }
             return ModelStatus(name: name, remainingPercent: percent, resetAt: reset,
                                valueText: dict["valueText"] as? String)
         }
+        guard !cached.isEmpty else { return nil }
 
-        // Every cached model has passed its reset → numbers are stale, don't show them.
+        // A cached number stays accurate only until that model's quota resets.
+        let valid = cached.filter { ($0.resetAt.map { now < $0 }) ?? false }
+
+        // Every cached model has passed its reset → the quota has refilled, so the numbers
+        // are stale. Still show the card (marked "güncel değil") rather than hiding it —
+        // the user needs to know the IDE is closed, not see Antigravity silently disappear.
         guard !valid.isEmpty else {
-            return unavailableService(name: "Antigravity", iconName: "antigravity",
-                                      models: ["Gemini", "Claude"], note: "güncel değil")
+            return ServiceStatus(
+                name: "Antigravity",
+                iconName: "antigravity",
+                sessionResetAt: nil,
+                weeklyResetAt: nil,
+                models: cached,
+                isAvailable: false,
+                statusNote: "güncel değil",
+                isStale: true
+            )
         }
 
         return ServiceStatus(

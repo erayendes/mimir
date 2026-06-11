@@ -11,6 +11,13 @@ struct ServiceStatus: Identifiable {
     let models: [ModelStatus]
     let isAvailable: Bool
     let statusNote: String?
+    /// Last-known data shown because the live source is gone (e.g. Antigravity IDE closed).
+    /// Not "available", but must survive the popover's unavailable-service filter so the
+    /// user still sees the snapshot instead of the service silently vanishing.
+    let isStale: Bool
+    /// Optional explainer surfaced behind an (i) icon on the card — e.g. how the data is
+    /// sourced and what the user must do to refresh it.
+    let infoText: String?
 
     init(
         name: String,
@@ -21,7 +28,9 @@ struct ServiceStatus: Identifiable {
         weeklyRemainingPercent: Int? = nil,
         models: [ModelStatus],
         isAvailable: Bool,
-        statusNote: String?
+        statusNote: String?,
+        isStale: Bool = false,
+        infoText: String? = nil
     ) {
         self.name = name
         self.iconName = iconName
@@ -32,6 +41,26 @@ struct ServiceStatus: Identifiable {
         self.models = models
         self.isAvailable = isAvailable
         self.statusNote = statusNote
+        self.isStale = isStale
+        self.infoText = infoText
+    }
+
+    /// Return a copy with `infoText` attached. Lets the data layer set the explainer once
+    /// at a single chokepoint rather than threading it through every construction site.
+    func withInfoText(_ text: String?) -> ServiceStatus {
+        ServiceStatus(
+            name: name,
+            iconName: iconName,
+            sessionResetAt: sessionResetAt,
+            weeklyResetAt: weeklyResetAt,
+            sessionRemainingPercent: sessionRemainingPercent,
+            weeklyRemainingPercent: weeklyRemainingPercent,
+            models: models,
+            isAvailable: isAvailable,
+            statusNote: statusNote,
+            isStale: isStale,
+            infoText: text
+        )
     }
 }
 

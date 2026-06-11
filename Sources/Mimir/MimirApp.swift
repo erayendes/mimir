@@ -265,10 +265,6 @@ private struct PopoverView: View {
     let onDismiss: () -> Void
     @State private var contentHeight: CGFloat = PopoverMetrics.maxHeight
 
-    private var needsScrolling: Bool {
-        contentHeight > PopoverMetrics.maxHeight
-    }
-
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { context in
             ZStack {
@@ -281,12 +277,11 @@ private struct PopoverView: View {
                         if let update = store.availableUpdate {
                             UpdateBanner(update: update)
                         }
-                        ForEach(store.services) { service in
-                            ServiceCard(service: service, now: context.date)
-                        }
+                        contentView(now: context.date)
+
+                        BrandingFooter()
                     }
-                    .padding(.top, PopoverMetrics.edgeInset + 10)
-                    .padding(.bottom, PopoverMetrics.edgeInset + 10)
+                    .padding(.vertical, PopoverMetrics.contentInset)
                     .padding(.horizontal, PopoverMetrics.edgeInset)
                     .background {
                         GeometryReader { proxy in
@@ -294,19 +289,113 @@ private struct PopoverView: View {
                         }
                     }
                 }
-
-                if needsScrolling {
-                    EdgeFadeOverlay(edge: .top)
-                        .allowsHitTesting(false)
-
-                    EdgeFadeOverlay(edge: .bottom)
-                        .allowsHitTesting(false)
+                // Scrolled cards dissolve in a gradient band and never reach the
+                // popover edge: the outer `edgeClearZone` stays permanently empty,
+                // so content can't appear to escape the background area. At rest
+                // the cards sit exactly below/above the bands, so nothing is dimmed.
+                .mask {
+                    VStack(spacing: 0) {
+                        Color.clear.frame(height: PopoverMetrics.edgeClearZone)
+                        LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
+                            .frame(height: PopoverMetrics.contentInset - PopoverMetrics.edgeClearZone)
+                        Rectangle().fill(Color.black)
+                        LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
+                            .frame(height: PopoverMetrics.contentInset - PopoverMetrics.edgeClearZone)
+                        Color.clear.frame(height: PopoverMetrics.edgeClearZone)
+                    }
                 }
             }
         }
         .onPreferenceChange(PopoverContentHeightKey.self) { contentHeight = $0 }
         .frame(width: PopoverMetrics.width)
         .frame(height: min(contentHeight, PopoverMetrics.maxHeight))
+    }
+
+    /// Show live services and stale snapshots; hide services that have no data at all.
+    /// A stale Antigravity snapshot (isStale) survives the filter so the user still sees
+    /// the last-known reading when the IDE is closed, instead of the card vanishing.
+    @ViewBuilder
+    private func contentView(now: Date) -> some View {
+        let visible = store.services.filter { $0.isAvailable || $0.isStale }
+        if !visible.isEmpty {
+            ForEach(visible) { service in
+                ServiceCard(service: service, now: now)
+            }
+        } else if store.isRefreshing {
+            ProgressView()
+                .controlSize(.small)
+                .frame(maxWidth: .infinity)
+                .frame(minHeight: PopoverMetrics.placeholderHeight)
+        } else {
+            emptyState
+        }
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "gauge.with.dots.needle.0percent")
+                .font(.system(size: 38, weight: .regular))
+                .foregroundStyle(.secondary)
+            Text("No active services detected.\nMake sure Claude Code, Codex, or Antigravity is running.")
+                .font(.system(size: 13, weight: .regular))
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(minHeight: PopoverMetrics.placeholderHeight)
+        .padding(.horizontal, 8)
+    }
+}
+
+/// Quiet identity mark under the last card: logo, name, version.
+/// Deliberately low-contrast — branding should be findable, never loud.
+private struct BrandingFooter: View {
+    private static let logo: NSImage? = {
+        guard let url = Bundle.main.url(forResource: "MenuIcon", withExtension: "png"),
+              let image = NSImage(contentsOf: url) else { return nil }
+        image.isTemplate = true
+        return image
+    }()
+
+    private static let version: String =
+        (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String).map { "v\($0)" } ?? "dev"
+
+    var body: some View {
+        // Logo spans both text lines; the name line mirrors the card headers
+        // (15pt semibold) and the version/byline use the relative-time label size.
+        HStack(spacing: 10) {
+            if let logo = Self.logo {
+                // MenuIcon's glyph fills only ~60% of its canvas; oversize the
+                // drawn frame so the visible face spans the two text lines, while
+                // the layout frame stays at the two-line height.
+                Image(nsImage: logo)
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 46, height: 46)
+                    .frame(width: 30, height: 30)
+            }
+
+            VStack(alignment: .leading, spacing: 1) {
+                HStack(alignment: .firstTextBaseline, spacing: 5) {
+                    Text("Mimir")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .tracking(0.05)
+
+                    Text(Self.version)
+                        .font(.system(size: 11, weight: .regular).monospacedDigit())
+                        .opacity(0.8)
+                }
+
+                Text("milowda")
+                    .font(.system(size: 11, weight: .regular, design: .rounded))
+                    .opacity(0.8)
+            }
+        }
+        .foregroundStyle(Color.secondary.opacity(0.7))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.leading, 12)
+        .padding(.top, 1)
     }
 }
 
@@ -320,9 +409,13 @@ private struct PopoverContentHeightKey: PreferenceKey {
 
 private enum PopoverMetrics {
     static let edgeInset: CGFloat = 15
-    static let fadeHeight: CGFloat = 58
+    /// Resting top/bottom padding; scrolled cards dissolve inside its inner part.
+    static let contentInset: CGFloat = 25
+    /// Outer band that always stays empty — content never appears this close to the edge.
+    static let edgeClearZone: CGFloat = 12
     static let width: CGFloat = 360
     static let maxHeight: CGFloat = 500
+    static let placeholderHeight: CGFloat = 200
 }
 
 private struct UpdateBanner: View {
@@ -384,47 +477,6 @@ private struct PressableButtonStyle: ButtonStyle {
     }
 }
 
-private struct EdgeFadeOverlay: View {
-    enum Edge {
-        case top
-        case bottom
-    }
-
-    let edge: Edge
-
-    var body: some View {
-        VStack {
-            if edge == .bottom {
-                Spacer()
-            }
-
-            Rectangle()
-                .fill(.ultraThinMaterial)
-                .frame(height: PopoverMetrics.fadeHeight)
-                .mask(
-                    LinearGradient(
-                        colors: gradientStops,
-                        startPoint: edge == .top ? .top : .bottom,
-                        endPoint: edge == .top ? .bottom : .top
-                    )
-                )
-
-            if edge == .top {
-                Spacer()
-            }
-        }
-        .ignoresSafeArea(edges: edge == .top ? .top : .bottom)
-    }
-
-    private var gradientStops: [Color] {
-        [
-            Color.black,
-            Color.black.opacity(0.55),
-            Color.clear
-        ]
-    }
-}
-
 private struct PopoverBackdrop: View {
     var body: some View {
         ZStack {
@@ -483,6 +535,7 @@ private struct PopoverBackdrop: View {
 private struct ServiceCard: View {
     let service: ServiceStatus
     let now: Date
+    @State private var showInfo = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -495,6 +548,20 @@ private struct ServiceCard: View {
                     .tracking(0.05)
                     .foregroundStyle(Color.primary.opacity(0.86))
 
+                if let info = service.infoText {
+                    Button {
+                        withAnimation(.easeOut(duration: 0.18)) { showInfo.toggle() }
+                    } label: {
+                        Image(systemName: showInfo ? "info.circle.fill" : "info.circle")
+                            .font(.system(size: 11, weight: .regular))
+                            .foregroundStyle(Color.secondary.opacity(showInfo ? 0.95 : 0.6))
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help(info)
+                    .accessibilityLabel(Text(info))
+                }
+
                 if !service.isAvailable {
                     Text(service.statusNote ?? "unavailable")
                         .font(.system(size: 11, weight: .regular, design: .rounded))
@@ -503,6 +570,21 @@ private struct ServiceCard: View {
                 }
 
                 Spacer(minLength: 0)
+            }
+
+            if showInfo, let info = service.infoText {
+                Text(info)
+                    .font(.system(size: 11, weight: .regular, design: .rounded))
+                    .foregroundStyle(Color.secondary.opacity(0.82))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Color.primary.opacity(0.05))
+                    }
+                    .transition(.opacity.combined(with: .move(edge: .top)))
             }
 
             VStack(alignment: .leading, spacing: 10) {
@@ -523,6 +605,8 @@ private struct ServiceCard: View {
                         .stroke(Color.primary.opacity(0.075), lineWidth: 1)
                 }
         }
+        // Dim a stale snapshot so it reads as "last known, not live".
+        .opacity(service.isStale ? 0.66 : 1)
     }
 
     @ViewBuilder
