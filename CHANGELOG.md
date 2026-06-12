@@ -11,8 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+### [1.4] - 2026-06-12
+
 #### Changed
 - Antigravity now reflects its new grouped quota model. Antigravity moved quota off per-model limits and onto shared group buckets — a **Gemini** group and a **Claude + GPT** group, each with a weekly and a 5-hour window — exposed via the new `RetrieveUserQuotaSummary` language-server RPC. The card now shows four rows (Gemini · 5h, Gemini · Weekly, Claude/GPT · 5h, Claude/GPT · Weekly) sourced from that endpoint, instead of one row per model family from the old per-model `GetUserStatus` (which only ever carried the 5-hour window)
+
+#### Fixed
+- Popover height was locked at its 500pt maximum even when fewer cards were shown (e.g. only Codex running), leaving a large empty area below the branding footer. SwiftUI preference updates were being silently dropped inside the `TimelineView`/`ScrollView` hierarchy, so the height listener never saw the measured value. The popover is now sized directly from the measured content, so it shrinks and grows live as services appear, disappear, or expand their info panel
 
 ### [1.3] - 2026-06-10
 
@@ -99,7 +104,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Build and install script (`script/build_and_run.sh`)
 - Automated DMG release pipeline via GitHub Actions
 
-[Unreleased]: https://github.com/erayendes/mimir/compare/v1.3...HEAD
+[Unreleased]: https://github.com/erayendes/mimir/compare/v1.4...HEAD
+[1.4]: https://github.com/erayendes/mimir/compare/v1.3...v1.4
 [1.3]: https://github.com/erayendes/mimir/compare/v1.2.2...v1.3
 [1.2.2]: https://github.com/erayendes/mimir/compare/v1.2...v1.2.2
 [1.2]: https://github.com/erayendes/mimir/compare/v1.1...v1.2
@@ -119,12 +125,21 @@ sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) k
 
 ### [Yayımlanmadı]
 
+### [1.4] - 2026-06-12
+
+#### Değişti
+- Antigravity, yeni gruplu kota modeline uyarlandı. Antigravity kotayı model bazlı limitlerden çıkarıp paylaşılan grup kovalarına taşıdı — bir **Gemini** grubu ve bir **Claude + GPT** grubu, her birinde haftalık ve 5 saatlik birer pencere — bunlar yeni `RetrieveUserQuotaSummary` dil-sunucusu RPC'sinden geliyor. Kart artık model ailesi başına tek satır yerine bu endpoint'ten dört satır gösteriyor (Gemini · 5h, Gemini · Weekly, Claude/GPT · 5h, Claude/GPT · Weekly); eski model-bazlı `GetUserStatus` yalnızca 5 saatlik pencereyi taşıyordu
+
+#### Düzeltildi
+- Popover yüksekliği, daha az kart gösterildiğinde bile (örn. yalnızca Codex çalışırken) 500pt'lik üst sınırında sabit kalıyor ve branding footer'ın altında büyük bir boşluk bırakıyordu. SwiftUI preference güncellemeleri `TimelineView`/`ScrollView` hiyerarşisi içinde sessizce düşüyor, bu yüzden yükseklik dinleyicisi ölçülen değeri hiç görmüyordu. Popover artık doğrudan ölçülen içeriğe göre boyutlanıyor; böylece servisler göründükçe, kayboldukça veya bilgi panelini açtıkça canlı olarak küçülüp büyüyor
+
+### [1.3] - 2026-06-10
+
 #### Eklendi
 - Uygulama içi güncelleme kontrolü ([#20](https://github.com/erayendes/mimir/issues/20)): açılışta ve günde bir kez Mimir, GitHub Releases API'sini sorgular ve daha yeni bir sürüm varsa popover'ın üstünde göze batmayan bir banner gösterir; tıklandığında release sayfası tarayıcıda açılır
 - Antigravity kota anlık görüntüsü: son canlı okuma diske kaydedilir, böylece IDE/Cockpit kapandıktan sonra da kota ve reset saati görünür kalır — her modelin reset saati geçene kadar; geçtikten sonra kart eski değer yerine "güncel değil" olarak işaretlenir
 
 #### Değişti
-- Antigravity, yeni gruplu kota modeline uyarlandı. Antigravity kotayı model bazlı limitlerden çıkarıp paylaşılan grup kovalarına taşıdı — bir **Gemini** grubu ve bir **Claude + GPT** grubu, her birinde haftalık ve 5 saatlik birer pencere — bunlar yeni `RetrieveUserQuotaSummary` dil-sunucusu RPC'sinden geliyor. Kart artık model ailesi başına tek satır yerine bu endpoint'ten dört satır gösteriyor (Gemini · 5h, Gemini · Weekly, Claude/GPT · 5h, Claude/GPT · Weekly); eski model-bazlı `GetUserStatus` yalnızca 5 saatlik pencereyi taşıyordu
 - Popover boş durumu ([#18](https://github.com/erayendes/mimir/issues/18)): verisi olmayan servisler artık anlamsız "%0" satırları olarak gösterilmiyor; hiçbir şey çalışmıyorsa ortalanmış bir placeholder, yenileme sırasında bir spinner gösteriliyor. Eski Antigravity anlık görüntüsü ("güncel değil") gizlenmek yerine soluk şekilde görünür kalıyor — böylece kapalı bir IDE kartın sessizce kaybolmasına yol açmıyor
 - Antigravity kartına, kotanın yerel dil sunucusundan okunduğunu ve verinin güncellenmesi için Antigravity'nin açık olması gerektiğini (kapalıyken son görülen değerlerin gösterildiğini) açıklayan bir (i) bilgi ikonu eklendi
 
@@ -203,7 +218,8 @@ sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) k
 - Derleme ve kurulum scripti (`script/build_and_run.sh`)
 - GitHub Actions üzerinden otomatik DMG release pipeline'ı
 
-[Yayımlanmadı]: https://github.com/erayendes/mimir/compare/v1.3...HEAD
+[Yayımlanmadı]: https://github.com/erayendes/mimir/compare/v1.4...HEAD
+[1.4]: https://github.com/erayendes/mimir/compare/v1.3...v1.4
 [1.3]: https://github.com/erayendes/mimir/compare/v1.2.2...v1.3
 [1.2.2]: https://github.com/erayendes/mimir/compare/v1.2...v1.2.2
 [1.2]: https://github.com/erayendes/mimir/compare/v1.1...v1.2
