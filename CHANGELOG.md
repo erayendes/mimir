@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+#### Changed
+- Quota notifications reworked around the 5-hour and weekly windows. Live Claude/Codex warn once when the 5h window drops below 20% or the weekly window below 10%; the 5h "refilled" notice fires only after the window fully drains to 0% and resets to 100%, while the weekly "refilled" fires on every reset. Per-model rows no longer notify, and messages are now English with the live percentage and reset countdown
+- Antigravity notifications limited to a single reliable event — its weekly refill. Usage/low and 5h alerts are dropped because Antigravity data is only live while the IDE is open; but the weekly reset time is deterministic and the quota can't be spent while the IDE is closed, so "weekly quota refilled" fires exactly when that time passes, even with the IDE closed and even if the quota was never touched
+
 ### [1.4] - 2026-06-12
 
 #### Changed
@@ -124,6 +128,10 @@ Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
 
 ### [Yayımlanmadı]
+
+#### Değişti
+- Kota bildirimleri 5 saatlik ve haftalık pencereler etrafında yeniden kurgulandı. Canlı Claude/Codex, 5h penceresi %20'nin veya haftalık pencere %10'un altına düşünce bir kez uyarıyor; 5h "yenilendi" bildirimi yalnızca pencere tamamen %0'a inip %100'e dönünce, haftalık "yenilendi" ise her reset'te geliyor. Model bazlı satırlar artık bildirim üretmiyor ve mesajlar canlı yüzde + reset geri sayımıyla İngilizce
+- Antigravity bildirimleri tek güvenilir olaya indirildi — haftalık yenilenme. Kullanım/düşük ve 5h uyarıları kaldırıldı çünkü Antigravity verisi yalnızca IDE açıkken canlı; ama haftalık reset zamanı deterministik ve IDE kapalıyken kota harcanamadığı için "haftalık kota yenilendi", o zaman geldiğinde IDE kapalı olsa ve kota hiç kullanılmamış olsa bile gönderiliyor
 
 ### [1.4] - 2026-06-12
 
