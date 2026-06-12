@@ -24,7 +24,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var localEventMonitor: Any?
     private var globalEventMonitor: Any?
     private var cancellables: Set<AnyCancellable> = []
-    private var lowQuotaNotified: Set<String> = []
+    // Per-window notification state, keyed "<service>-5h" / "<service>-weekly".
+    private var lowNotified: Set<String> = []     // window is below its low threshold (until it resets)
+    private var depleted5h: Set<String> = []      // service's 5h window hit 0% since its last refill
+    private var lastWindowPercent: [String: Int] = [:]  // previous reading, for refill edge detection
     private var cachedIconNormal: NSImage?
     private var cachedIconLow: NSImage?
 
@@ -233,32 +236,77 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private enum QuotaWindow {
+        case fiveHour, weekly
+        var suffix: String { self == .fiveHour ? "5h" : "weekly" }
+        var lowThreshold: Int { self == .fiveHour ? 20 : 10 }
+    }
+
     private func checkNotifications() {
-        for service in store.services {
-            let checks: [(key: String, label: String, percent: Int?)] =
-                [("\(service.name)-session", "5h Session", service.sessionRemainingPercent),
-                 ("\(service.name)-weekly", "Weekly", service.weeklyRemainingPercent)]
-                + service.models.map { ("\(service.name)-\($0.name)", $0.name, Optional($0.remainingPercent)) }
+        // Only the account-level 5h + weekly windows of live services notify. Antigravity is
+        // excluded: it has no service-level windows (it uses per-group model rows) and its data
+        // is only live while the IDE is open — stale snapshots must not fire false alerts.
+        for service in store.services where service.isAvailable && service.name != "Antigravity" {
+            evaluateWindow(service: service, window: .fiveHour,
+                           percent: service.sessionRemainingPercent, resetAt: service.sessionResetAt)
+            evaluateWindow(service: service, window: .weekly,
+                           percent: service.weeklyRemainingPercent, resetAt: service.weeklyResetAt)
+        }
+    }
 
-            for check in checks {
-                guard let percent = check.percent else { continue }
+    private func evaluateWindow(service: ServiceStatus, window: QuotaWindow, percent: Int?, resetAt: Date?) {
+        guard let percent else { return }
+        let key = "\(service.name)-\(window.suffix)"
+        let previous = lastWindowPercent[key]
+        lastWindowPercent[key] = percent
 
-                if percent < 20, !lowQuotaNotified.contains(check.key) {
+        // A fully drained 5h window is the only thing that earns a 5h refill notice later.
+        if window == .fiveHour, percent == 0 {
+            depleted5h.insert(service.name)
+        }
+
+        // Refill: the window jumped back to 100 (a reset). Edge-triggered on the <100 → 100
+        // crossing so it fires once per reset, never on the first reading (previous == nil).
+        if percent == 100, let previous, previous < 100 {
+            switch window {
+            case .fiveHour:
+                if depleted5h.contains(service.name) {
                     sendNotification(
-                        identifier: check.key,
-                        title: "⚠️ \(service.name) \(check.label)",
-                        body: "\(percent)% left"
+                        identifier: "\(key)-refilled",
+                        title: "🔋 \(service.name) 5-hour quota refilled",
+                        body: "You're back to 100% — pick up where you left off."
                     )
-                    lowQuotaNotified.insert(check.key)
-                } else if percent >= 80, lowQuotaNotified.contains(check.key) {
-                    sendNotification(
-                        identifier: "\(check.key)-refilled",
-                        title: "✅ \(service.name) \(check.label)",
-                        body: "Refilled — \(percent)% available"
-                    )
-                    lowQuotaNotified.remove(check.key)
                 }
+                depleted5h.remove(service.name)
+            case .weekly:
+                sendNotification(
+                    identifier: "\(key)-refilled",
+                    title: "🚀 \(service.name) weekly quota refilled",
+                    body: "Back to 100% for the week."
+                )
             }
+            lowNotified.remove(key)
+            return
+        }
+
+        // Low: crossed below the threshold. Warn once, then stay quiet until the window resets.
+        if percent < window.lowThreshold, !lowNotified.contains(key) {
+            let resets = resetAt.map { "Resets in ~\(TimeFormatter.duration(from: $0.timeIntervalSinceNow))." }
+            switch window {
+            case .fiveHour:
+                sendNotification(
+                    identifier: key,
+                    title: "🪫 \(service.name) 5-hour quota low — \(percent)%",
+                    body: resets ?? "Your 5-hour limit is running out."
+                )
+            case .weekly:
+                sendNotification(
+                    identifier: key,
+                    title: "🚨 \(service.name) weekly quota low — \(percent)%",
+                    body: resets ?? "Your weekly limit is running out."
+                )
+            }
+            lowNotified.insert(key)
         }
     }
 
