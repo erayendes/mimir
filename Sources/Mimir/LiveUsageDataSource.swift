@@ -310,6 +310,13 @@ struct LiveUsageDataSource {
 
     private func fetchAntigravity() async -> ServiceStatus {
         let defaults = ["Gemini", "Claude"]
+        // Primary live source: the grouped weekly + 5h quota summary that backs the IDE's
+        // "Model Quota" page. Antigravity moved quota off per-model and onto shared group
+        // buckets (Gemini / Claude+GPT), each with a weekly and a 5-hour window.
+        if let summary = fetchAntigravityQuotaSummary() {
+            saveAntigravitySnapshot(summary)
+            return summary
+        }
         if let authorized = await fetchAntigravityAuthorized(models: defaults) {
             saveAntigravitySnapshot(authorized)
             return authorized
@@ -470,7 +477,10 @@ struct LiveUsageDataSource {
         )
     }
 
-    private func fetchAntigravityLocalLanguageServer(models defaults: [String]) -> ServiceStatus? {
+    /// Locate the running Antigravity language server and return its CSRF token plus the
+    /// localhost ports it listens on. Shared by every local-gRPC fetch so the process /
+    /// port discovery (and its lsof gotcha) lives in one place.
+    private func antigravityLanguageServerEndpoint() -> (csrf: String, ports: [Int])? {
         let processRows = runShell("ps -ax -o pid=,command= | grep 'bin/language_server' | grep antigravity | grep -v grep")
             .split(separator: "\n")
         guard let row = processRows.first else {
@@ -489,6 +499,100 @@ struct LiveUsageDataSource {
             .split(separator: "\n")
             .compactMap { Int($0) }
         guard !ports.isEmpty else {
+            return nil
+        }
+        return (csrf, ports)
+    }
+
+    /// Call the grouped quota summary RPC the IDE's Model Quota page uses. Each group
+    /// (Gemini, Claude+GPT) carries a weekly and a 5-hour bucket — flattened to one row each.
+    private func fetchAntigravityQuotaSummary() -> ServiceStatus? {
+        guard let (csrf, ports) = antigravityLanguageServerEndpoint() else {
+            return nil
+        }
+
+        let body = "{\"metadata\":{\"ideName\":\"antigravity\",\"extensionName\":\"antigravity\",\"locale\":\"en\",\"ideVersion\":\"unknown\"}}"
+        var groups: [[String: Any]]?
+        for p in ports {
+            let out = runCommand("/usr/bin/curl", [
+                "-ks", "--max-time", "2",
+                "-H", "X-Codeium-Csrf-Token: \(csrf)",
+                "-H", "Connect-Protocol-Version: 1",
+                "-H", "Content-Type: application/json",
+                "--data", body,
+                "https://127.0.0.1:\(p)/exa.language_server_pb.LanguageServerService/RetrieveUserQuotaSummary"
+            ])
+            if let data = out.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let response = json["response"] as? [String: Any],
+               let g = response["groups"] as? [[String: Any]], !g.isEmpty {
+                groups = g
+                break
+            }
+        }
+        guard let groups else {
+            return nil
+        }
+
+        let models = antigravityQuotaSummaryRows(groups: groups)
+        guard !models.isEmpty else {
+            return nil
+        }
+        return ServiceStatus(
+            name: "Antigravity",
+            iconName: "antigravity",
+            sessionResetAt: models.compactMap(\.resetAt).min(),
+            weeklyResetAt: nil,
+            models: models,
+            isAvailable: true,
+            statusNote: "quota summary"
+        )
+    }
+
+    /// Flatten `groups[].buckets[]` into one row per (group × window), ordered 5h then
+    /// weekly within each group: Gemini · 5h, Gemini · Weekly, Claude/GPT · 5h, Claude/GPT · Weekly.
+    private func antigravityQuotaSummaryRows(groups: [[String: Any]]) -> [ModelStatus] {
+        var rows: [ModelStatus] = []
+        for group in groups {
+            let family = antigravityFamilyLabel(group["displayName"] as? String ?? "")
+            let buckets = (group["buckets"] as? [[String: Any]] ?? [])
+                .sorted { antigravityWindowRank($0["window"] as? String) < antigravityWindowRank($1["window"] as? String) }
+            for bucket in buckets {
+                guard let fraction = doubleValue(bucket["remainingFraction"]) else { continue }
+                let percent = Int((min(1, max(0, fraction)) * 100).rounded())
+                let reset = (bucket["resetTime"] as? String).flatMap { parseISO8601($0) }
+                let window = antigravityWindowLabel(bucket["window"] as? String, fallback: bucket["displayName"] as? String)
+                rows.append(ModelStatus(name: "\(family) · \(window)", remainingPercent: percent, resetAt: reset))
+            }
+        }
+        return rows
+    }
+
+    private func antigravityFamilyLabel(_ displayName: String) -> String {
+        let lower = displayName.lowercased()
+        if lower.contains("gemini") { return "Gemini" }
+        if lower.contains("claude") || lower.contains("gpt") { return "Claude/GPT" }
+        return displayName.isEmpty ? "Antigravity" : displayName
+    }
+
+    private func antigravityWindowRank(_ window: String?) -> Int {
+        switch window {
+        case "5h": return 0
+        case "weekly": return 1
+        default: return 2
+        }
+    }
+
+    private func antigravityWindowLabel(_ window: String?, fallback: String?) -> String {
+        switch window {
+        case "5h": return "5h"
+        case "weekly": return "Weekly"
+        default: return fallback ?? "Limit"
+        }
+    }
+
+    private func fetchAntigravityLocalLanguageServer(models defaults: [String]) -> ServiceStatus? {
+        guard let (csrf, ports) = antigravityLanguageServerEndpoint() else {
             return nil
         }
 

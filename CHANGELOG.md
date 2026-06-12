@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+#### Changed
+- Antigravity now reflects its new grouped quota model. Antigravity moved quota off per-model limits and onto shared group buckets — a **Gemini** group and a **Claude + GPT** group, each with a weekly and a 5-hour window — exposed via the new `RetrieveUserQuotaSummary` language-server RPC. The card now shows four rows (Gemini · 5h, Gemini · Weekly, Claude/GPT · 5h, Claude/GPT · Weekly) sourced from that endpoint, instead of one row per model family from the old per-model `GetUserStatus` (which only ever carried the 5-hour window)
+
 ### [1.3] - 2026-06-10
 
 #### Added
@@ -121,6 +124,7 @@ sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) k
 - Antigravity kota anlık görüntüsü: son canlı okuma diske kaydedilir, böylece IDE/Cockpit kapandıktan sonra da kota ve reset saati görünür kalır — her modelin reset saati geçene kadar; geçtikten sonra kart eski değer yerine "güncel değil" olarak işaretlenir
 
 #### Değişti
+- Antigravity, yeni gruplu kota modeline uyarlandı. Antigravity kotayı model bazlı limitlerden çıkarıp paylaşılan grup kovalarına taşıdı — bir **Gemini** grubu ve bir **Claude + GPT** grubu, her birinde haftalık ve 5 saatlik birer pencere — bunlar yeni `RetrieveUserQuotaSummary` dil-sunucusu RPC'sinden geliyor. Kart artık model ailesi başına tek satır yerine bu endpoint'ten dört satır gösteriyor (Gemini · 5h, Gemini · Weekly, Claude/GPT · 5h, Claude/GPT · Weekly); eski model-bazlı `GetUserStatus` yalnızca 5 saatlik pencereyi taşıyordu
 - Popover boş durumu ([#18](https://github.com/erayendes/mimir/issues/18)): verisi olmayan servisler artık anlamsız "%0" satırları olarak gösterilmiyor; hiçbir şey çalışmıyorsa ortalanmış bir placeholder, yenileme sırasında bir spinner gösteriliyor. Eski Antigravity anlık görüntüsü ("güncel değil") gizlenmek yerine soluk şekilde görünür kalıyor — böylece kapalı bir IDE kartın sessizce kaybolmasına yol açmıyor
 - Antigravity kartına, kotanın yerel dil sunucusundan okunduğunu ve verinin güncellenmesi için Antigravity'nin açık olması gerektiğini (kapalıyken son görülen değerlerin gösterildiğini) açıklayan bir (i) bilgi ikonu eklendi
 
