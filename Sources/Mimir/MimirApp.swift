@@ -63,12 +63,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         popover.behavior = .transient
+        popover.contentSize = NSSize(width: PopoverMetrics.width, height: PopoverMetrics.maxHeight)
+        // Height is driven manually from the measured SwiftUI content (see
+        // onContentHeightChange): preference-based plumbing silently drops
+        // updates inside this TimelineView/ScrollView hierarchy, so the view
+        // reports its size through a plain callback instead.
         let hosting = NSHostingController(
-            rootView: PopoverView(store: store) { [weak self] in
-                self?.closePopover(nil)
-            }
+            rootView: PopoverView(
+                store: store,
+                onDismiss: { [weak self] in self?.closePopover(nil) },
+                onContentHeightChange: { [weak self] height in
+                    guard let self else { return }
+                    let clamped = min(max(height, 80), PopoverMetrics.maxHeight)
+                    guard abs(self.popover.contentSize.height - clamped) > 0.5 else { return }
+                    self.popover.contentSize = NSSize(width: PopoverMetrics.width, height: clamped)
+                }
+            )
         )
-        hosting.sizingOptions = .preferredContentSize
+        hosting.sizingOptions = []
         popover.contentViewController = hosting
 
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -263,7 +275,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 private struct PopoverView: View {
     @ObservedObject var store: UsageStore
     let onDismiss: () -> Void
-    @State private var contentHeight: CGFloat = PopoverMetrics.maxHeight
+    /// Reports the measured content height so AppKit can size the popover.
+    /// Plain callback on purpose — see the note at the construction site.
+    let onContentHeightChange: (CGFloat) -> Void
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { context in
@@ -285,7 +299,11 @@ private struct PopoverView: View {
                     .padding(.horizontal, PopoverMetrics.edgeInset)
                     .background {
                         GeometryReader { proxy in
-                            Color.clear.preference(key: PopoverContentHeightKey.self, value: proxy.size.height)
+                            Color.clear
+                                .onAppear { onContentHeightChange(proxy.size.height) }
+                                .onChange(of: proxy.size.height) { _, height in
+                                    onContentHeightChange(height)
+                                }
                         }
                     }
                 }
@@ -306,9 +324,6 @@ private struct PopoverView: View {
                 }
             }
         }
-        .onPreferenceChange(PopoverContentHeightKey.self) { contentHeight = $0 }
-        .frame(width: PopoverMetrics.width)
-        .frame(height: min(contentHeight, PopoverMetrics.maxHeight))
     }
 
     /// Show live services and stale snapshots; hide services that have no data at all.
@@ -396,14 +411,6 @@ private struct BrandingFooter: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.leading, 12)
         .padding(.top, 1)
-    }
-}
-
-private struct PopoverContentHeightKey: PreferenceKey {
-    static let defaultValue: CGFloat = PopoverMetrics.maxHeight
-
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
     }
 }
 
