@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+#### Fixed
+- Popover height was locked at its 500pt maximum even when fewer cards were shown (e.g. only Codex running), leaving a large empty area below the branding footer. SwiftUI preference updates were being silently dropped inside the `TimelineView`/`ScrollView` hierarchy, so the height listener never saw the measured value. The popover is now sized directly from the measured content, so it shrinks and grows live as services appear, disappear, or expand their info panel
+
 ### [1.3] - 2026-06-10
 
 #### Added
@@ -125,6 +128,7 @@ sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) k
 - Antigravity kartına, kotanın yerel dil sunucusundan okunduğunu ve verinin güncellenmesi için Antigravity'nin açık olması gerektiğini (kapalıyken son görülen değerlerin gösterildiğini) açıklayan bir (i) bilgi ikonu eklendi
 
 #### Düzeltildi
+- Popover yüksekliği, daha az kart gösterildiğinde bile (örn. yalnızca Codex çalışırken) 500pt'lik üst sınırında sabit kalıyor ve branding footer'ın altında büyük bir boşluk bırakıyordu. SwiftUI preference güncellemeleri `TimelineView`/`ScrollView` hiyerarşisi içinde sessizce düşüyor, bu yüzden yükseklik dinleyicisi ölçülen değeri hiç görmüyordu. Popover artık doğrudan ölçülen içeriğe göre boyutlanıyor; böylece servisler göründükçe, kayboldukça veya bilgi panelini açtıkça canlı olarak küçülüp büyüyor
 - IDE açık olmasına rağmen Antigravity kotası ve reset saati görünmüyordu — `lsof` port aramasında `-a` bayrağı eksikti, bu yüzden `-iTCP`/`-p` filtreleri AND yerine OR'lanıyor ve sistemdeki tüm dinleyen portlar dönüyordu; onlarca yanlış portu denemek 8 saniyelik zaman aşımını patlatıp veriyi boş bırakıyordu. `-a` eklenerek yalnızca dil sunucusunun kendi portları sorgulanıyor
 
 ### [1.2.2] - 2026-06-10
