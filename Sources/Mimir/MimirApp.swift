@@ -243,14 +243,57 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func checkNotifications() {
-        // Only the account-level 5h + weekly windows of live services notify. Antigravity is
-        // excluded: it has no service-level windows (it uses per-group model rows) and its data
-        // is only live while the IDE is open — stale snapshots must not fire false alerts.
+        // Only the account-level 5h + weekly windows of live services notify here. Antigravity is
+        // excluded: it has no service-level windows (it uses per-group model rows) and its usage
+        // data is only live while the IDE is open — stale snapshots must not fire false alerts.
         for service in store.services where service.isAvailable && service.name != "Antigravity" {
             evaluateWindow(service: service, window: .fiveHour,
                            percent: service.sessionRemainingPercent, resetAt: service.sessionResetAt)
             evaluateWindow(service: service, window: .weekly,
                            percent: service.weeklyRemainingPercent, resetAt: service.weeklyResetAt)
+        }
+        checkAntigravityWeeklyRefill()
+    }
+
+    private static let agyResetTargetKey = "agyWeeklyResetTarget"      // armed reset we're waiting on
+    private static let agyResetNotifiedKey = "agyWeeklyResetNotified"  // reset we've already announced
+
+    /// Antigravity's one reliable notification: the weekly quota refill. Its weekly reset time is
+    /// deterministic and known in advance, and the quota can't be spent while the IDE is closed —
+    /// so once we've seen the reset time, we can fire "refilled" exactly when it passes, with no
+    /// live data. (Low / 5h alerts stay off: those depend on usage we can't observe reliably.)
+    private func checkAntigravityWeeklyRefill() {
+        let defaults = UserDefaults.standard
+        let now = Date()
+
+        // Fire when the armed reset has passed, then disarm so the next reset can arm cleanly.
+        let armed = defaults.double(forKey: Self.agyResetTargetKey)
+        if armed > 0, now.timeIntervalSince1970 >= armed {
+            if defaults.double(forKey: Self.agyResetNotifiedKey) != armed {
+                sendNotification(
+                    identifier: "Antigravity-weekly-refilled",
+                    title: "🚀 Antigravity weekly quota refilled",
+                    body: "Back to 100% for the week."
+                )
+                defaults.set(armed, forKey: Self.agyResetNotifiedKey)
+            }
+            defaults.removeObject(forKey: Self.agyResetTargetKey)
+        }
+
+        // Arm the next future weekly reset (both weekly buckets share one time → take the earliest).
+        // Only when nothing is armed and only a reset we haven't already announced, so the data
+        // jumping to next week at reset time can't clobber the reset we still owe a notification for.
+        guard defaults.double(forKey: Self.agyResetTargetKey) == 0,
+              let antigravity = store.services.first(where: { $0.name == "Antigravity" }) else {
+            return
+        }
+        let upcoming = antigravity.models
+            .filter { $0.name.contains("Weekly") }
+            .compactMap(\.resetAt)
+            .filter { $0 > now }
+            .min()
+        if let upcoming, upcoming.timeIntervalSince1970 != defaults.double(forKey: Self.agyResetNotifiedKey) {
+            defaults.set(upcoming.timeIntervalSince1970, forKey: Self.agyResetTargetKey)
         }
     }
 
