@@ -18,6 +18,10 @@ struct ServiceStatus: Identifiable {
     /// Optional explainer surfaced behind an (i) icon on the card — e.g. how the data is
     /// sourced and what the user must do to refresh it.
     let infoText: String?
+    /// Transient signal (not displayed) telling `UsageStore` how to update this service's
+    /// fetch cooldown: `nil` = leave cooldown unchanged, `0` = clear it (live success),
+    /// `> 0` = back off for that many seconds (e.g. an HTTP 429 `Retry-After`).
+    let cooldownHint: TimeInterval?
 
     init(
         name: String,
@@ -30,7 +34,8 @@ struct ServiceStatus: Identifiable {
         isAvailable: Bool,
         statusNote: String?,
         isStale: Bool = false,
-        infoText: String? = nil
+        infoText: String? = nil,
+        cooldownHint: TimeInterval? = nil
     ) {
         self.name = name
         self.iconName = iconName
@@ -43,11 +48,33 @@ struct ServiceStatus: Identifiable {
         self.statusNote = statusNote
         self.isStale = isStale
         self.infoText = infoText
+        self.cooldownHint = cooldownHint
     }
 
     /// Return a copy with `infoText` attached. Lets the data layer set the explainer once
     /// at a single chokepoint rather than threading it through every construction site.
     func withInfoText(_ text: String?) -> ServiceStatus {
+        copy(infoText: .some(text))
+    }
+
+    /// Return a copy with a different `statusNote` — used to stamp an actionable reason
+    /// (e.g. "token expired — open Claude Code") onto a loaded snapshot without rebuilding it.
+    func withStatusNote(_ note: String?) -> ServiceStatus {
+        copy(statusNote: .some(note))
+    }
+
+    /// Return a copy carrying a cooldown signal for `UsageStore` (see `cooldownHint`).
+    func withCooldownHint(_ hint: TimeInterval?) -> ServiceStatus {
+        copy(cooldownHint: .some(hint))
+    }
+
+    /// One-field copy. Each parameter is a double optional: `nil` keeps the current value,
+    /// `.some(x)` overwrites it (so passing `.some(nil)` can clear an optional field).
+    private func copy(
+        statusNote: String?? = nil,
+        infoText: String?? = nil,
+        cooldownHint: TimeInterval?? = nil
+    ) -> ServiceStatus {
         ServiceStatus(
             name: name,
             iconName: iconName,
@@ -57,9 +84,10 @@ struct ServiceStatus: Identifiable {
             weeklyRemainingPercent: weeklyRemainingPercent,
             models: models,
             isAvailable: isAvailable,
-            statusNote: statusNote,
+            statusNote: statusNote ?? self.statusNote,
             isStale: isStale,
-            infoText: text
+            infoText: infoText ?? self.infoText,
+            cooldownHint: cooldownHint ?? self.cooldownHint
         )
     }
 }

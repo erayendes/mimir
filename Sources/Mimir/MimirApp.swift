@@ -243,9 +243,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func checkNotifications() {
-        // Only the account-level 5h + weekly windows of live services notify here. Antigravity is
-        // excluded: it has no service-level windows (it uses per-group model rows) and its usage
-        // data is only live while the IDE is open — stale snapshots must not fire false alerts.
+        // Only the account-level 5h + weekly windows of LIVE services notify here. The
+        // `isAvailable` guard is load-bearing: a service served from a stale snapshot is
+        // `isAvailable == false`, so it never fires a low/refill alert on cached numbers — this
+        // holds for Claude/Codex snapshots too, not just Antigravity. Antigravity is additionally
+        // excluded by name (it has no service-level windows; it uses per-group model rows).
         for service in store.services where service.isAvailable && service.name != "Antigravity" {
             evaluateWindow(service: service, window: .fiveHour,
                            percent: service.sessionRemainingPercent, resetAt: service.sessionResetAt)

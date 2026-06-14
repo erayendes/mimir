@@ -7,17 +7,35 @@ final class UsageStore: ObservableObject {
     @Published var availableUpdate: AvailableUpdate?
     private let source = LiveUsageDataSource()
     private var lastUpdateCheck: Date?
+    /// Per-service fetch cooldown: while `Date()` is before the stored value, that service is
+    /// served from its snapshot instead of hitting the network (set after an HTTP 429 / expired
+    /// token; cleared on the next live success). Stops Mimir hammering a failing endpoint.
+    private var cooldownUntil: [String: Date] = [:]
 
     func refresh() {
         guard !isRefreshing else { return }
         isRefreshing = true
+        let now = Date()
+        let skip = Set(cooldownUntil.compactMap { $0.value > now ? $0.key : nil })
         let source = self.source
         Task {
             let result = await Task.detached(priority: .userInitiated) {
-                await source.fetchAll().sorted { $0.name < $1.name }
+                await source.fetchAll(skip: skip).sorted { $0.name < $1.name }
             }.value
+            for status in result { self.applyCooldownOutcome(status) }
             self.services = result
             self.isRefreshing = false
+        }
+    }
+
+    /// Translate a fetch result's `cooldownHint` into the cooldown map: `nil` leaves it unchanged,
+    /// `<= 0` clears it (live success), `> 0` parks the service for that many seconds.
+    private func applyCooldownOutcome(_ status: ServiceStatus) {
+        guard let hint = status.cooldownHint else { return }
+        if hint <= 0 {
+            cooldownUntil[status.name] = nil
+        } else {
+            cooldownUntil[status.name] = Date().addingTimeInterval(hint)
         }
     }
 
@@ -105,14 +123,26 @@ struct LiveUsageDataSource {
     Antigravity'nin açık olması gerekir; kapalıyken en son görülen değerler gösterilir.
     """
 
-    func fetchAll() async -> [ServiceStatus] {
+    /// Fetch every service. Services named in `skip` are in a fetch cooldown (e.g. after a 429)
+    /// and are served from their snapshot instead of hitting the network. A live fetch that times
+    /// out also falls back to the snapshot, so a transient failure never empties a card.
+    func fetchAll(skip: Set<String> = []) async -> [ServiceStatus] {
         let order = ["Antigravity", "Claude", "Codex"]
         return await withTaskGroup(of: ServiceStatus.self) { group in
-            group.addTask { await withTimeout(seconds: 8) { await fetchClaude() } ?? Self.fallbackServices().first(where: { $0.name == "Claude" })! }
-            group.addTask { await withTimeout(seconds: 8) { await fetchCodex() } ?? Self.fallbackServices().first(where: { $0.name == "Codex" })! }
             group.addTask {
+                if skip.contains("Claude") { return self.snapshotOrFallback("Claude", iconName: "claude") }
+                return await withTimeout(seconds: 8) { await fetchClaude() }
+                    ?? self.snapshotOrFallback("Claude", iconName: "claude")
+            }
+            group.addTask {
+                if skip.contains("Codex") { return self.snapshotOrFallback("Codex", iconName: "codex") }
+                return await withTimeout(seconds: 8) { await fetchCodex() }
+                    ?? self.snapshotOrFallback("Codex", iconName: "codex")
+            }
+            group.addTask {
+                if skip.contains("Antigravity") { return self.snapshotOrFallback("Antigravity", iconName: "antigravity").withInfoText(Self.antigravityInfo) }
                 let status = await withTimeout(seconds: 8) { await fetchAntigravity() }
-                    ?? Self.fallbackServices().first(where: { $0.name == "Antigravity" })!
+                    ?? self.snapshotOrFallback("Antigravity", iconName: "antigravity")
                 return status.withInfoText(Self.antigravityInfo)
             }
 
@@ -126,40 +156,71 @@ struct LiveUsageDataSource {
 
     private func fetchClaude() async -> ServiceStatus {
         if let cached = readClaudeUsageCache(maxAge: 5 * 60) {
-            return buildClaudeStatus(from: cached, note: "oauth usage cache")
+            return buildClaudeStatus(from: cached, note: "oauth usage cache").withCooldownHint(0)
         }
 
-        guard let token = readClaudeToken() else {
-            return unavailableService(name: "Claude", iconName: "claude", models: [], note: "claude token missing")
+        guard let tokenInfo = readClaudeTokenInfo() else {
+            return loadSnapshot(for: "Claude", iconName: "claude")
+                ?? unavailableService(name: "Claude", iconName: "claude", models: [], note: "claude token missing")
+        }
+
+        // Token already expired: do NOT call the usage API. Hammering it every 60s with a dead
+        // token is exactly what escalated to HTTP 429. We stay read-only (Mimir never refreshes
+        // Claude's token — that could rotate Claude Code's own credentials out from under it).
+        // Show last-known data with an actionable note and back off; recovery is automatic — once
+        // Claude Code refreshes the keychain, the next read sees a future expiry and clears the cooldown.
+        if let exp = tokenInfo.expiresAt, exp.timeIntervalSinceNow <= 60 {
+            let note = "token expired — open Claude Code"
+            return claudeFailure(note: note, staleNote: note).withCooldownHint(30 * 60)
         }
 
         var req = URLRequest(url: URL(string: "https://api.anthropic.com/api/oauth/usage")!, timeoutInterval: 10)
-        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("Bearer \(tokenInfo.accessToken)", forHTTPHeaderField: "Authorization")
         req.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
 
         do {
             let (data, response) = try await URLSession.shared.data(for: req)
             guard let http = response as? HTTPURLResponse else {
-                return unavailableService(name: "Claude", iconName: "claude", models: [], note: "claude no http response")
+                return claudeFailure(note: "claude no http response")
             }
             guard 200 ... 299 ~= http.statusCode else {
-                if let cached = readClaudeUsageCache(maxAge: 24 * 60 * 60) {
-                    return buildClaudeStatus(from: cached, note: "oauth usage cache (http \(http.statusCode))")
-                }
-                return unavailableService(name: "Claude", iconName: "claude", models: [], note: "claude http \(http.statusCode)")
+                // Back off on rate limiting so we stop pounding a 429ing endpoint.
+                let cooldown: TimeInterval? = http.statusCode == 429 ? (retryAfterSeconds(http) ?? 15 * 60) : nil
+                return claudeFailure(note: "claude http \(http.statusCode)").withCooldownHint(cooldown)
             }
             guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                return unavailableService(name: "Claude", iconName: "claude", models: [], note: "claude response parse fail")
+                return claudeFailure(note: "claude response parse fail")
             }
             writeClaudeUsageCache(data)
-
-            return buildClaudeStatus(from: root, note: "oauth usage api")
+            let status = buildClaudeStatus(from: root, note: "oauth usage api")
+            saveSnapshot(status)
+            return status.withCooldownHint(0)   // live success → clear any cooldown
         } catch {
-            if let cached = readClaudeUsageCache(maxAge: 24 * 60 * 60) {
-                return buildClaudeStatus(from: cached, note: "oauth usage cache")
-            }
-            return unavailableService(name: "Claude", iconName: "claude", models: [], note: "claude request failed")
+            return claudeFailure(note: "claude request failed")
         }
+    }
+
+    /// Claude's live fetch failed — show last-known data instead of vanishing: the still-valid
+    /// 24h usage cache, else the persisted snapshot (dimmed when its windows have reset), else
+    /// the hidden unavailable card (only when nothing was ever cached).
+    private func claudeFailure(note: String, staleNote: String = "güncel değil") -> ServiceStatus {
+        if let cached = readClaudeUsageCache(maxAge: 24 * 60 * 60) {
+            return buildClaudeStatus(from: cached, note: note)
+        }
+        return loadSnapshot(for: "Claude", iconName: "claude", staleNote: staleNote)
+            ?? unavailableService(name: "Claude", iconName: "claude", models: [], note: note)
+    }
+
+    /// Parse an HTTP `Retry-After` header (delta-seconds or HTTP-date) into a backoff interval.
+    private func retryAfterSeconds(_ http: HTTPURLResponse) -> TimeInterval? {
+        guard let raw = http.value(forHTTPHeaderField: "Retry-After")?
+            .trimmingCharacters(in: .whitespaces), !raw.isEmpty else { return nil }
+        if let secs = TimeInterval(raw) { return max(0, secs) }
+        let fmt = DateFormatter()
+        fmt.locale = Locale(identifier: "en_US_POSIX")
+        fmt.timeZone = TimeZone(identifier: "GMT")
+        fmt.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
+        return fmt.date(from: raw).map { max(0, $0.timeIntervalSinceNow) }
     }
 
     private func buildClaudeStatus(from root: [String: Any], note: String) -> ServiceStatus {
@@ -195,10 +256,18 @@ struct LiveUsageDataSource {
 
     private func fetchCodex() async -> ServiceStatus {
         if let apiStatus = await fetchCodexUsageAPI() {
+            saveSnapshot(apiStatus)
             return apiStatus
         }
 
-        return fetchCodexLocalSessions()
+        let local = fetchCodexLocalSessions()
+        if local.isAvailable {
+            saveSnapshot(local)
+            return local
+        }
+
+        // Both live sources failed — show the last-known snapshot instead of vanishing.
+        return loadSnapshot(for: "Codex", iconName: "codex") ?? local
     }
 
     private func fetchCodexLocalSessions() -> ServiceStatus {
@@ -340,77 +409,118 @@ struct LiveUsageDataSource {
         return unavailableService(name: "Antigravity", iconName: "antigravity", models: defaults, note: note)
     }
 
-    private var antigravitySnapshotURL: URL {
+    // MARK: - Generic last-known snapshot (shared by all services)
+
+    private func snapshotURL(for service: String) -> URL {
         FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/Mimir/antigravity_snapshot.json")
+            .appendingPathComponent("Library/Application Support/Mimir/\(service.lowercased())_snapshot.json")
     }
 
-    /// Persist the last live Antigravity reading so it can be shown while the IDE is closed.
-    private func saveAntigravitySnapshot(_ service: ServiceStatus) {
-        guard service.isAvailable, !service.models.isEmpty else { return }
+    /// Persist the last live reading of any service so it can be shown (dimmed, marked stale)
+    /// when the live source later fails, instead of the card silently vanishing. Never persists
+    /// an unavailable reading. Captures the two account-level windows (Claude/Codex) and/or the
+    /// per-model rows (Antigravity); every key is optional, so each service writes only what it has.
+    private func saveSnapshot(_ status: ServiceStatus) {
+        guard status.isAvailable else { return }
+        let hasData = status.sessionRemainingPercent != nil
+            || status.weeklyRemainingPercent != nil
+            || !status.models.isEmpty
+        guard hasData else { return }
+
         let iso = ISO8601DateFormatter()
-        let models: [[String: Any]] = service.models.map { m in
-            var dict: [String: Any] = ["name": m.name, "remainingPercent": m.remainingPercent]
-            if let reset = m.resetAt { dict["resetAt"] = iso.string(from: reset) }
-            if let valueText = m.valueText { dict["valueText"] = valueText }
-            return dict
+        var payload: [String: Any] = ["version": 1, "savedAt": iso.string(from: Date())]
+        if let p = status.sessionRemainingPercent { payload["sessionRemainingPercent"] = p }
+        if let p = status.weeklyRemainingPercent { payload["weeklyRemainingPercent"] = p }
+        if let d = status.sessionResetAt { payload["sessionResetAt"] = iso.string(from: d) }
+        if let d = status.weeklyResetAt { payload["weeklyResetAt"] = iso.string(from: d) }
+        if !status.models.isEmpty {
+            payload["models"] = status.models.map { m -> [String: Any] in
+                var dict: [String: Any] = ["name": m.name, "remainingPercent": m.remainingPercent]
+                if let reset = m.resetAt { dict["resetAt"] = iso.string(from: reset) }
+                if let valueText = m.valueText { dict["valueText"] = valueText }
+                return dict
+            }
         }
-        let payload: [String: Any] = ["models": models]
         guard let data = try? JSONSerialization.data(withJSONObject: payload) else { return }
-        let url = antigravitySnapshotURL
+        let url = snapshotURL(for: status.name)
         try? FileManager.default.createDirectory(
             at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try? data.write(to: url)
+        try? data.write(to: url, options: .atomic)
     }
 
-    /// Read the persisted snapshot. Shows the last-known values until the earliest
-    /// reset time passes; after that the quota has refilled so the cached numbers are
-    /// stale and the card is marked "güncel değil" instead of showing wrong percentages.
-    private func fetchAntigravitySnapshot() -> ServiceStatus? {
-        guard let data = try? Data(contentsOf: antigravitySnapshotURL),
-              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let rawModels = root["models"] as? [[String: Any]], !rawModels.isEmpty else {
+    /// Load a service's snapshot, classifying each window by reset time: a window whose reset is
+    /// still in the future shows its cached percent; one that has already reset is blanked (the
+    /// real quota has refilled). Any fresh window/model → a normal (available) card from cache;
+    /// all stale → a dimmed `isStale` card marked with `staleNote`, still visible so the service
+    /// never vanishes. Returns nil only when the file is missing, corrupt, or past the 30-day cap.
+    private func loadSnapshot(for service: String, iconName: String,
+                              freshNote: String = "snapshot", staleNote: String = "güncel değil") -> ServiceStatus? {
+        guard let data = try? Data(contentsOf: snapshotURL(for: service)),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        let now = Date()
+        // Past ~30 days a snapshot is archaeology, not data.
+        if let savedRaw = root["savedAt"] as? String, let saved = parseISO8601(savedRaw),
+           now.timeIntervalSince(saved) > 30 * 24 * 3_600 {
             return nil
         }
 
-        let now = Date()
-        let cached: [ModelStatus] = rawModels.compactMap { dict in
+        let allModels: [ModelStatus] = (root["models"] as? [[String: Any]] ?? []).compactMap { dict in
             guard let name = dict["name"] as? String else { return nil }
             let percent = dict["remainingPercent"] as? Int ?? 0
             let reset = (dict["resetAt"] as? String).flatMap { parseISO8601($0) }
             return ModelStatus(name: name, remainingPercent: percent, resetAt: reset,
                                valueText: dict["valueText"] as? String)
         }
-        guard !cached.isEmpty else { return nil }
+        let sessionReset = (root["sessionResetAt"] as? String).flatMap { parseISO8601($0) }
+        let weeklyReset = (root["weeklyResetAt"] as? String).flatMap { parseISO8601($0) }
+        let sessionPct = root["sessionRemainingPercent"] as? Int
+        let weeklyPct = root["weeklyRemainingPercent"] as? Int
+        guard sessionPct != nil || weeklyPct != nil || !allModels.isEmpty else { return nil }
 
-        // A cached number stays accurate only until that model's quota resets.
-        let valid = cached.filter { ($0.resetAt.map { now < $0 }) ?? false }
+        let sessionFresh = sessionReset.map { now < $0 } ?? false
+        let weeklyFresh = weeklyReset.map { now < $0 } ?? false
+        let freshModels = allModels.filter { ($0.resetAt.map { now < $0 }) ?? false }
 
-        // Every cached model has passed its reset → the quota has refilled, so the numbers
-        // are stale. Still show the card (marked "güncel değil") rather than hiding it —
-        // the user needs to know the IDE is closed, not see Antigravity silently disappear.
-        guard !valid.isEmpty else {
+        if sessionFresh || weeklyFresh || !freshModels.isEmpty {
+            // Keep fresh windows live-from-cache; blank windows that already reset. For models,
+            // prefer the still-valid subset (matches Antigravity), else keep any undated rows.
             return ServiceStatus(
-                name: "Antigravity",
-                iconName: "antigravity",
-                sessionResetAt: nil,
-                weeklyResetAt: nil,
-                models: cached,
-                isAvailable: false,
-                statusNote: "güncel değil",
-                isStale: true
+                name: service, iconName: iconName,
+                sessionResetAt: sessionFresh ? sessionReset : nil,
+                weeklyResetAt: weeklyFresh ? weeklyReset : nil,
+                sessionRemainingPercent: sessionFresh ? sessionPct : nil,
+                weeklyRemainingPercent: weeklyFresh ? weeklyPct : nil,
+                models: freshModels.isEmpty ? allModels.filter { $0.resetAt == nil } : freshModels,
+                isAvailable: true,
+                statusNote: freshNote
             )
         }
 
+        // Every window/model has passed its reset → numbers are stale. Show the card dimmed and
+        // marked, rather than hiding it.
         return ServiceStatus(
-            name: "Antigravity",
-            iconName: "antigravity",
-            sessionResetAt: valid.compactMap(\.resetAt).min(),
-            weeklyResetAt: nil,
-            models: valid,
-            isAvailable: true,
-            statusNote: "antigravity snapshot"
+            name: service, iconName: iconName,
+            sessionResetAt: nil, weeklyResetAt: nil,
+            sessionRemainingPercent: sessionPct, weeklyRemainingPercent: weeklyPct,
+            models: allModels,
+            isAvailable: false, statusNote: staleNote, isStale: true
         )
+    }
+
+    /// Antigravity keeps its original method names as thin wrappers over the generic helpers,
+    /// so its fetch chain (and the "antigravity snapshot" / "güncel değil" labels) is unchanged.
+    private func saveAntigravitySnapshot(_ service: ServiceStatus) { saveSnapshot(service) }
+    private func fetchAntigravitySnapshot() -> ServiceStatus? {
+        loadSnapshot(for: "Antigravity", iconName: "antigravity", freshNote: "antigravity snapshot")
+    }
+
+    /// Last-known snapshot for a service, else its hidden fallback card. Used when a fetch is
+    /// skipped (cooldown) or times out, so the card shows stale data instead of disappearing.
+    private func snapshotOrFallback(_ name: String, iconName: String) -> ServiceStatus {
+        loadSnapshot(for: name, iconName: iconName)
+            ?? Self.fallbackServices().first { $0.name == name }!
     }
 
     private func fetchAntigravityAuthorized(models defaults: [String]) async -> ServiceStatus? {
@@ -935,14 +1045,23 @@ struct LiveUsageDataSource {
         try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: state.path.path)
     }
 
-    private func readClaudeToken() -> String? {
+    private struct ClaudeToken {
+        let accessToken: String
+        let expiresAt: Date?   // nil when the source is a bare token with no expiry metadata
+    }
+
+    /// Read the Claude Code OAuth token plus its expiry, from the keychain entry
+    /// ("Claude Code-credentials") or the `~/.claude/.credentials.json` fallback. Read-only —
+    /// Mimir never refreshes or writes this token; it only inspects `expiresAt` to decide
+    /// whether the token is even worth sending (see `fetchClaude`).
+    private func readClaudeTokenInfo() -> ClaudeToken? {
         let keychainRaw = runCommand("/usr/bin/security", ["find-generic-password", "-s", "Claude Code-credentials", "-w"]).trimmingCharacters(in: .whitespacesAndNewlines)
-        if let token = parseTokenPossiblyJSON(keychainRaw) { return token }
+        if let info = parseClaudeToken(keychainRaw) { return info }
 
         let credPath = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/.credentials.json")
         guard let data = try? Data(contentsOf: credPath),
               let raw = String(data: data, encoding: .utf8) else { return nil }
-        return parseTokenPossiblyJSON(raw)
+        return parseClaudeToken(raw)
     }
 
     private func readClaudeUsageCache(maxAge: TimeInterval) -> [String: Any]? {
@@ -975,13 +1094,25 @@ struct LiveUsageDataSource {
             .appendingPathComponent("Library/Application Support/Mimir/claude_usage.json")
     }
 
-    private func parseTokenPossiblyJSON(_ raw: String) -> String? {
-        if raw.hasPrefix("sk-ant-") || raw.hasPrefix("sk-ant-oat") { return raw }
+    private func parseClaudeToken(_ raw: String) -> ClaudeToken? {
+        if raw.hasPrefix("sk-ant-") || raw.hasPrefix("sk-ant-oat") {
+            return ClaudeToken(accessToken: raw, expiresAt: nil)
+        }
         guard let data = raw.data(using: .utf8),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
-        if let oauth = obj["claudeAiOauth"] as? [String: Any], let token = oauth["accessToken"] as? String { return token }
-        if let token = obj["accessToken"] as? String { return token }
+        if let oauth = obj["claudeAiOauth"] as? [String: Any], let token = oauth["accessToken"] as? String {
+            return ClaudeToken(accessToken: token, expiresAt: epochMillisToDate(oauth["expiresAt"]))
+        }
+        if let token = obj["accessToken"] as? String {
+            return ClaudeToken(accessToken: token, expiresAt: epochMillisToDate(obj["expiresAt"]))
+        }
         return nil
+    }
+
+    /// Claude stores `expiresAt` as epoch milliseconds (distinct from the ISO8601 used elsewhere).
+    private func epochMillisToDate(_ raw: Any?) -> Date? {
+        guard let ms = doubleValue(raw), ms > 0 else { return nil }
+        return Date(timeIntervalSince1970: ms / 1000)
     }
 
     private func decodeJWTPayload(_ token: String) -> [String: Any]? {
