@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Quota notifications reworked around the 5-hour and weekly windows. Live Claude/Codex warn once when the 5h window drops below 20% or the weekly window below 10%; the 5h "refilled" notice fires only after the window fully drains to 0% and resets to 100%, while the weekly "refilled" fires on every reset. Per-model rows no longer notify, and messages are now English with the live percentage and reset countdown
 - Antigravity notifications limited to a single reliable event — its weekly refill. Usage/low and 5h alerts are dropped because Antigravity data is only live while the IDE is open; but the weekly reset time is deterministic and the quota can't be spent while the IDE is closed, so "weekly quota refilled" fires exactly when that time passes, even with the IDE closed and even if the quota was never touched
 
+#### Fixed
+- A service card could silently vanish on a transient failure. The last-known snapshot pattern (previously Antigravity-only) now covers Claude and Codex too: each service's last live reading is persisted and, when a live fetch fails, shown instead of hidden — fresh windows live-from-cache, reset-passed windows blanked, all-stale as a dimmed "güncel değil" card. Only a service that has never once produced a reading is hidden
+- Claude no longer hammers the usage API with a dead token. Mimir reads the token's `expiresAt` and, if it has already expired, skips the API call entirely (this was what escalated to HTTP 429), showing last-known data with a "token expired — open Claude Code" note. Mimir stays read-only — it never refreshes Claude's token (which could rotate Claude Code's own credentials out from under it); live data returns automatically once Claude Code refreshes the keychain
+- Added per-service fetch backoff: after an HTTP 429 (honoring `Retry-After`) or an expired token, Mimir parks that service from network polling for a cooldown and serves it from the snapshot, clearing the cooldown on the next live success
+
 ### [1.4] - 2026-06-12
 
 #### Changed
@@ -132,6 +137,11 @@ sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) k
 #### Değişti
 - Kota bildirimleri 5 saatlik ve haftalık pencereler etrafında yeniden kurgulandı. Canlı Claude/Codex, 5h penceresi %20'nin veya haftalık pencere %10'un altına düşünce bir kez uyarıyor; 5h "yenilendi" bildirimi yalnızca pencere tamamen %0'a inip %100'e dönünce, haftalık "yenilendi" ise her reset'te geliyor. Model bazlı satırlar artık bildirim üretmiyor ve mesajlar canlı yüzde + reset geri sayımıyla İngilizce
 - Antigravity bildirimleri tek güvenilir olaya indirildi — haftalık yenilenme. Kullanım/düşük ve 5h uyarıları kaldırıldı çünkü Antigravity verisi yalnızca IDE açıkken canlı; ama haftalık reset zamanı deterministik ve IDE kapalıyken kota harcanamadığı için "haftalık kota yenilendi", o zaman geldiğinde IDE kapalı olsa ve kota hiç kullanılmamış olsa bile gönderiliyor
+
+#### Düzeltildi
+- Bir servis kartı geçici bir hatada sessizce kaybolabiliyordu. Son-bilinen snapshot deseni (önceden yalnızca Antigravity'de) artık Claude ve Codex'i de kapsıyor: her servisin son canlı okuması diske kaydediliyor ve canlı çekim başarısız olunca gizlenmek yerine gösteriliyor — taze pencereler cache'ten canlı, reseti geçmiş pencereler boş, hepsi bayatsa soluk "güncel değil" kartı. Yalnızca hiç okuma üretmemiş bir servis gizleniyor
+- Claude artık ölü token'la usage API'sini dövmüyor. Mimir token'ın `expiresAt`'ini okuyor ve süresi dolmuşsa API çağrısını hiç yapmıyor (429'a tırmanan şey buydu); son-bilinen veriyi "token expired — open Claude Code" notuyla gösteriyor. Mimir read-only kalıyor — Claude token'ını asla yenilemiyor (Claude Code'un kendi kimlik bilgilerini rotate edebilir); Claude Code keychain'i tazeleyince canlı veri otomatik dönüyor
+- Servis-bazlı çekim backoff'u eklendi: bir HTTP 429'dan (`Retry-After`'a uyarak) ya da süresi dolmuş token'dan sonra Mimir o servisi bir cooldown boyunca ağ taramasından alıkoyup snapshot'tan besliyor; sonraki canlı başarıda cooldown temizleniyor
 
 ### [1.4] - 2026-06-12
 
