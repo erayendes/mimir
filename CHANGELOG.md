@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+#### Fixed
+- Claude could stay hidden even though usable data existed. The snapshot only seeded from a live API success, so a Claude whose keychain token had already expired never captured one, and the fallback cache was capped at 24h — dropping a still-valid weekly reading just because the file was old. Now the cache is trusted by reset time rather than age (a window still within its reset shows; refilled windows are blanked), that reading seeds a snapshot, and the expired-token path no longer holds a 30-minute cooldown — so Claude shows last-known data immediately and recovers the instant Claude Code refreshes the token
+
 ### [1.5] - 2026-06-14
 
 #### Changed
@@ -136,6 +139,9 @@ Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
 
 ### [Yayımlanmadı]
+
+#### Düzeltildi
+- Kullanılabilir veri olmasına rağmen Claude gizli kalabiliyordu. Snapshot yalnızca canlı API başarısından tohumlanıyordu; bu yüzden keychain token'ı çoktan dolmuş bir Claude hiç snapshot yakalayamıyor, fallback cache ise 24 saatle sınırlı olduğu için hâlâ geçerli bir haftalık okumayı sırf dosya eski diye atıyordu. Artık cache, yaşına değil reset zamanına göre güveniliyor (reseti gelmemiş pencere gösteriliyor, dolmuş pencere boşaltılıyor), bu okuma snapshot olarak tohumlanıyor ve expired-token yolu artık 30 dakikalık cooldown tutmuyor — böylece Claude son-bilinen veriyi anında gösteriyor ve Claude Code token'ı tazeleyince hemen toparlanıyor
 
 ### [1.5] - 2026-06-14
 
