@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+### [1.5] - 2026-06-14
+
 #### Changed
 - Quota notifications reworked around the 5-hour and weekly windows. Live Claude/Codex warn once when the 5h window drops below 20% or the weekly window below 10%; the 5h "refilled" notice fires only after the window fully drains to 0% and resets to 100%, while the weekly "refilled" fires on every reset. Per-model rows no longer notify, and messages are now English with the live percentage and reset countdown
 - Antigravity notifications limited to a single reliable event — its weekly refill. Usage/low and 5h alerts are dropped because Antigravity data is only live while the IDE is open; but the weekly reset time is deterministic and the quota can't be spent while the IDE is closed, so "weekly quota refilled" fires exactly when that time passes, even with the IDE closed and even if the quota was never touched
@@ -113,7 +115,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Build and install script (`script/build_and_run.sh`)
 - Automated DMG release pipeline via GitHub Actions
 
-[Unreleased]: https://github.com/erayendes/mimir/compare/v1.4...HEAD
+[Unreleased]: https://github.com/erayendes/mimir/compare/v1.5...HEAD
+[1.5]: https://github.com/erayendes/mimir/compare/v1.4...v1.5
 [1.4]: https://github.com/erayendes/mimir/compare/v1.3...v1.4
 [1.3]: https://github.com/erayendes/mimir/compare/v1.2.2...v1.3
 [1.2.2]: https://github.com/erayendes/mimir/compare/v1.2...v1.2.2
@@ -133,6 +136,8 @@ Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
 
 ### [Yayımlanmadı]
+
+### [1.5] - 2026-06-14
 
 #### Değişti
 - Kota bildirimleri 5 saatlik ve haftalık pencereler etrafında yeniden kurgulandı. Canlı Claude/Codex, 5h penceresi %20'nin veya haftalık pencere %10'un altına düşünce bir kez uyarıyor; 5h "yenilendi" bildirimi yalnızca pencere tamamen %0'a inip %100'e dönünce, haftalık "yenilendi" ise her reset'te geliyor. Model bazlı satırlar artık bildirim üretmiyor ve mesajlar canlı yüzde + reset geri sayımıyla İngilizce
@@ -236,7 +241,8 @@ sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) k
 - Derleme ve kurulum scripti (`script/build_and_run.sh`)
 - GitHub Actions üzerinden otomatik DMG release pipeline'ı
 
-[Yayımlanmadı]: https://github.com/erayendes/mimir/compare/v1.4...HEAD
+[Yayımlanmadı]: https://github.com/erayendes/mimir/compare/v1.5...HEAD
+[1.5]: https://github.com/erayendes/mimir/compare/v1.4...v1.5
 [1.4]: https://github.com/erayendes/mimir/compare/v1.3...v1.4
 [1.3]: https://github.com/erayendes/mimir/compare/v1.2.2...v1.3
 [1.2.2]: https://github.com/erayendes/mimir/compare/v1.2...v1.2.2
