@@ -160,18 +160,18 @@ struct LiveUsageDataSource {
         }
 
         guard let tokenInfo = readClaudeTokenInfo() else {
-            return loadSnapshot(for: "Claude", iconName: "claude")
-                ?? unavailableService(name: "Claude", iconName: "claude", models: [], note: "claude token missing")
+            return claudeFailure(note: "claude token missing")
         }
 
         // Token already expired: do NOT call the usage API. Hammering it every 60s with a dead
         // token is exactly what escalated to HTTP 429. We stay read-only (Mimir never refreshes
         // Claude's token — that could rotate Claude Code's own credentials out from under it).
-        // Show last-known data with an actionable note and back off; recovery is automatic — once
-        // Claude Code refreshes the keychain, the next read sees a future expiry and clears the cooldown.
+        // The expiry check itself is local (no network), so it already prevents the bad call — no
+        // cooldown needed, and re-checking every poll means we recover the instant Claude Code
+        // refreshes the keychain. Meanwhile show last-known data with an actionable note.
         if let exp = tokenInfo.expiresAt, exp.timeIntervalSinceNow <= 60 {
             let note = "token expired — open Claude Code"
-            return claudeFailure(note: note, staleNote: note).withCooldownHint(30 * 60)
+            return claudeFailure(note: note, staleNote: note)
         }
 
         var req = URLRequest(url: URL(string: "https://api.anthropic.com/api/oauth/usage")!, timeoutInterval: 10)
@@ -204,11 +204,34 @@ struct LiveUsageDataSource {
     /// 24h usage cache, else the persisted snapshot (dimmed when its windows have reset), else
     /// the hidden unavailable card (only when nothing was ever cached).
     private func claudeFailure(note: String, staleNote: String = "güncel değil") -> ServiceStatus {
+        // Recent cache → normal card (seed a snapshot so the cooldown/skip path can serve it too).
         if let cached = readClaudeUsageCache(maxAge: 24 * 60 * 60) {
-            return buildClaudeStatus(from: cached, note: note)
+            let status = buildClaudeStatus(from: cached, note: note)
+            saveSnapshot(status)
+            return status
         }
-        return loadSnapshot(for: "Claude", iconName: "claude", staleNote: staleNote)
-            ?? unavailableService(name: "Claude", iconName: "claude", models: [], note: note)
+        // Persisted snapshot, else an older cache trusted by reset time (windows still within their
+        // reset show dimmed; refilled windows are blanked) — seeded as a snapshot for next time.
+        if let snap = loadSnapshot(for: "Claude", iconName: "claude", staleNote: staleNote) {
+            return snap
+        }
+        if let stale = claudeCardFromStaleCache(staleNote: staleNote) {
+            saveSnapshot(stale)
+            return stale
+        }
+        return unavailableService(name: "Claude", iconName: "claude", models: [], note: note)
+    }
+
+    /// Build a Claude card from the cache at any age, trusting each window by its reset time, so a
+    /// still-valid weekly number survives even when the 24h cache window and the token have lapsed.
+    private func claudeCardFromStaleCache(staleNote: String) -> ServiceStatus? {
+        guard let root = readClaudeUsageCacheRaw() else { return nil }
+        let full = buildClaudeStatus(from: root, note: "snapshot")
+        return staleClassifiedCard(
+            name: "Claude", iconName: "claude",
+            sessionPct: full.sessionRemainingPercent, sessionReset: full.sessionResetAt,
+            weeklyPct: full.weeklyRemainingPercent, weeklyReset: full.weeklyResetAt,
+            models: full.models, freshNote: "snapshot", staleNote: staleNote)
     }
 
     /// Parse an HTTP `Retry-After` header (delta-seconds or HTTP-date) into a backoff interval.
@@ -475,38 +498,46 @@ struct LiveUsageDataSource {
         }
         let sessionReset = (root["sessionResetAt"] as? String).flatMap { parseISO8601($0) }
         let weeklyReset = (root["weeklyResetAt"] as? String).flatMap { parseISO8601($0) }
-        let sessionPct = root["sessionRemainingPercent"] as? Int
-        let weeklyPct = root["weeklyRemainingPercent"] as? Int
-        guard sessionPct != nil || weeklyPct != nil || !allModels.isEmpty else { return nil }
+        return staleClassifiedCard(
+            name: service, iconName: iconName,
+            sessionPct: root["sessionRemainingPercent"] as? Int, sessionReset: sessionReset,
+            weeklyPct: root["weeklyRemainingPercent"] as? Int, weeklyReset: weeklyReset,
+            models: allModels, freshNote: freshNote, staleNote: staleNote)
+    }
 
-        let sessionFresh = sessionReset.map { now < $0 } ?? false
-        let weeklyFresh = weeklyReset.map { now < $0 } ?? false
-        let freshModels = allModels.filter { ($0.resetAt.map { now < $0 }) ?? false }
+    /// Classify a last-known reading by reset time. A window keeps its cached percent while its
+    /// reset is still in the future — or while it has no reset time at all, since then nothing has
+    /// invalidated it; a window whose reset has already passed is blanked (its quota refilled). Any
+    /// fresh window/model → an available card; everything stale → a dimmed `isStale` card. Returns
+    /// nil only when there is no data at all.
+    private func staleClassifiedCard(name: String, iconName: String,
+                                     sessionPct: Int?, sessionReset: Date?,
+                                     weeklyPct: Int?, weeklyReset: Date?,
+                                     models: [ModelStatus],
+                                     freshNote: String, staleNote: String) -> ServiceStatus? {
+        guard sessionPct != nil || weeklyPct != nil || !models.isEmpty else { return nil }
+        let now = Date()
+        let sessionFresh = sessionPct != nil && (sessionReset.map { now < $0 } ?? true)
+        let weeklyFresh = weeklyPct != nil && (weeklyReset.map { now < $0 } ?? true)
+        let freshModels = models.filter { ($0.resetAt.map { now < $0 }) ?? true }
 
         if sessionFresh || weeklyFresh || !freshModels.isEmpty {
-            // Keep fresh windows live-from-cache; blank windows that already reset. For models,
-            // prefer the still-valid subset (matches Antigravity), else keep any undated rows.
             return ServiceStatus(
-                name: service, iconName: iconName,
+                name: name, iconName: iconName,
                 sessionResetAt: sessionFresh ? sessionReset : nil,
                 weeklyResetAt: weeklyFresh ? weeklyReset : nil,
                 sessionRemainingPercent: sessionFresh ? sessionPct : nil,
                 weeklyRemainingPercent: weeklyFresh ? weeklyPct : nil,
-                models: freshModels.isEmpty ? allModels.filter { $0.resetAt == nil } : freshModels,
-                isAvailable: true,
-                statusNote: freshNote
-            )
+                models: freshModels,
+                isAvailable: true, statusNote: freshNote)
         }
 
-        // Every window/model has passed its reset → numbers are stale. Show the card dimmed and
-        // marked, rather than hiding it.
         return ServiceStatus(
-            name: service, iconName: iconName,
+            name: name, iconName: iconName,
             sessionResetAt: nil, weeklyResetAt: nil,
             sessionRemainingPercent: sessionPct, weeklyRemainingPercent: weeklyPct,
-            models: allModels,
-            isAvailable: false, statusNote: staleNote, isStale: true
-        )
+            models: models,
+            isAvailable: false, statusNote: staleNote, isStale: true)
     }
 
     /// Antigravity keeps its original method names as thin wrappers over the generic helpers,
@@ -1068,8 +1099,17 @@ struct LiveUsageDataSource {
         let url = claudeUsageCacheURL()
         guard let values = try? url.resourceValues(forKeys: [.contentModificationDateKey]),
               let modifiedAt = values.contentModificationDate,
-              Date().timeIntervalSince(modifiedAt) <= maxAge,
-              let data = try? Data(contentsOf: url),
+              Date().timeIntervalSince(modifiedAt) <= maxAge else {
+            return nil
+        }
+        return readClaudeUsageCacheRaw()
+    }
+
+    /// The cached usage JSON regardless of age — used as a deep fallback that is trusted not by
+    /// age but by each window's reset time (a weekly number from a 3-day-old cache is still right
+    /// if that week hasn't reset yet).
+    private func readClaudeUsageCacheRaw() -> [String: Any]? {
+        guard let data = try? Data(contentsOf: claudeUsageCacheURL()),
               let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return nil
         }
