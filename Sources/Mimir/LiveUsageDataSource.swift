@@ -651,14 +651,7 @@ struct LiveUsageDataSource {
         let body = "{\"metadata\":{\"ideName\":\"antigravity\",\"extensionName\":\"antigravity\",\"locale\":\"en\",\"ideVersion\":\"unknown\"}}"
         var groups: [[String: Any]]?
         for p in ports {
-            let out = runCommand("/usr/bin/curl", [
-                "-ks", "--max-time", "2",
-                "-H", "X-Codeium-Csrf-Token: \(csrf)",
-                "-H", "Connect-Protocol-Version: 1",
-                "-H", "Content-Type: application/json",
-                "--data", body,
-                "https://127.0.0.1:\(p)/exa.language_server_pb.LanguageServerService/RetrieveUserQuotaSummary"
-            ])
+            let out = antigravityCurl(port: p, path: "RetrieveUserQuotaSummary", body: body, csrf: csrf)
             if let data = out.data(using: .utf8),
                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let response = json["response"] as? [String: Any],
@@ -695,14 +688,7 @@ struct LiveUsageDataSource {
         let body = "{\"metadata\":{\"ideName\":\"antigravity\",\"locale\":\"en\"}}"
         func num(_ raw: Any?) -> Double? { (raw as? String).flatMap(Double.init) ?? doubleValue(raw) }
         for p in ports {
-            let out = runCommand("/usr/bin/curl", [
-                "-ks", "--max-time", "2",
-                "-H", "X-Codeium-Csrf-Token: \(csrf)",
-                "-H", "Connect-Protocol-Version: 1",
-                "-H", "Content-Type: application/json",
-                "--data", body,
-                "https://127.0.0.1:\(p)/exa.language_server_pb.LanguageServerService/GetUserStatus"
-            ])
+            let out = antigravityCurl(port: p, path: "GetUserStatus", body: body, csrf: csrf)
             guard let data = out.data(using: .utf8),
                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let userStatus = json["userStatus"] as? [String: Any],
@@ -769,14 +755,7 @@ struct LiveUsageDataSource {
         let body = "{\"metadata\":{\"ideName\":\"antigravity\",\"extensionName\":\"antigravity\",\"locale\":\"en\",\"ideVersion\":\"unknown\"}}"
         var payload: [String: Any]?
         for p in ports {
-            let out = runCommand("/usr/bin/curl", [
-                "-ks", "--max-time", "2",
-                "-H", "X-Codeium-Csrf-Token: \(csrf)",
-                "-H", "Connect-Protocol-Version: 1",
-                "-H", "Content-Type: application/json",
-                "--data", body,
-                "https://127.0.0.1:\(p)/exa.language_server_pb.LanguageServerService/GetUserStatus"
-            ])
+            let out = antigravityCurl(port: p, path: "GetUserStatus", body: body, csrf: csrf)
             if let data = out.data(using: .utf8),
                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                json["userStatus"] != nil {
@@ -1408,21 +1387,45 @@ struct LiveUsageDataSource {
         runCommand("/bin/zsh", ["-lc", script])
     }
 
-    private func runCommand(_ launchPath: String, _ args: [String]) -> String {
+    /// `stdin`, when set, is written to the process's standard input. Used to feed
+    /// secrets (e.g. a curl `--config -` block) without exposing them in `arguments`,
+    /// which are world-readable via the process table (`ps aux`).
+    private func runCommand(_ launchPath: String, _ args: [String], stdin: String? = nil) -> String {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: launchPath)
         p.arguments = args
         let out = Pipe()
         p.standardOutput = out
         p.standardError = Pipe()
+        let input: Pipe? = stdin != nil ? Pipe() : nil
+        if let input { p.standardInput = input }
         do {
             try p.run()
+            if let input, let stdin {
+                input.fileHandleForWriting.write(Data(stdin.utf8))
+                input.fileHandleForWriting.closeFile()
+            }
             p.waitUntilExit()
             let data = out.fileHandleForReading.readDataToEndOfFile()
             return String(data: data, encoding: .utf8) ?? ""
         } catch {
             return ""
         }
+    }
+
+    /// POSTs to a local Antigravity language-server endpoint. The CSRF token is fed
+    /// through curl's stdin config (`--config -`) instead of a `-H` argument, so it
+    /// never lands in the process table — unlike command-line arguments, stdin is
+    /// not world-readable.
+    private func antigravityCurl(port p: Int, path: String, body: String, csrf: String) -> String {
+        runCommand("/usr/bin/curl", [
+            "-ks", "--max-time", "2",
+            "--config", "-",
+            "-H", "Connect-Protocol-Version: 1",
+            "-H", "Content-Type: application/json",
+            "--data", body,
+            "https://127.0.0.1:\(p)/exa.language_server_pb.LanguageServerService/\(path)"
+        ], stdin: "header = \"X-Codeium-Csrf-Token: \(csrf)\"\n")
     }
 }
 
