@@ -6,9 +6,18 @@ set -euo pipefail
 VERSION="${1:-}"
 NOTES="${2:-}"
 
-if [ -z "$VERSION" ] || [ -z "$NOTES" ]; then
-  echo "usage: $0 <version> \"<release notes>\""
+# BUILD_ONLY=1 → build + assemble bundle + dSYM, then stop (no sign/notarize/
+# publish). This is the CI entry point: GitHub Actions does Developer ID signing,
+# notarization, Sparkle signing, appcast and the GitHub release itself.
+BUILD_ONLY="${BUILD_ONLY:-}"
+
+if [ -z "$VERSION" ]; then
+  echo "usage: $0 <version> \"<release notes>\"   (notes optional when BUILD_ONLY=1)"
   echo "   eg: $0 1.8 \"Added Gemini support\""
+  exit 1
+fi
+if [ -z "$BUILD_ONLY" ] && [ -z "$NOTES" ]; then
+  echo "✗ release notes required for a full local release (or set BUILD_ONLY=1)" >&2
   exit 1
 fi
 
@@ -94,6 +103,17 @@ if [ -z "$SPARKLE_FW" ]; then
   exit 1
 fi
 ditto --norsrc "$SPARKLE_FW" "$APP_CONTENTS/Frameworks/Sparkle.framework"
+
+# ── BUILD_ONLY stop: hand the unsigned bundle + dSYM to CI, which signs with the
+# Developer ID cert, notarizes, and publishes. Avoids ad-hoc signing the artifact
+# that ships to users.
+if [ -n "$BUILD_ONLY" ]; then
+  echo "── Extracting dSYM..."
+  rm -rf "$DIST_DIR/$APP_NAME.app.dSYM"
+  dsymutil "$BUILD_DIR/$APP_NAME" -o "$DIST_DIR/$APP_NAME.app.dSYM"
+  echo "✓ BUILD_ONLY: dist/$APP_NAME.app (unsigned) + dSYM ready for CI"
+  exit 0
+fi
 
 # ── 5. Codesign (inner → outer, preserve Hardened Runtime)
 # Sign from /tmp — iCloud Drive (bird daemon) re-adds com.apple.fileprovider.fpfs#P
