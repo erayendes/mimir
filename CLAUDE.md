@@ -19,12 +19,11 @@ Tek komut: build → sign → zip → edSignature → appcast güncelle → GitH
 
 Örnek: `./script/release.sh 1.8 "Added Gemini support"`
 
-Sparkle private key `~/.config/mimir/sparkle_ed_private_key` dosyasından okunur
-(`--ed-key-file`), böylece imzalama Keychain prompt'u olmadan non-interactive çalışır.
-Dosya yoksa Keychain'e düşer. Tek seferlik export (normal terminalde):
+Sparkle private key kalıcı olarak diskte tutulmaz. `release.sh` imzalama anında
+key'i Keychain'den geçici bir dizine (`$TMPDIR`, cloud-sync edilmez) export eder,
+`--ed-key-file` ile imzalar ve hemen siler. Keychain erişimi `generate_keys` için
+zaten yetkili olduğundan prompt çıkmaz. Key yalnızca Keychain'de yaşar.
 
-```bash
-.build/artifacts/sparkle/Sparkle/bin/generate_keys -x ~/.config/mimir/sparkle_ed_private_key
-```
-
-Farklı bir konum için `SPARKLE_PRIVATE_KEY_FILE` ortam değişkenini ayarla.
+CI veya harici key yönetimi için: `SPARKLE_PRIVATE_KEY_FILE` ortam değişkenini bir
+key dosyasına ayarla — bu durumda export yapılmaz, dosya olduğu gibi kullanılır
+(silinmez).

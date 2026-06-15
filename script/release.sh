@@ -142,24 +142,47 @@ if [ -z "$SIGN_UPDATE" ]; then
   exit 1
 fi
 
-# Prefer a private-key file so signing is fully non-interactive. Reading the key
-# from the Keychain triggers a GUI authorization prompt that headless/agent shells
-# can't satisfy. One-time export (run once, in a normal terminal):
-#   .build/artifacts/sparkle/Sparkle/bin/generate_keys -x ~/.config/mimir/sparkle_ed_private_key
-# Then either set SPARKLE_PRIVATE_KEY_FILE or drop the file at the default path below.
-KEY_FILE="${SPARKLE_PRIVATE_KEY_FILE:-$HOME/.config/mimir/sparkle_ed_private_key}"
-SIGN_ARGS=()
-if [ -f "$KEY_FILE" ]; then
-  SIGN_ARGS+=(--ed-key-file "$KEY_FILE")
+# Sign without leaving a persistent private key on disk. sign_update reading the
+# key straight from the Keychain triggers a GUI authorization prompt that
+# headless/agent shells can't satisfy, but generate_keys' Keychain access is
+# already authorized — so we export the key to a temp file (in $TMPDIR, which is
+# NOT cloud-synced), sign with --ed-key-file, then delete it on exit.
+#
+# CI / externally-managed key: set SPARKLE_PRIVATE_KEY_FILE to a key file path
+# and it's used as-is (never deleted, never exported from Keychain).
+if [ -n "${SPARKLE_PRIVATE_KEY_FILE:-}" ]; then
+  if [ ! -f "$SPARKLE_PRIVATE_KEY_FILE" ]; then
+    echo "✗ SPARKLE_PRIVATE_KEY_FILE set but not found: $SPARKLE_PRIVATE_KEY_FILE" >&2
+    exit 1
+  fi
+  KEY_FILE="$SPARKLE_PRIVATE_KEY_FILE"
 else
-  echo "  ⚠ no key file at $KEY_FILE — falling back to Keychain (may prompt)" >&2
+  GEN_KEYS="$(find "$ROOT_DIR/.build/artifacts" -name generate_keys -type f | head -1)"
+  if [ -z "$GEN_KEYS" ]; then
+    echo "✗ generate_keys not found. Run 'swift build' first." >&2
+    exit 1
+  fi
+  # generate_keys -x refuses to overwrite an existing file, so hand it a path
+  # inside a fresh 0700 temp dir rather than a pre-created mktemp file.
+  KEY_DIR="$(mktemp -d -t mimir_sparkle)"
+  KEY_FILE="$KEY_DIR/ed_private_key"
+  trap 'rm -rf "$KEY_DIR"' EXIT
+  if ! "$GEN_KEYS" -x "$KEY_FILE" >/dev/null 2>&1; then
+    echo "✗ Could not export the Sparkle key from the Keychain." >&2
+    echo "  Generate/import it once with: $GEN_KEYS" >&2
+    exit 1
+  fi
 fi
 
-SIGN_OUTPUT="$("$SIGN_UPDATE" "${SIGN_ARGS[@]}" "$ZIP_PATH" 2>&1)"
+SIGN_OUTPUT="$("$SIGN_UPDATE" --ed-key-file "$KEY_FILE" "$ZIP_PATH" 2>&1)"
 ED_SIG="$(echo "$SIGN_OUTPUT" | grep -oE 'edSignature="[^"]+"' | cut -d'"' -f2)"
+# Shred the temp key as soon as we're done with it (don't wait for EXIT trap).
+if [ -z "${SPARKLE_PRIVATE_KEY_FILE:-}" ]; then
+  rm -rf "$KEY_DIR"
+  trap - EXIT
+fi
 if [ -z "$ED_SIG" ]; then
-  echo "✗ sign_update failed — no key file at $KEY_FILE and Keychain unavailable." >&2
-  echo "  Export the key once with: generate_keys -x $KEY_FILE" >&2
+  echo "✗ sign_update failed." >&2
   echo "$SIGN_OUTPUT" >&2
   exit 1
 fi
