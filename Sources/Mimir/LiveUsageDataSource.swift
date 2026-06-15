@@ -1,4 +1,5 @@
 import Foundation
+import Security
 
 @MainActor
 final class UsageStore: ObservableObject {
@@ -1265,10 +1266,22 @@ struct LiveUsageDataSource {
         guard let data = try? JSONSerialization.data(withJSONObject: root) else { return }
         switch source {
         case .keychain(let account):
-            guard let json = String(data: data, encoding: .utf8) else { return }
-            _ = runCommand("/usr/bin/security", [
-                "add-generic-password", "-U", "-a", account, "-s", Self.claudeKeychainService, "-w", json
-            ])
+            let query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: Self.claudeKeychainService,
+                kSecAttrAccount as String: account
+            ]
+            let attributes: [String: Any] = [
+                kSecValueData as String: data
+            ]
+            let status = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
+            if status == errSecItemNotFound {
+                var newItem = query
+                for (k, v) in attributes {
+                    newItem[k] = v
+                }
+                SecItemAdd(newItem as CFDictionary, nil)
+            }
         case .file(let url):
             try? data.write(to: url, options: .atomic)
         }
