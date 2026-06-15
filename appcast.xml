@@ -7,5 +7,17 @@
     <link>https://github.com/erayendes/mimir</link>
     <description>Mimir update feed</description>
     <language>en</language>
+    <item>
+      <title>Mimir 1.7</title>
+      <sparkle:version>17</sparkle:version>
+      <sparkle:shortVersionString>1.7</sparkle:shortVersionString>
+      <pubDate>Sun, 15 Jun 2025 00:00:00 +0000</pubDate>
+      <description>Credit and billing tracking for Antigravity, Codex, and Claude.</description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v1.7/Mimir.zip"
+        sparkle:edSignature="PLACEHOLDER_REPLACE_BEFORE_RELEASE"
+        length="1"
+        type="application/octet-stream" />
+    </item>
   </channel>
 </rss>

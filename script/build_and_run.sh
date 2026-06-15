@@ -5,6 +5,10 @@ MODE="${1:-run}"
 APP_NAME="Mimir"
 BUNDLE_ID="com.erayendes.mimir"
 MIN_SYSTEM_VERSION="14.0"
+MARKETING_VERSION="1.7"
+BUILD_NUMBER="17"
+# SUFeedURL lokal test için: http://localhost:8765/appcast.xml
+# Production için Info.plist'teki değer kullanılır (aşağıda)
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
@@ -59,6 +63,10 @@ cat >"$INFO_PLIST" <<PLIST
   <string>1</string>
   <key>NSPrincipalClass</key>
   <string>NSApplication</string>
+  <key>CFBundleShortVersionString</key>
+  <string>$MARKETING_VERSION</string>
+  <key>CFBundleVersion</key>
+  <string>$BUILD_NUMBER</string>
   <key>SUFeedURL</key>
   <string>https://raw.githubusercontent.com/erayendes/mimir/main/appcast.xml</string>
   <key>SUPublicEDKey</key>
@@ -74,6 +82,23 @@ SPARKLE_FW="$(find "$ROOT_DIR/.build/artifacts" -name "Sparkle.framework" -type 
 if [ -n "$SPARKLE_FW" ]; then
   cp -R "$SPARKLE_FW" "$FRAMEWORKS_DIR/"
 fi
+
+# Clear quarantine/provenance attributes inherited from SPM download
+xattr -cr "$APP_BUNDLE"
+
+# Sign Sparkle's nested components first (deepest level → outward).
+# --options runtime preserves Hardened Runtime so Updater.app and XPC services launch correctly.
+SPARKLE_B="$FRAMEWORKS_DIR/Sparkle.framework/Versions/B"
+if [ -d "$SPARKLE_B" ]; then
+  codesign --force --sign - --options runtime "$SPARKLE_B/XPCServices/Downloader.xpc"
+  codesign --force --sign - --options runtime "$SPARKLE_B/XPCServices/Installer.xpc"
+  codesign --force --sign - --options runtime "$SPARKLE_B/Updater.app"
+  codesign --force --sign -                   "$SPARKLE_B/Autoupdate"
+  codesign --force --sign - --options runtime "$FRAMEWORKS_DIR/Sparkle.framework"
+fi
+
+# Seal the whole app bundle last
+codesign --force --sign - "$APP_BUNDLE"
 
 launch_app() {
   /usr/bin/open -n "$APP_BUNDLE"
