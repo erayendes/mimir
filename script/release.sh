@@ -93,30 +93,46 @@ if [ -z "$SPARKLE_FW" ]; then
   echo "✗ Sparkle.framework not found. Run 'swift build' first." >&2
   exit 1
 fi
-cp -R "$SPARKLE_FW" "$APP_CONTENTS/Frameworks/"
+ditto --norsrc "$SPARKLE_FW" "$APP_CONTENTS/Frameworks/Sparkle.framework"
 
 # ── 5. Codesign (inner → outer, preserve Hardened Runtime)
+# Sign from /tmp — iCloud Drive (bird daemon) re-adds com.apple.fileprovider.fpfs#P
+# to bundle directories inside ~/Documents, which codesign rejects.
 echo "── Signing bundle..."
-xattr -cr "$APP_BUNDLE"
-SPARKLE_B="$APP_CONTENTS/Frameworks/Sparkle.framework/Versions/B"
-codesign --force --sign - --options runtime "$SPARKLE_B/XPCServices/Downloader.xpc"
-codesign --force --sign - --options runtime "$SPARKLE_B/XPCServices/Installer.xpc"
-codesign --force --sign - --options runtime "$SPARKLE_B/Updater.app"
-codesign --force --sign -                   "$SPARKLE_B/Autoupdate"
-codesign --force --sign - --options runtime "$APP_CONTENTS/Frameworks/Sparkle.framework"
-codesign --force --sign - "$APP_BUNDLE"
+TMP_BUNDLE="/tmp/${APP_NAME}_release.app"
+rm -rf "$TMP_BUNDLE"
+ditto --norsrc "$APP_BUNDLE" "$TMP_BUNDLE"
+xattr -cr "$TMP_BUNDLE" 2>/dev/null || true
+
+SPARKLE_B_TMP="$TMP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B"
+codesign --force --sign - --options runtime "$SPARKLE_B_TMP/XPCServices/Downloader.xpc"
+codesign --force --sign - --options runtime "$SPARKLE_B_TMP/XPCServices/Installer.xpc"
+codesign --force --sign - --options runtime "$SPARKLE_B_TMP/Updater.app"
+codesign --force --sign -                   "$SPARKLE_B_TMP/Autoupdate"
+codesign --force --sign - --options runtime "$TMP_BUNDLE/Contents/Frameworks/Sparkle.framework"
+codesign --force --sign - "$TMP_BUNDLE"
+
+# Copy signed bundle back (without xattrs)
+rm -rf "$APP_BUNDLE"
+ditto --norsrc "$TMP_BUNDLE" "$APP_BUNDLE"
+rm -rf "$TMP_BUNDLE"
 
 # ── 6. dSYM (for Sentry)
 echo "── Extracting dSYM..."
 rm -rf "$DIST_DIR/$APP_NAME.app.dSYM"
 dsymutil "$BUILD_DIR/$APP_NAME" -o "$DIST_DIR/$APP_NAME.app.dSYM"
 
-# ── 7. Zip (--symlinks preserves framework symlink structure)
+# ── 7. Zip from /tmp to avoid iCloud xattr contamination
 echo "── Zipping..."
+TMP_ZIP_DIR="/tmp/MimirRelease_zip"
+rm -rf "$TMP_ZIP_DIR" && mkdir "$TMP_ZIP_DIR"
+ditto --norsrc "$APP_BUNDLE" "$TMP_ZIP_DIR/$APP_NAME.app"
+xattr -cr "$TMP_ZIP_DIR/$APP_NAME.app" 2>/dev/null || true
 rm -f "$ZIP_PATH"
-cd "$DIST_DIR"
-zip -r --symlinks Mimir.zip Mimir.app --quiet
+cd "$TMP_ZIP_DIR"
+zip -r --symlinks "$ZIP_PATH" "$APP_NAME.app" --quiet
 cd "$ROOT_DIR"
+rm -rf "$TMP_ZIP_DIR"
 ZIP_SIZE="$(wc -c < "$ZIP_PATH" | tr -d ' ')"
 
 # ── 8. Sign the zip → get edSignature
@@ -125,10 +141,25 @@ if [ -z "$SIGN_UPDATE" ]; then
   echo "✗ sign_update not found. Run 'swift build' first." >&2
   exit 1
 fi
-SIGN_OUTPUT="$("$SIGN_UPDATE" "$ZIP_PATH" 2>&1)"
+
+# Prefer a private-key file so signing is fully non-interactive. Reading the key
+# from the Keychain triggers a GUI authorization prompt that headless/agent shells
+# can't satisfy. One-time export (run once, in a normal terminal):
+#   .build/artifacts/sparkle/Sparkle/bin/generate_keys -x ~/.config/mimir/sparkle_ed_private_key
+# Then either set SPARKLE_PRIVATE_KEY_FILE or drop the file at the default path below.
+KEY_FILE="${SPARKLE_PRIVATE_KEY_FILE:-$HOME/.config/mimir/sparkle_ed_private_key}"
+SIGN_ARGS=()
+if [ -f "$KEY_FILE" ]; then
+  SIGN_ARGS+=(--ed-key-file "$KEY_FILE")
+else
+  echo "  ⚠ no key file at $KEY_FILE — falling back to Keychain (may prompt)" >&2
+fi
+
+SIGN_OUTPUT="$("$SIGN_UPDATE" "${SIGN_ARGS[@]}" "$ZIP_PATH" 2>&1)"
 ED_SIG="$(echo "$SIGN_OUTPUT" | grep -oE 'edSignature="[^"]+"' | cut -d'"' -f2)"
 if [ -z "$ED_SIG" ]; then
-  echo "✗ sign_update failed — is the Sparkle private key in your Keychain?" >&2
+  echo "✗ sign_update failed — no key file at $KEY_FILE and Keychain unavailable." >&2
+  echo "  Export the key once with: generate_keys -x $KEY_FILE" >&2
   echo "$SIGN_OUTPUT" >&2
   exit 1
 fi

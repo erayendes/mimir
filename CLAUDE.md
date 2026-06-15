@@ -19,4 +19,12 @@ Tek komut: build → sign → zip → edSignature → appcast güncelle → GitH
 
 Örnek: `./script/release.sh 1.8 "Added Gemini support"`
 
-Sparkle private key macOS Keychain'de saklanıyor, otomatik okunur.
+Sparkle private key `~/.config/mimir/sparkle_ed_private_key` dosyasından okunur
+(`--ed-key-file`), böylece imzalama Keychain prompt'u olmadan non-interactive çalışır.
+Dosya yoksa Keychain'e düşer. Tek seferlik export (normal terminalde):
+
+```bash
+.build/artifacts/sparkle/Sparkle/bin/generate_keys -x ~/.config/mimir/sparkle_ed_private_key
+```
+
+Farklı bir konum için `SPARKLE_PRIVATE_KEY_FILE` ortam değişkenini ayarla.
