@@ -125,7 +125,7 @@ jobs:
           ED_SIG: ${{ steps.sparkle.outputs.ED_SIG }}
           LENGTH: ${{ steps.pkg.outputs.LENGTH }}
         run: |
-          BUILD_NUMBER="$(echo "$VERSION" | tr -d '.')"
+          BUILD_NUMBER="$(bash script/build_number.sh "$VERSION")"
           # Bilingual notes: English block first, then Turkish, pulled from CHANGELOG.
           EN="$(awk -v v="$VERSION" '/^## English/{s="en"} /^## Türkçe/{s="tr"} s=="en" && $0 ~ "^### \\["v"\\]"{c=1;next} c&&/^### \[/{c=0} c{print}' CHANGELOG.md)"
           TR="$(awk -v v="$VERSION" '/^## English/{s="en"} /^## Türkçe/{s="tr"} s=="tr" && $0 ~ "^### \\["v"\\]"{c=1;next} c&&/^### \[/{c=0} c{print}' CHANGELOG.md)"
