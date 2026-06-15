@@ -204,7 +204,13 @@ git add appcast.xml script/build_and_run.sh
 git commit -m "chore: release v$VERSION"
 git tag "v$VERSION"
 
-# ── 11. GitHub release + upload zip
+# ── 11. Push first — gh release create refuses a tag that isn't on the remote yet,
+# so the commit and tag must land before we cut the release.
+echo "── Pushing..."
+git push
+git push origin "v$VERSION"
+
+# ── 12. GitHub release + upload zip
 echo "── Creating GitHub release..."
 if gh release view "v$VERSION" &>/dev/null; then
   gh release upload "v$VERSION" "$ZIP_PATH" --clobber
@@ -214,10 +220,6 @@ else
     --title "Mimir v$VERSION" \
     --notes "$NOTES"
 fi
-
-# ── 12. Push
-echo "── Pushing..."
-git push && git push --tags
 
 echo ""
 echo "✓ Mimir v$VERSION released"
