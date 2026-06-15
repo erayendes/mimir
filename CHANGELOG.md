@@ -11,6 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+### [1.11] - 2026-06-15
+
+#### Added
+- First launch now offers to open Mimir automatically at login (toggleable later in System Settings › Login Items).
+
+#### Fixed
+- Security: OAuth credentials and the Antigravity language-server token are no longer passed as command-line arguments, so other local processes can't read them from the process table.
+- The Antigravity info text and status labels are now in English, matching the rest of the app.
+
 ### [1.10] - 2026-06-15
 
 #### Fixed
@@ -166,6 +175,15 @@ Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
 
 ### [Yayımlanmadı]
+
+### [1.11] - 2026-06-15
+
+#### Eklendi
+- İlk açılışta Mimir'i girişte otomatik başlatma seçeneği sunuluyor (sonradan System Settings › Login Items'tan değiştirilebilir).
+
+#### Düzeltildi
+- Güvenlik: OAuth kimlik bilgileri ve Antigravity dil-sunucusu token'ı artık komut satırı argümanı olarak geçirilmiyor; böylece sistemdeki başka süreçler bunları process table'dan okuyamıyor.
+- Antigravity bilgi metni ve durum etiketleri artık İngilizce (uygulamanın geri kalanıyla uyumlu).
 
 ### [1.10] - 2026-06-15
 
