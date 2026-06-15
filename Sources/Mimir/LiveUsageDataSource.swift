@@ -159,19 +159,20 @@ struct LiveUsageDataSource {
             return buildClaudeStatus(from: cached, note: "oauth usage cache").withCooldownHint(0)
         }
 
-        guard let tokenInfo = readClaudeTokenInfo() else {
+        guard var tokenInfo = readClaudeTokenInfo() else {
             return claudeFailure(note: "claude token missing")
         }
 
-        // Token already expired: do NOT call the usage API. Hammering it every 60s with a dead
-        // token is exactly what escalated to HTTP 429. We stay read-only (Mimir never refreshes
-        // Claude's token — that could rotate Claude Code's own credentials out from under it).
-        // The expiry check itself is local (no network), so it already prevents the bad call — no
-        // cooldown needed, and re-checking every poll means we recover the instant Claude Code
-        // refreshes the keychain. Meanwhile show last-known data with an actionable note.
-        if let exp = tokenInfo.expiresAt, exp.timeIntervalSinceNow <= 60 {
-            let note = "token expired — open Claude Code"
-            return claudeFailure(note: note, staleNote: note)
+        // Refresh proactively when the token is expired or within 5 min of expiry (like Codex /
+        // Antigravity do). Anthropic rotates the refresh token, so `refreshClaudeToken()` writes the
+        // new pair straight back to the keychain — keeping Claude Code's own login valid. If refresh
+        // fails, fall back to last-known data and back off rather than hammering the token endpoint.
+        if let exp = tokenInfo.expiresAt, exp.timeIntervalSinceNow <= 300 {
+            guard let fresh = await refreshClaudeToken() else {
+                let note = "token expired — open Claude Code"
+                return claudeFailure(note: note, staleNote: note).withCooldownHint(15 * 60)
+            }
+            tokenInfo = ClaudeToken(accessToken: fresh, expiresAt: nil)
         }
 
         var req = URLRequest(url: URL(string: "https://api.anthropic.com/api/oauth/usage")!, timeoutInterval: 10)
@@ -260,17 +261,15 @@ struct LiveUsageDataSource {
             ))
         }
 
-        return ServiceStatus(
-            name: "Claude",
-            iconName: "claude",
-            sessionResetAt: fiveHour.resetAt,
-            weeklyResetAt: sevenDay.resetAt,
-            sessionRemainingPercent: remainingPercent(fromUsed: fiveHour.utilization),
-            weeklyRemainingPercent: remainingPercent(fromUsed: sevenDay.utilization),
-            models: models,
-            isAvailable: true,
-            statusNote: note
-        )
+        // Classify by reset time so a window that has already reset (e.g. a 5h reading from an old
+        // cache used as a fallback) is blanked rather than shown as if current. Live readings have
+        // future resets, so this is a no-op on the happy path.
+        return staleClassifiedCard(
+            name: "Claude", iconName: "claude",
+            sessionPct: remainingPercent(fromUsed: fiveHour.utilization), sessionReset: fiveHour.resetAt,
+            weeklyPct: remainingPercent(fromUsed: sevenDay.utilization), weeklyReset: sevenDay.resetAt,
+            models: models, freshNote: note, staleNote: note)
+            ?? unavailableService(name: "Claude", iconName: "claude", models: [], note: note)
     }
 
     private func remainingPercent(fromUsed used: Double) -> Int {
@@ -1082,9 +1081,8 @@ struct LiveUsageDataSource {
     }
 
     /// Read the Claude Code OAuth token plus its expiry, from the keychain entry
-    /// ("Claude Code-credentials") or the `~/.claude/.credentials.json` fallback. Read-only —
-    /// Mimir never refreshes or writes this token; it only inspects `expiresAt` to decide
-    /// whether the token is even worth sending (see `fetchClaude`).
+    /// ("Claude Code-credentials") or the `~/.claude/.credentials.json` fallback. `expiresAt`
+    /// drives whether `fetchClaude` refreshes before calling the usage API (see `refreshClaudeToken`).
     private func readClaudeTokenInfo() -> ClaudeToken? {
         let keychainRaw = runCommand("/usr/bin/security", ["find-generic-password", "-s", "Claude Code-credentials", "-w"]).trimmingCharacters(in: .whitespacesAndNewlines)
         if let info = parseClaudeToken(keychainRaw) { return info }
@@ -1153,6 +1151,97 @@ struct LiveUsageDataSource {
     private func epochMillisToDate(_ raw: Any?) -> Date? {
         guard let ms = doubleValue(raw), ms > 0 else { return nil }
         return Date(timeIntervalSince1970: ms / 1000)
+    }
+
+    private static let claudeKeychainService = "Claude Code-credentials"
+    private static let claudeOAuthClientID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
+
+    private enum ClaudeCredentialSource {
+        case keychain(account: String)
+        case file(URL)
+    }
+
+    /// Read the full Claude credential JSON and remember where it came from, so a refreshed token
+    /// can be written back to the same store (preserving the rest of the blob, e.g. `mcpOAuth`).
+    private func readClaudeCredential() -> (root: [String: Any], source: ClaudeCredentialSource)? {
+        let raw = runCommand("/usr/bin/security", ["find-generic-password", "-s", Self.claudeKeychainService, "-w"])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let data = raw.data(using: .utf8),
+           let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           root["claudeAiOauth"] != nil,
+           let account = claudeKeychainAccount() {
+            return (root, .keychain(account: account))
+        }
+        let url = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/.credentials.json")
+        if let data = try? Data(contentsOf: url),
+           let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            return (root, .file(url))
+        }
+        return nil
+    }
+
+    /// The keychain item's account, needed so `security -U` updates the existing entry in place
+    /// rather than adding a duplicate. Parsed from the item attributes; falls back to the login name.
+    private func claudeKeychainAccount() -> String? {
+        let out = runCommand("/usr/bin/security", ["find-generic-password", "-s", Self.claudeKeychainService])
+        for line in out.split(separator: "\n") where line.contains("\"acct\"") {
+            if let open = line.range(of: "=\"") {
+                let rest = line[open.upperBound...]
+                if let close = rest.firstIndex(of: "\"") { return String(rest[..<close]) }
+            }
+        }
+        return NSUserName().isEmpty ? nil : NSUserName()
+    }
+
+    /// Refresh Claude's access token with the stored refresh token, then write the rotated pair back
+    /// to the same store so Claude Code's own login keeps working (Anthropic rotates the refresh
+    /// token, so persisting it is mandatory). Returns the new access token, or nil on any failure.
+    private func refreshClaudeToken() async -> String? {
+        guard var (root, source) = readClaudeCredential(),
+              var oauth = root["claudeAiOauth"] as? [String: Any],
+              let refresh = oauth["refreshToken"] as? String, !refresh.isEmpty else {
+            return nil
+        }
+
+        var req = URLRequest(url: URL(string: "https://api.anthropic.com/v1/oauth/token")!, timeoutInterval: 12)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: [
+            "grant_type": "refresh_token",
+            "refresh_token": refresh,
+            "client_id": Self.claudeOAuthClientID
+        ])
+
+        guard let (data, response) = try? await URLSession.shared.data(for: req),
+              (response as? HTTPURLResponse).map({ 200 ... 299 ~= $0.statusCode }) == true,
+              let resp = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let newAccess = resp["access_token"] as? String, !newAccess.isEmpty else {
+            return nil
+        }
+
+        oauth["accessToken"] = newAccess
+        if let newRefresh = resp["refresh_token"] as? String, !newRefresh.isEmpty {
+            oauth["refreshToken"] = newRefresh
+        }
+        if let expiresIn = doubleValue(resp["expires_in"]) {
+            oauth["expiresAt"] = Int(Date().timeIntervalSince1970 * 1000 + expiresIn * 1000)
+        }
+        root["claudeAiOauth"] = oauth
+        writeClaudeCredential(root, to: source)
+        return newAccess
+    }
+
+    private func writeClaudeCredential(_ root: [String: Any], to source: ClaudeCredentialSource) {
+        guard let data = try? JSONSerialization.data(withJSONObject: root) else { return }
+        switch source {
+        case .keychain(let account):
+            guard let json = String(data: data, encoding: .utf8) else { return }
+            _ = runCommand("/usr/bin/security", [
+                "add-generic-password", "-U", "-a", account, "-s", Self.claudeKeychainService, "-w", json
+            ])
+        case .file(let url):
+            try? data.write(to: url, options: .atomic)
+        }
     }
 
     private func decodeJWTPayload(_ token: String) -> [String: Any]? {
