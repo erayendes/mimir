@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import Sentry
+import ServiceManagement
 import Sparkle
 import SwiftUI
 import UserNotifications
@@ -122,6 +123,52 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.store.refresh()
                 self?.refreshStatusTitle()
             }
+        }
+
+        maybePromptLaunchAtLogin()
+    }
+
+    // MARK: - Launch at login
+
+    private static let didPromptLaunchAtLoginKey = "didPromptLaunchAtLogin"
+
+    /// On first launch only, ask whether Mimir should open automatically at login.
+    /// Deferred briefly so the menu-bar icon is up before the dialog appears.
+    private func maybePromptLaunchAtLogin() {
+        guard !UserDefaults.standard.bool(forKey: Self.didPromptLaunchAtLoginKey) else { return }
+        UserDefaults.standard.set(true, forKey: Self.didPromptLaunchAtLoginKey)
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+            Task { @MainActor in self?.presentLaunchAtLoginPrompt() }
+        }
+    }
+
+    private func presentLaunchAtLoginPrompt() {
+        let alert = NSAlert()
+        alert.messageText = "Launch Mimir at login?"
+        alert.informativeText = "Mimir can open automatically each time you log in, so your usage is always in the menu bar. You can change this later in System Settings › General › Login Items."
+        alert.addButton(withTitle: "Launch at Login")
+        alert.addButton(withTitle: "Not Now")
+        NSApp.activate(ignoringOtherApps: true)
+        if alert.runModal() == .alertFirstButtonReturn {
+            setLaunchAtLogin(true)
+        }
+    }
+
+    private func setLaunchAtLogin(_ enabled: Bool) {
+        do {
+            if enabled {
+                if SMAppService.mainApp.status != .enabled {
+                    try SMAppService.mainApp.register()
+                }
+            } else if SMAppService.mainApp.status == .enabled {
+                try SMAppService.mainApp.unregister()
+            }
+        } catch {
+            let crumb = Breadcrumb(level: .warning, category: "launch-at-login")
+            crumb.message = "\(enabled ? "register" : "unregister") failed: \(error.localizedDescription)"
+            SentrySDK.addBreadcrumb(crumb)
+            SentrySDK.capture(error: error)
         }
     }
 
