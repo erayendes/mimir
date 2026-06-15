@@ -11,11 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+### [1.6] - 2026-06-15
+
 #### Added
 - Mimir now refreshes Claude's OAuth token itself, the same way it already does for Codex and Antigravity. When the token is expired or within 5 minutes of expiry, it exchanges the stored refresh token for a fresh one and writes the rotated pair back to where it came from (the keychain entry, updated in place, or `~/.claude/.credentials.json`). So Claude usage stays live and correct without depending on Claude Code to refresh first — and because the new token is written back, Claude Code's own login keeps working. On refresh failure it falls back to last-known data and backs off rather than hammering the token endpoint
 
 #### Fixed
 - Claude could show a stale reading (or none at all) when its token wasn't being refreshed — e.g. a 5-hour window that had already reset shown as if current. Card data is now trusted by reset time rather than cache age (a window still within its reset shows; one that has reset is blanked), and the last-known reading is persisted, so the card stays correct and never silently vanishes
+- App-hang reports on quit: the terminate-time Sentry flush blocked the main thread for up to 2s, tripping Sentry's own 2000 ms app-hang detector (MIMIR-4). The flush timeout is now 1s, safely under the threshold
 
 ### [1.5] - 2026-06-14
 
@@ -121,7 +124,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Build and install script (`script/build_and_run.sh`)
 - Automated DMG release pipeline via GitHub Actions
 
-[Unreleased]: https://github.com/erayendes/mimir/compare/v1.5...HEAD
+[Unreleased]: https://github.com/erayendes/mimir/compare/v1.6...HEAD
+[1.6]: https://github.com/erayendes/mimir/compare/v1.5...v1.6
 [1.5]: https://github.com/erayendes/mimir/compare/v1.4...v1.5
 [1.4]: https://github.com/erayendes/mimir/compare/v1.3...v1.4
 [1.3]: https://github.com/erayendes/mimir/compare/v1.2.2...v1.3
@@ -143,11 +147,14 @@ sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) k
 
 ### [Yayımlanmadı]
 
+### [1.6] - 2026-06-15
+
 #### Eklendi
 - Mimir artık Claude'un OAuth token'ını da kendi yeniliyor — tıpkı Codex ve Antigravity'de yaptığı gibi. Token dolmuşsa ya da dolmasına 5 dakikadan az kalmışsa, saklı refresh token'ı yenisiyle değişip rotate edilen çifti geldiği yere geri yazıyor (keychain girdisi yerinde güncelleniyor, ya da `~/.claude/.credentials.json`). Böylece Claude kullanımı, Claude Code'un önce tazelemesine bağlı kalmadan canlı ve doğru kalıyor; yeni token geri yazıldığı için Claude Code'un kendi girişi de bozulmuyor. Refresh başarısız olursa son-bilinen veriye düşüp token endpoint'ini dövmek yerine geri çekiliyor
 
 #### Düzeltildi
 - Token tazelenmediğinde Claude bayat (ya da hiç) değer gösterebiliyordu — örn. çoktan resetlenmiş 5 saatlik pencere güncelmiş gibi. Kart verisi artık cache yaşına değil reset zamanına göre güveniliyor (reseti gelmemiş pencere gösteriliyor, resetlenmiş pencere boşaltılıyor) ve son-bilinen okuma saklanıyor; böylece kart doğru kalıyor ve asla sessizce kaybolmuyor
+- Çıkışta app-hang raporu: kapanış anındaki Sentry flush'ı ana thread'i 2 saniyeye kadar bloke edip Sentry'nin kendi 2000 ms app-hang dedektörünü tetikliyordu (MIMIR-4). Flush timeout'u artık 1 saniye, eşiğin güvenle altında
 
 ### [1.5] - 2026-06-14
 
@@ -253,7 +260,8 @@ sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) k
 - Derleme ve kurulum scripti (`script/build_and_run.sh`)
 - GitHub Actions üzerinden otomatik DMG release pipeline'ı
 
-[Yayımlanmadı]: https://github.com/erayendes/mimir/compare/v1.5...HEAD
+[Yayımlanmadı]: https://github.com/erayendes/mimir/compare/v1.6...HEAD
+[1.6]: https://github.com/erayendes/mimir/compare/v1.5...v1.6
 [1.5]: https://github.com/erayendes/mimir/compare/v1.4...v1.5
 [1.4]: https://github.com/erayendes/mimir/compare/v1.3...v1.4
 [1.3]: https://github.com/erayendes/mimir/compare/v1.2.2...v1.3
