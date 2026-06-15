@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import Sentry
+import Sparkle
 import SwiftUI
 import UserNotifications
 
@@ -24,6 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var localEventMonitor: Any?
     private var globalEventMonitor: Any?
     private var cancellables: Set<AnyCancellable> = []
+    private var updaterController: SPUStandardUpdaterController?
     // Per-window notification state, keyed "<service>-5h" / "<service>-weekly".
     private var lowNotified: Set<String> = []     // window is below its low threshold (until it resets)
     private var depleted5h: Set<String> = []      // service's 5h window hit 0% since its last refill
@@ -46,6 +48,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // manual breadcrumbs, so the automatic tracker is safe to disable.
             options.enableAutoBreadcrumbTracking = false
         }
+
+        updaterController = SPUStandardUpdaterController(
+            startingUpdater: true,
+            updaterDelegate: nil,
+            userDriverDelegate: nil
+        )
 
         NSApp.setActivationPolicy(.accessory)
 
@@ -80,6 +88,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     let clamped = min(max(height, 80), PopoverMetrics.maxHeight)
                     guard abs(self.popover.contentSize.height - clamped) > 0.5 else { return }
                     self.popover.contentSize = NSSize(width: PopoverMetrics.width, height: clamped)
+                },
+                checkForUpdates: { [weak self] in
+                    self?.updaterController?.checkForUpdates(nil)
                 }
             )
         )
@@ -106,12 +117,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.refreshStatusTitle()
             }
             .store(in: &cancellables)
-        store.checkForUpdate()
         timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.store.refresh()
                 self?.refreshStatusTitle()
-                self?.store.checkForUpdate()
             }
         }
     }
@@ -377,6 +386,7 @@ private struct PopoverView: View {
     /// Reports the measured content height so AppKit can size the popover.
     /// Plain callback on purpose — see the note at the construction site.
     let onContentHeightChange: (CGFloat) -> Void
+    let checkForUpdates: () -> Void
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { context in
@@ -387,12 +397,9 @@ private struct PopoverView: View {
 
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: PopoverMetrics.edgeInset) {
-                        if let update = store.availableUpdate {
-                            UpdateBanner(update: update)
-                        }
                         contentView(now: context.date)
 
-                        BrandingFooter()
+                        BrandingFooter(checkForUpdates: checkForUpdates)
                     }
                     .padding(.vertical, PopoverMetrics.contentInset)
                     .padding(.horizontal, PopoverMetrics.edgeInset)
@@ -461,9 +468,10 @@ private struct PopoverView: View {
     }
 }
 
-/// Quiet identity mark under the last card: logo, name, version.
+/// Quiet identity mark under the last card: logo, name, version, and update link.
 /// Deliberately low-contrast — branding should be findable, never loud.
 private struct BrandingFooter: View {
+    let checkForUpdates: () -> Void
     private static let logo: NSImage? = {
         guard let url = Bundle.main.url(forResource: "MenuIcon", withExtension: "png"),
               let image = NSImage(contentsOf: url) else { return nil }
@@ -504,6 +512,11 @@ private struct BrandingFooter: View {
                 Text("milowda")
                     .font(.system(size: 11, weight: .regular, design: .rounded))
                     .opacity(0.8)
+
+                Button("Check for updates") { checkForUpdates() }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 11, weight: .regular, design: .rounded))
+                    .opacity(0.5)
             }
         }
         .foregroundStyle(Color.secondary.opacity(0.7))
@@ -522,54 +535,6 @@ private enum PopoverMetrics {
     static let width: CGFloat = 360
     static let maxHeight: CGFloat = 500
     static let placeholderHeight: CGFloat = 200
-}
-
-private struct UpdateBanner: View {
-    let update: AvailableUpdate
-
-    var body: some View {
-        Button {
-            NSWorkspace.shared.open(update.url)
-        } label: {
-            HStack(spacing: 10) {
-                Image(systemName: "arrow.down.circle.fill")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
-
-                VStack(alignment: .leading, spacing: 1) {
-                    Text("New version available")
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        .foregroundStyle(Color.primary.opacity(0.86))
-                    Text("v\(update.version)")
-                        .font(.system(size: 11, weight: .regular, design: .rounded))
-                        .foregroundStyle(Color.secondary.opacity(0.72))
-                }
-
-                Spacer(minLength: 6)
-
-                HStack(spacing: 3) {
-                    Text("Download")
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 9, weight: .bold))
-                }
-                .foregroundStyle(Color.accentColor)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 11)
-            .background {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(Color.accentColor.opacity(0.12))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .stroke(Color.accentColor.opacity(0.28), lineWidth: 1)
-                    }
-            }
-            .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        }
-        .buttonStyle(PressableButtonStyle())
-        .transition(.move(edge: .top).combined(with: .opacity))
-    }
 }
 
 /// Subtle press feedback — the row scales down slightly while held, so it feels

@@ -69,9 +69,23 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << PLIST
   <string>1</string>
   <key>NSPrincipalClass</key>
   <string>NSApplication</string>
+  <key>SUFeedURL</key>
+  <string>https://raw.githubusercontent.com/erayendes/mimir/main/appcast.xml</string>
+  <key>SUPublicEDKey</key>
+  <string>AL98f6dND8KQ8nhLPIcesddvzdSXi2d7jQ5AQ3PEbAY=</string>
 </dict>
 </plist>
 PLIST
+
+# Sparkle.framework'ü bundle'a kopyala
+FRAMEWORKS_DIR="$APP_BUNDLE/Contents/Frameworks"
+mkdir -p "$FRAMEWORKS_DIR"
+SPARKLE_FW="$(find "$ROOT_DIR/.build/artifacts" -name "Sparkle.framework" -type d | head -1)"
+if [ -z "$SPARKLE_FW" ]; then
+  echo "ERROR: Sparkle.framework bulunamadı — önce 'swift build -c release' çalıştırın" >&2
+  exit 1
+fi
+cp -R "$SPARKLE_FW" "$FRAMEWORKS_DIR/"
 
 echo "✓ dist/Mimir.app hazır"
 
@@ -87,6 +101,27 @@ zip -qr "$ZIP_NAME" "$APP_NAME.app"
 cd "$ROOT_DIR"
 
 SHA256=$(shasum -a 256 "$ZIP_PATH" | awk '{print $1}')
+
+# Sparkle EdDSA imzası
+SIGN_UPDATE="$(find "$ROOT_DIR/.build/artifacts" -name "sign_update" -type f | head -1)"
+if [ -n "$SIGN_UPDATE" ]; then
+  SIG_OUTPUT=$("$SIGN_UPDATE" "$ZIP_PATH" 2>/dev/null || true)
+  ED_SIG=$(echo "$SIG_OUTPUT" | grep -o 'edSignature="[^"]*"' | cut -d'"' -f2)
+  ZIP_LEN=$(echo "$SIG_OUTPUT" | grep -o 'length="[^"]*"' | cut -d'"' -f2)
+  if [ -n "$ED_SIG" ] && [ -n "$ZIP_LEN" ]; then
+    python3 "$ROOT_DIR/script/gen_appcast_item.py" \
+      --version "$VERSION" \
+      --url "https://github.com/erayendes/mimir/releases/download/v${VERSION}/${ZIP_NAME}" \
+      --signature "$ED_SIG" \
+      --length "$ZIP_LEN" \
+      --appcast "$ROOT_DIR/appcast.xml"
+    echo "✓ appcast.xml güncellendi"
+  else
+    echo "⚠️  Sparkle imzası alınamadı (Keychain'de anahtar yok?). appcast.xml güncellenmedi."
+  fi
+else
+  echo "⚠️  sign_update bulunamadı. appcast.xml güncellenmedi."
+fi
 
 echo ""
 echo "✓ dist/$ZIP_NAME hazır"

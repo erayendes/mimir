@@ -59,9 +59,21 @@ cat >"$INFO_PLIST" <<PLIST
   <string>1</string>
   <key>NSPrincipalClass</key>
   <string>NSApplication</string>
+  <key>SUFeedURL</key>
+  <string>https://raw.githubusercontent.com/erayendes/mimir/main/appcast.xml</string>
+  <key>SUPublicEDKey</key>
+  <string>AL98f6dND8KQ8nhLPIcesddvzdSXi2d7jQ5AQ3PEbAY=</string>
 </dict>
 </plist>
 PLIST
+
+# Sparkle.framework'ü bundle'a kopyala
+FRAMEWORKS_DIR="$APP_CONTENTS/Frameworks"
+mkdir -p "$FRAMEWORKS_DIR"
+SPARKLE_FW="$(find "$ROOT_DIR/.build/artifacts" -name "Sparkle.framework" -type d | head -1)"
+if [ -n "$SPARKLE_FW" ]; then
+  cp -R "$SPARKLE_FW" "$FRAMEWORKS_DIR/"
+fi
 
 launch_app() {
   /usr/bin/open -n "$APP_BUNDLE"

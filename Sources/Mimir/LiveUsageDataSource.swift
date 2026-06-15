@@ -4,9 +4,7 @@ import Foundation
 final class UsageStore: ObservableObject {
     @Published var services: [ServiceStatus] = LiveUsageDataSource.fallbackServices()
     @Published var isRefreshing = false
-    @Published var availableUpdate: AvailableUpdate?
     private let source = LiveUsageDataSource()
-    private var lastUpdateCheck: Date?
     /// Per-service fetch cooldown: while `Date()` is before the stored value, that service is
     /// served from its snapshot instead of hitting the network (set after an HTTP 429 / expired
     /// token; cleared on the next live success). Stops Mimir hammering a failing endpoint.
@@ -39,47 +37,9 @@ final class UsageStore: ObservableObject {
         }
     }
 
-    /// Check GitHub for a newer release. Runs at most once per 24h (the timer calls it
-    /// every tick; the first call after launch always runs since lastUpdateCheck is nil).
-    /// Non-blocking and silent: any network/parse failure leaves the banner untouched.
-    func checkForUpdate() {
-        if let last = lastUpdateCheck, Date().timeIntervalSince(last) < 24 * 3_600 { return }
-        lastUpdateCheck = Date()
-        guard let current = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
-              !current.isEmpty else {
-            return  // dev builds carry no version string — skip rather than nag
-        }
-        Task {
-            guard let update = await LiveUsageDataSource.fetchLatestRelease(current: current) else { return }
-            self.availableUpdate = update
-        }
-    }
 }
 
 struct LiveUsageDataSource {
-    /// Fetch the latest GitHub release and return it only if newer than `current`.
-    static func fetchLatestRelease(current: String) async -> AvailableUpdate? {
-        guard let url = URL(string: "https://api.github.com/repos/erayendes/mimir/releases/latest") else {
-            return nil
-        }
-        var req = URLRequest(url: url, timeoutInterval: 8)
-        req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
-        req.setValue("Mimir", forHTTPHeaderField: "User-Agent")
-
-        guard let (data, response) = try? await URLSession.shared.data(for: req),
-              (response as? HTTPURLResponse).map({ 200 ... 299 ~= $0.statusCode }) == true,
-              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let tag = root["tag_name"] as? String,
-              VersionCompare.isNewer(tag, than: current) else {
-            return nil
-        }
-
-        let pageURL = (root["html_url"] as? String).flatMap(URL.init)
-            ?? URL(string: "https://github.com/erayendes/mimir/releases/latest")!
-        let version = tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
-        return AvailableUpdate(version: version, url: pageURL)
-    }
-
     static func fallbackServices() -> [ServiceStatus] {
         [
             ServiceStatus(
