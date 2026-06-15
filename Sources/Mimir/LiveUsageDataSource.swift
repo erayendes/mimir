@@ -159,19 +159,20 @@ struct LiveUsageDataSource {
             return buildClaudeStatus(from: cached, note: "oauth usage cache").withCooldownHint(0)
         }
 
-        guard let tokenInfo = readClaudeTokenInfo() else {
-            return loadSnapshot(for: "Claude", iconName: "claude")
-                ?? unavailableService(name: "Claude", iconName: "claude", models: [], note: "claude token missing")
+        guard var tokenInfo = readClaudeTokenInfo() else {
+            return claudeFailure(note: "claude token missing")
         }
 
-        // Token already expired: do NOT call the usage API. Hammering it every 60s with a dead
-        // token is exactly what escalated to HTTP 429. We stay read-only (Mimir never refreshes
-        // Claude's token — that could rotate Claude Code's own credentials out from under it).
-        // Show last-known data with an actionable note and back off; recovery is automatic — once
-        // Claude Code refreshes the keychain, the next read sees a future expiry and clears the cooldown.
-        if let exp = tokenInfo.expiresAt, exp.timeIntervalSinceNow <= 60 {
-            let note = "token expired — open Claude Code"
-            return claudeFailure(note: note, staleNote: note).withCooldownHint(30 * 60)
+        // Refresh proactively when the token is expired or within 5 min of expiry (like Codex /
+        // Antigravity do). Anthropic rotates the refresh token, so `refreshClaudeToken()` writes the
+        // new pair straight back to the keychain — keeping Claude Code's own login valid. If refresh
+        // fails, fall back to last-known data and back off rather than hammering the token endpoint.
+        if let exp = tokenInfo.expiresAt, exp.timeIntervalSinceNow <= 300 {
+            guard let fresh = await refreshClaudeToken() else {
+                let note = "token expired — open Claude Code"
+                return claudeFailure(note: note, staleNote: note).withCooldownHint(15 * 60)
+            }
+            tokenInfo = ClaudeToken(accessToken: fresh, expiresAt: nil)
         }
 
         var req = URLRequest(url: URL(string: "https://api.anthropic.com/api/oauth/usage")!, timeoutInterval: 10)
@@ -204,11 +205,34 @@ struct LiveUsageDataSource {
     /// 24h usage cache, else the persisted snapshot (dimmed when its windows have reset), else
     /// the hidden unavailable card (only when nothing was ever cached).
     private func claudeFailure(note: String, staleNote: String = "güncel değil") -> ServiceStatus {
+        // Recent cache → normal card (seed a snapshot so the cooldown/skip path can serve it too).
         if let cached = readClaudeUsageCache(maxAge: 24 * 60 * 60) {
-            return buildClaudeStatus(from: cached, note: note)
+            let status = buildClaudeStatus(from: cached, note: note)
+            saveSnapshot(status)
+            return status
         }
-        return loadSnapshot(for: "Claude", iconName: "claude", staleNote: staleNote)
-            ?? unavailableService(name: "Claude", iconName: "claude", models: [], note: note)
+        // Persisted snapshot, else an older cache trusted by reset time (windows still within their
+        // reset show dimmed; refilled windows are blanked) — seeded as a snapshot for next time.
+        if let snap = loadSnapshot(for: "Claude", iconName: "claude", staleNote: staleNote) {
+            return snap
+        }
+        if let stale = claudeCardFromStaleCache(staleNote: staleNote) {
+            saveSnapshot(stale)
+            return stale
+        }
+        return unavailableService(name: "Claude", iconName: "claude", models: [], note: note)
+    }
+
+    /// Build a Claude card from the cache at any age, trusting each window by its reset time, so a
+    /// still-valid weekly number survives even when the 24h cache window and the token have lapsed.
+    private func claudeCardFromStaleCache(staleNote: String) -> ServiceStatus? {
+        guard let root = readClaudeUsageCacheRaw() else { return nil }
+        let full = buildClaudeStatus(from: root, note: "snapshot")
+        return staleClassifiedCard(
+            name: "Claude", iconName: "claude",
+            sessionPct: full.sessionRemainingPercent, sessionReset: full.sessionResetAt,
+            weeklyPct: full.weeklyRemainingPercent, weeklyReset: full.weeklyResetAt,
+            models: full.models, freshNote: "snapshot", staleNote: staleNote)
     }
 
     /// Parse an HTTP `Retry-After` header (delta-seconds or HTTP-date) into a backoff interval.
@@ -237,17 +261,15 @@ struct LiveUsageDataSource {
             ))
         }
 
-        return ServiceStatus(
-            name: "Claude",
-            iconName: "claude",
-            sessionResetAt: fiveHour.resetAt,
-            weeklyResetAt: sevenDay.resetAt,
-            sessionRemainingPercent: remainingPercent(fromUsed: fiveHour.utilization),
-            weeklyRemainingPercent: remainingPercent(fromUsed: sevenDay.utilization),
-            models: models,
-            isAvailable: true,
-            statusNote: note
-        )
+        // Classify by reset time so a window that has already reset (e.g. a 5h reading from an old
+        // cache used as a fallback) is blanked rather than shown as if current. Live readings have
+        // future resets, so this is a no-op on the happy path.
+        return staleClassifiedCard(
+            name: "Claude", iconName: "claude",
+            sessionPct: remainingPercent(fromUsed: fiveHour.utilization), sessionReset: fiveHour.resetAt,
+            weeklyPct: remainingPercent(fromUsed: sevenDay.utilization), weeklyReset: sevenDay.resetAt,
+            models: models, freshNote: note, staleNote: note)
+            ?? unavailableService(name: "Claude", iconName: "claude", models: [], note: note)
     }
 
     private func remainingPercent(fromUsed used: Double) -> Int {
@@ -475,38 +497,46 @@ struct LiveUsageDataSource {
         }
         let sessionReset = (root["sessionResetAt"] as? String).flatMap { parseISO8601($0) }
         let weeklyReset = (root["weeklyResetAt"] as? String).flatMap { parseISO8601($0) }
-        let sessionPct = root["sessionRemainingPercent"] as? Int
-        let weeklyPct = root["weeklyRemainingPercent"] as? Int
-        guard sessionPct != nil || weeklyPct != nil || !allModels.isEmpty else { return nil }
+        return staleClassifiedCard(
+            name: service, iconName: iconName,
+            sessionPct: root["sessionRemainingPercent"] as? Int, sessionReset: sessionReset,
+            weeklyPct: root["weeklyRemainingPercent"] as? Int, weeklyReset: weeklyReset,
+            models: allModels, freshNote: freshNote, staleNote: staleNote)
+    }
 
-        let sessionFresh = sessionReset.map { now < $0 } ?? false
-        let weeklyFresh = weeklyReset.map { now < $0 } ?? false
-        let freshModels = allModels.filter { ($0.resetAt.map { now < $0 }) ?? false }
+    /// Classify a last-known reading by reset time. A window keeps its cached percent while its
+    /// reset is still in the future — or while it has no reset time at all, since then nothing has
+    /// invalidated it; a window whose reset has already passed is blanked (its quota refilled). Any
+    /// fresh window/model → an available card; everything stale → a dimmed `isStale` card. Returns
+    /// nil only when there is no data at all.
+    private func staleClassifiedCard(name: String, iconName: String,
+                                     sessionPct: Int?, sessionReset: Date?,
+                                     weeklyPct: Int?, weeklyReset: Date?,
+                                     models: [ModelStatus],
+                                     freshNote: String, staleNote: String) -> ServiceStatus? {
+        guard sessionPct != nil || weeklyPct != nil || !models.isEmpty else { return nil }
+        let now = Date()
+        let sessionFresh = sessionPct != nil && (sessionReset.map { now < $0 } ?? true)
+        let weeklyFresh = weeklyPct != nil && (weeklyReset.map { now < $0 } ?? true)
+        let freshModels = models.filter { ($0.resetAt.map { now < $0 }) ?? true }
 
         if sessionFresh || weeklyFresh || !freshModels.isEmpty {
-            // Keep fresh windows live-from-cache; blank windows that already reset. For models,
-            // prefer the still-valid subset (matches Antigravity), else keep any undated rows.
             return ServiceStatus(
-                name: service, iconName: iconName,
+                name: name, iconName: iconName,
                 sessionResetAt: sessionFresh ? sessionReset : nil,
                 weeklyResetAt: weeklyFresh ? weeklyReset : nil,
                 sessionRemainingPercent: sessionFresh ? sessionPct : nil,
                 weeklyRemainingPercent: weeklyFresh ? weeklyPct : nil,
-                models: freshModels.isEmpty ? allModels.filter { $0.resetAt == nil } : freshModels,
-                isAvailable: true,
-                statusNote: freshNote
-            )
+                models: freshModels,
+                isAvailable: true, statusNote: freshNote)
         }
 
-        // Every window/model has passed its reset → numbers are stale. Show the card dimmed and
-        // marked, rather than hiding it.
         return ServiceStatus(
-            name: service, iconName: iconName,
+            name: name, iconName: iconName,
             sessionResetAt: nil, weeklyResetAt: nil,
             sessionRemainingPercent: sessionPct, weeklyRemainingPercent: weeklyPct,
-            models: allModels,
-            isAvailable: false, statusNote: staleNote, isStale: true
-        )
+            models: models,
+            isAvailable: false, statusNote: staleNote, isStale: true)
     }
 
     /// Antigravity keeps its original method names as thin wrappers over the generic helpers,
@@ -1051,9 +1081,8 @@ struct LiveUsageDataSource {
     }
 
     /// Read the Claude Code OAuth token plus its expiry, from the keychain entry
-    /// ("Claude Code-credentials") or the `~/.claude/.credentials.json` fallback. Read-only —
-    /// Mimir never refreshes or writes this token; it only inspects `expiresAt` to decide
-    /// whether the token is even worth sending (see `fetchClaude`).
+    /// ("Claude Code-credentials") or the `~/.claude/.credentials.json` fallback. `expiresAt`
+    /// drives whether `fetchClaude` refreshes before calling the usage API (see `refreshClaudeToken`).
     private func readClaudeTokenInfo() -> ClaudeToken? {
         let keychainRaw = runCommand("/usr/bin/security", ["find-generic-password", "-s", "Claude Code-credentials", "-w"]).trimmingCharacters(in: .whitespacesAndNewlines)
         if let info = parseClaudeToken(keychainRaw) { return info }
@@ -1068,8 +1097,17 @@ struct LiveUsageDataSource {
         let url = claudeUsageCacheURL()
         guard let values = try? url.resourceValues(forKeys: [.contentModificationDateKey]),
               let modifiedAt = values.contentModificationDate,
-              Date().timeIntervalSince(modifiedAt) <= maxAge,
-              let data = try? Data(contentsOf: url),
+              Date().timeIntervalSince(modifiedAt) <= maxAge else {
+            return nil
+        }
+        return readClaudeUsageCacheRaw()
+    }
+
+    /// The cached usage JSON regardless of age — used as a deep fallback that is trusted not by
+    /// age but by each window's reset time (a weekly number from a 3-day-old cache is still right
+    /// if that week hasn't reset yet).
+    private func readClaudeUsageCacheRaw() -> [String: Any]? {
+        guard let data = try? Data(contentsOf: claudeUsageCacheURL()),
               let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return nil
         }
@@ -1113,6 +1151,97 @@ struct LiveUsageDataSource {
     private func epochMillisToDate(_ raw: Any?) -> Date? {
         guard let ms = doubleValue(raw), ms > 0 else { return nil }
         return Date(timeIntervalSince1970: ms / 1000)
+    }
+
+    private static let claudeKeychainService = "Claude Code-credentials"
+    private static let claudeOAuthClientID = "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
+
+    private enum ClaudeCredentialSource {
+        case keychain(account: String)
+        case file(URL)
+    }
+
+    /// Read the full Claude credential JSON and remember where it came from, so a refreshed token
+    /// can be written back to the same store (preserving the rest of the blob, e.g. `mcpOAuth`).
+    private func readClaudeCredential() -> (root: [String: Any], source: ClaudeCredentialSource)? {
+        let raw = runCommand("/usr/bin/security", ["find-generic-password", "-s", Self.claudeKeychainService, "-w"])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let data = raw.data(using: .utf8),
+           let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           root["claudeAiOauth"] != nil,
+           let account = claudeKeychainAccount() {
+            return (root, .keychain(account: account))
+        }
+        let url = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/.credentials.json")
+        if let data = try? Data(contentsOf: url),
+           let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            return (root, .file(url))
+        }
+        return nil
+    }
+
+    /// The keychain item's account, needed so `security -U` updates the existing entry in place
+    /// rather than adding a duplicate. Parsed from the item attributes; falls back to the login name.
+    private func claudeKeychainAccount() -> String? {
+        let out = runCommand("/usr/bin/security", ["find-generic-password", "-s", Self.claudeKeychainService])
+        for line in out.split(separator: "\n") where line.contains("\"acct\"") {
+            if let open = line.range(of: "=\"") {
+                let rest = line[open.upperBound...]
+                if let close = rest.firstIndex(of: "\"") { return String(rest[..<close]) }
+            }
+        }
+        return NSUserName().isEmpty ? nil : NSUserName()
+    }
+
+    /// Refresh Claude's access token with the stored refresh token, then write the rotated pair back
+    /// to the same store so Claude Code's own login keeps working (Anthropic rotates the refresh
+    /// token, so persisting it is mandatory). Returns the new access token, or nil on any failure.
+    private func refreshClaudeToken() async -> String? {
+        guard var (root, source) = readClaudeCredential(),
+              var oauth = root["claudeAiOauth"] as? [String: Any],
+              let refresh = oauth["refreshToken"] as? String, !refresh.isEmpty else {
+            return nil
+        }
+
+        var req = URLRequest(url: URL(string: "https://api.anthropic.com/v1/oauth/token")!, timeoutInterval: 12)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try? JSONSerialization.data(withJSONObject: [
+            "grant_type": "refresh_token",
+            "refresh_token": refresh,
+            "client_id": Self.claudeOAuthClientID
+        ])
+
+        guard let (data, response) = try? await URLSession.shared.data(for: req),
+              (response as? HTTPURLResponse).map({ 200 ... 299 ~= $0.statusCode }) == true,
+              let resp = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let newAccess = resp["access_token"] as? String, !newAccess.isEmpty else {
+            return nil
+        }
+
+        oauth["accessToken"] = newAccess
+        if let newRefresh = resp["refresh_token"] as? String, !newRefresh.isEmpty {
+            oauth["refreshToken"] = newRefresh
+        }
+        if let expiresIn = doubleValue(resp["expires_in"]) {
+            oauth["expiresAt"] = Int(Date().timeIntervalSince1970 * 1000 + expiresIn * 1000)
+        }
+        root["claudeAiOauth"] = oauth
+        writeClaudeCredential(root, to: source)
+        return newAccess
+    }
+
+    private func writeClaudeCredential(_ root: [String: Any], to source: ClaudeCredentialSource) {
+        guard let data = try? JSONSerialization.data(withJSONObject: root) else { return }
+        switch source {
+        case .keychain(let account):
+            guard let json = String(data: data, encoding: .utf8) else { return }
+            _ = runCommand("/usr/bin/security", [
+                "add-generic-password", "-U", "-a", account, "-s", Self.claudeKeychainService, "-w", json
+            ])
+        case .file(let url):
+            try? data.write(to: url, options: .atomic)
+        }
     }
 
     private func decodeJWTPayload(_ token: String) -> [String: Any]? {

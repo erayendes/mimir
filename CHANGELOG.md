@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+#### Added
+- Mimir now refreshes Claude's OAuth token itself, the same way it already does for Codex and Antigravity. When the token is expired or within 5 minutes of expiry, it exchanges the stored refresh token for a fresh one and writes the rotated pair back to where it came from (the keychain entry, updated in place, or `~/.claude/.credentials.json`). So Claude usage stays live and correct without depending on Claude Code to refresh first — and because the new token is written back, Claude Code's own login keeps working. On refresh failure it falls back to last-known data and backs off rather than hammering the token endpoint
+
+#### Fixed
+- Claude could show a stale reading (or none at all) when its token wasn't being refreshed — e.g. a 5-hour window that had already reset shown as if current. Card data is now trusted by reset time rather than cache age (a window still within its reset shows; one that has reset is blanked), and the last-known reading is persisted, so the card stays correct and never silently vanishes
+
 ### [1.5] - 2026-06-14
 
 #### Changed
@@ -136,6 +142,12 @@ Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
 
 ### [Yayımlanmadı]
+
+#### Eklendi
+- Mimir artık Claude'un OAuth token'ını da kendi yeniliyor — tıpkı Codex ve Antigravity'de yaptığı gibi. Token dolmuşsa ya da dolmasına 5 dakikadan az kalmışsa, saklı refresh token'ı yenisiyle değişip rotate edilen çifti geldiği yere geri yazıyor (keychain girdisi yerinde güncelleniyor, ya da `~/.claude/.credentials.json`). Böylece Claude kullanımı, Claude Code'un önce tazelemesine bağlı kalmadan canlı ve doğru kalıyor; yeni token geri yazıldığı için Claude Code'un kendi girişi de bozulmuyor. Refresh başarısız olursa son-bilinen veriye düşüp token endpoint'ini dövmek yerine geri çekiliyor
+
+#### Düzeltildi
+- Token tazelenmediğinde Claude bayat (ya da hiç) değer gösterebiliyordu — örn. çoktan resetlenmiş 5 saatlik pencere güncelmiş gibi. Kart verisi artık cache yaşına değil reset zamanına göre güveniliyor (reseti gelmemiş pencere gösteriliyor, resetlenmiş pencere boşaltılıyor) ve son-bilinen okuma saklanıyor; böylece kart doğru kalıyor ve asla sessizce kaybolmuyor
 
 ### [1.5] - 2026-06-14
 
