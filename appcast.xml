@@ -7,7 +7,29 @@
     <link>https://github.com/erayendes/mimir</link>
     <description>Mimir update feed</description>
     <language>en</language>
-    <item>
+        <item>
+      <title>Mimir 1.10</title>
+      <sparkle:version>110</sparkle:version>
+      <sparkle:shortVersionString>1.10</sparkle:shortVersionString>
+      <pubDate>Mon, 15 Jun 2026 20:04:30 +0000</pubDate>
+      <description>
+#### Fixed
+- Release builds are now Developer ID-signed and notarized by Apple, so macOS opens them without Gatekeeper warnings and Sparkle auto-updates install cleanly.
+
+---
+
+
+#### Düzeltildi
+- Release derlemeleri artık Developer ID ile imzalanıp Apple tarafından notarize ediliyor; macOS Gatekeeper uyarısı vermeden açıyor ve Sparkle otomatik güncellemeleri sorunsuz kuruluyor.</description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v1.10/Mimir.zip"
+        sparkle:edSignature="1VYszBIukoOUUEbjISeF48ys5OmXWfQj76RMmekxil7og6o5aQ6FZGNvY6csYvTM/JyYG5//lWndOBoRxOP+Bw=="
+        length="6003308"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 1.9</title>
       <sparkle:version>19</sparkle:version>
       <sparkle:shortVersionString>1.9</sparkle:shortVersionString>
