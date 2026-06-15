@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+### [1.8] - 2026-06-15
+
+#### Added
+- Sparkle auto-update integration: "Check for updates" now uses the native Sparkle sheet instead of a browser redirect. The button moved from a separate line to an inline refresh icon next to the version number in the branding footer.
+
+#### Changed
+- Branding footer: "milowda" byline is now a clickable link to milowda.com/apps/mimir.
+
 ### [1.7] - 2026-06-15
 
 #### Added
@@ -129,7 +137,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Build and install script (`script/build_and_run.sh`)
 - Automated DMG release pipeline via GitHub Actions
 
-[Unreleased]: https://github.com/erayendes/mimir/compare/v1.7...HEAD
+[Unreleased]: https://github.com/erayendes/mimir/compare/v1.8...HEAD
+[1.8]: https://github.com/erayendes/mimir/compare/v1.7...v1.8
 [1.7]: https://github.com/erayendes/mimir/compare/v1.6...v1.7
 [1.6]: https://github.com/erayendes/mimir/compare/v1.5...v1.6
 [1.5]: https://github.com/erayendes/mimir/compare/v1.4...v1.5
@@ -152,6 +161,14 @@ Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
 
 ### [Yayımlanmadı]
+
+### [1.8] - 2026-06-15
+
+#### Eklendi
+- Sparkle otomatik güncelleme entegrasyonu: "Check for updates" artık tarayıcıya yönlendirmek yerine native Sparkle sheet'ini açıyor. Buton, branding footer'da ayrı bir satırdan versiyon numarasının yanındaki inline yenile ikonuna taşındı.
+
+#### Değişti
+- Branding footer: "milowda" yazısı milowda.com/apps/mimir'e tıklanabilir link oldu.
 
 ### [1.7] - 2026-06-15
 
@@ -271,7 +288,8 @@ sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) k
 - Derleme ve kurulum scripti (`script/build_and_run.sh`)
 - GitHub Actions üzerinden otomatik DMG release pipeline'ı
 
-[Yayımlanmadı]: https://github.com/erayendes/mimir/compare/v1.7...HEAD
+[Yayımlanmadı]: https://github.com/erayendes/mimir/compare/v1.8...HEAD
+[1.8]: https://github.com/erayendes/mimir/compare/v1.7...v1.8
 [1.7]: https://github.com/erayendes/mimir/compare/v1.6...v1.7
 [1.6]: https://github.com/erayendes/mimir/compare/v1.5...v1.6
 [1.5]: https://github.com/erayendes/mimir/compare/v1.4...v1.5
