@@ -507,16 +507,19 @@ private struct BrandingFooter: View {
                     Text(Self.version)
                         .font(.system(size: 11, weight: .regular).monospacedDigit())
                         .opacity(0.8)
+
+                    Button { checkForUpdates() } label: {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 10, weight: .regular))
+                    }
+                    .buttonStyle(.plain)
+                    .opacity(0.45)
+                    .help("Check for updates")
                 }
 
-                Text("milowda")
+                Link("milowda", destination: URL(string: "https://milowda.com/apps/mimir")!)
                     .font(.system(size: 11, weight: .regular, design: .rounded))
                     .opacity(0.8)
-
-                Button("Check for updates") { checkForUpdates() }
-                    .buttonStyle(.plain)
-                    .font(.system(size: 11, weight: .regular, design: .rounded))
-                    .opacity(0.5)
             }
         }
         .foregroundStyle(Color.secondary.opacity(0.7))
