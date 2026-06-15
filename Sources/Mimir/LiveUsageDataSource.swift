@@ -260,6 +260,9 @@ struct LiveUsageDataSource {
                 resetAt: sonnet.resetAt ?? sevenDay.resetAt
             ))
         }
+        if let billing = claudeBillingRow(root["extra_usage"]) {
+            models.append(billing)
+        }
 
         // Classify by reset time so a window that has already reset (e.g. a 5h reading from an old
         // cache used as a fallback) is blanked rather than shown as if current. Live readings have
@@ -274,6 +277,24 @@ struct LiveUsageDataSource {
 
     private func remainingPercent(fromUsed used: Double) -> Int {
         max(0, min(100, Int((100 - used).rounded())))
+    }
+
+    /// Claude pay-as-you-go billing from the usage API's `extra_usage: { is_enabled, monthly_limit,
+    /// used_credits, utilization, currency }`. Returns nil when not enabled (Pro without overage), so
+    /// the row is omitted — matching the issue's "fall back silently when billing isn't applicable".
+    private func claudeBillingRow(_ raw: Any?) -> ModelStatus? {
+        guard let e = raw as? [String: Any], e["is_enabled"] as? Bool == true else { return nil }
+        let used = doubleValue(e["used_credits"]) ?? 0
+        let limit = doubleValue(e["monthly_limit"])
+        let cur = (e["currency"] as? String).map { $0.uppercased() } ?? ""
+        func money(_ v: Double) -> String {
+            let n = v.truncatingRemainder(dividingBy: 1) == 0 ? String(Int(v)) : String(format: "%.2f", v)
+            return cur.isEmpty ? n : "\(n) \(cur)"
+        }
+        let text = limit.map { "\(money(used)) / \(money($0))" } ?? money(used)
+        let util = doubleValue(e["utilization"]) ?? (limit.map { $0 > 0 ? used / $0 * 100 : 0 } ?? 0)
+        return ModelStatus(name: "Billing", remainingPercent: 0, resetAt: nil,
+                           valueText: text, isLow: util >= 80)
     }
 
     private func fetchCodex() async -> ServiceStatus {
@@ -390,13 +411,28 @@ struct LiveUsageDataSource {
                 weeklyResetAt: weekly.resetAt,
                 sessionRemainingPercent: session.usedPercent.map(remainingPercent(fromUsed:)) ?? 100,
                 weeklyRemainingPercent: weekly.usedPercent.map(remainingPercent(fromUsed:)) ?? 100,
-                models: [],
+                models: codexCreditRow(root["credits"]).map { [$0] } ?? [],
                 isAvailable: true,
                 statusNote: "chatgpt usage api"
             )
         } catch {
             return nil
         }
+    }
+
+    /// Codex premium credit balance from `wham/usage` `credits: { has_credits, unlimited, balance }`.
+    /// Returns nil for free/Plus accounts with no credits, so the row is simply omitted.
+    private func codexCreditRow(_ raw: Any?) -> ModelStatus? {
+        guard let c = raw as? [String: Any] else { return nil }
+        if c["unlimited"] as? Bool == true {
+            return ModelStatus(name: "Credits", remainingPercent: 0, resetAt: nil, valueText: "Unlimited")
+        }
+        guard c["has_credits"] as? Bool == true else { return nil }
+        let amount = (c["balance"] as? String).flatMap(Double.init) ?? doubleValue(c["balance"]) ?? 0
+        guard amount > 0 else { return nil }
+        let text = amount.truncatingRemainder(dividingBy: 1) == 0 ? String(Int(amount)) : String(amount)
+        return ModelStatus(name: "Credits", remainingPercent: 0, resetAt: nil,
+                           valueText: "\(text) credits", isLow: amount < 5)
     }
 
     private func fetchAntigravity() async -> ServiceStatus {
@@ -674,9 +710,12 @@ struct LiveUsageDataSource {
             return nil
         }
 
-        let models = antigravityQuotaSummaryRows(groups: groups)
+        var models = antigravityQuotaSummaryRows(groups: groups)
         guard !models.isEmpty else {
             return nil
+        }
+        if let credit = antigravityCreditRow(csrf: csrf, ports: ports) {
+            models.append(credit)
         }
         return ServiceStatus(
             name: "Antigravity",
@@ -687,6 +726,36 @@ struct LiveUsageDataSource {
             isAvailable: true,
             statusNote: "quota summary"
         )
+    }
+
+    /// Google One AI credit balance from Antigravity's GetUserStatus (`userTier.availableCredits`),
+    /// shown alongside the quota rows. `creditAmount`/`minimumCreditAmountForUsage` are JSON strings.
+    private func antigravityCreditRow(csrf: String, ports: [Int]) -> ModelStatus? {
+        let body = "{\"metadata\":{\"ideName\":\"antigravity\",\"locale\":\"en\"}}"
+        func num(_ raw: Any?) -> Double? { (raw as? String).flatMap(Double.init) ?? doubleValue(raw) }
+        for p in ports {
+            let out = runCommand("/usr/bin/curl", [
+                "-ks", "--max-time", "2",
+                "-H", "X-Codeium-Csrf-Token: \(csrf)",
+                "-H", "Connect-Protocol-Version: 1",
+                "-H", "Content-Type: application/json",
+                "--data", body,
+                "https://127.0.0.1:\(p)/exa.language_server_pb.LanguageServerService/GetUserStatus"
+            ])
+            guard let data = out.data(using: .utf8),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let userStatus = json["userStatus"] as? [String: Any],
+                  let tier = userStatus["userTier"] as? [String: Any],
+                  let credits = tier["availableCredits"] as? [[String: Any]], !credits.isEmpty else {
+                continue
+            }
+            let one = credits.first { ($0["creditType"] as? String)?.contains("GOOGLE_ONE") == true } ?? credits[0]
+            guard let amount = num(one["creditAmount"]) else { return nil }
+            let minimum = num(one["minimumCreditAmountForUsage"]) ?? 0
+            return ModelStatus(name: "Google One credits", remainingPercent: 0, resetAt: nil,
+                               valueText: String(Int(amount)), isLow: amount < minimum)
+        }
+        return nil
     }
 
     /// Flatten `groups[].buckets[]` into one row per (group × window), ordered 5h then
@@ -1197,8 +1266,8 @@ struct LiveUsageDataSource {
     /// to the same store so Claude Code's own login keeps working (Anthropic rotates the refresh
     /// token, so persisting it is mandatory). Returns the new access token, or nil on any failure.
     private func refreshClaudeToken() async -> String? {
-        guard var (root, source) = readClaudeCredential(),
-              var oauth = root["claudeAiOauth"] as? [String: Any],
+        guard let credential = readClaudeCredential(),
+              var oauth = credential.root["claudeAiOauth"] as? [String: Any],
               let refresh = oauth["refreshToken"] as? String, !refresh.isEmpty else {
             return nil
         }
@@ -1226,8 +1295,9 @@ struct LiveUsageDataSource {
         if let expiresIn = doubleValue(resp["expires_in"]) {
             oauth["expiresAt"] = Int(Date().timeIntervalSince1970 * 1000 + expiresIn * 1000)
         }
+        var root = credential.root
         root["claudeAiOauth"] = oauth
-        writeClaudeCredential(root, to: source)
+        writeClaudeCredential(root, to: credential.source)
         return newAccess
     }
 
