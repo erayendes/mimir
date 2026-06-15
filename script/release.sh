@@ -41,12 +41,7 @@ cd "$ROOT_DIR"
 echo "▶ Releasing Mimir v$VERSION (build $BUILD_NUMBER)"
 echo ""
 
-# ── 1. Bump version in build_and_run.sh so dev builds stay in sync
-echo "── Bumping version..."
-sed -i '' "s/^MARKETING_VERSION=.*/MARKETING_VERSION=\"$VERSION\"/" script/build_and_run.sh
-sed -i '' "s/^BUILD_NUMBER=.*/BUILD_NUMBER=\"$BUILD_NUMBER\"/" script/build_and_run.sh
-
-# ── 2. Build (release, with debug info for Sentry symbolication)
+# ── 1. Build (release, with debug info for Sentry symbolication)
 echo "── Building..."
 pkill -x "$APP_NAME" >/dev/null 2>&1 || true
 swift build -c release -Xswiftc -g
@@ -223,7 +218,7 @@ python3 "$ROOT_DIR/script/gen_appcast_item.py" \
 
 # ── 10. Commit + tag
 echo "── Committing..."
-git add appcast.xml script/build_and_run.sh
+git add appcast.xml
 git commit -m "chore: release v$VERSION"
 git tag "v$VERSION"
 
