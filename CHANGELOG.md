@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
-### [1.8] - 2026-06-15
+### [1.9] - 2026-06-15
 
 #### Added
 - Sparkle auto-update integration: "Check for updates" now uses the native Sparkle sheet instead of a browser redirect. The button moved from a separate line to an inline refresh icon next to the version number in the branding footer.
@@ -162,7 +162,7 @@ sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) k
 
 ### [Yayımlanmadı]
 
-### [1.8] - 2026-06-15
+### [1.9] - 2026-06-15
 
 #### Eklendi
 - Sparkle otomatik güncelleme entegrasyonu: "Check for updates" artık tarayıcıya yönlendirmek yerine native Sparkle sheet'ini açıyor. Buton, branding footer'da ayrı bir satırdan versiyon numarasının yanındaki inline yenile ikonuna taşındı.
