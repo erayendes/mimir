@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+### [1.10] - 2026-06-15
+
+#### Fixed
+- Release builds are now Developer ID-signed and notarized by Apple, so macOS opens them without Gatekeeper warnings and Sparkle auto-updates install cleanly.
+
 ### [1.9] - 2026-06-15
 
 #### Added
@@ -161,6 +166,11 @@ Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
 
 ### [Yayımlanmadı]
+
+### [1.10] - 2026-06-15
+
+#### Düzeltildi
+- Release derlemeleri artık Developer ID ile imzalanıp Apple tarafından notarize ediliyor; macOS Gatekeeper uyarısı vermeden açıyor ve Sparkle otomatik güncellemeleri sorunsuz kuruluyor.
 
 ### [1.9] - 2026-06-15
 
