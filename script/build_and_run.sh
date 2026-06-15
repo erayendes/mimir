@@ -2,13 +2,14 @@
 set -euo pipefail
 
 MODE="${1:-run}"
-APP_NAME="Mimir"
-BUNDLE_ID="com.erayendes.mimir"
+# Dev builds get a separate identity from the production app: distinct bundle id,
+# name ("Mimir Dev"), no version string and no Sparkle feed. This keeps them out
+# of the production app's UserDefaults / login item / auto-update state, and the
+# popover footer shows "Mimir dev" (the missing version falls back to "dev").
+PRODUCT="Mimir"            # swift product / executable name (Contents/MacOS/Mimir)
+APP_NAME="Mimir Dev"       # bundle + display name
+BUNDLE_ID="com.erayendes.mimir.dev"
 MIN_SYSTEM_VERSION="14.0"
-MARKETING_VERSION="1.10"
-BUILD_NUMBER="110"
-# SUFeedURL lokal test için: http://localhost:8765/appcast.xml
-# Production için Info.plist'teki değer kullanılır (aşağıda)
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
@@ -16,17 +17,17 @@ APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
 APP_CONTENTS="$APP_BUNDLE/Contents"
 APP_MACOS="$APP_CONTENTS/MacOS"
 APP_RESOURCES="$APP_CONTENTS/Resources"
-APP_BINARY="$APP_MACOS/$APP_NAME"
+APP_BINARY="$APP_MACOS/$PRODUCT"
 INFO_PLIST="$APP_CONTENTS/Info.plist"
 
 cd "$ROOT_DIR"
 
-pkill -x "$APP_NAME" >/dev/null 2>&1 || true
+pkill -x "$PRODUCT" >/dev/null 2>&1 || true
 
 # Derleme yap ve yolu al
 swift build -c release
 BUILD_DIR="$(swift build -c release --show-bin-path)"
-BUILD_BINARY="$BUILD_DIR/$APP_NAME"
+BUILD_BINARY="$BUILD_DIR/$PRODUCT"
 
 rm -rf "$APP_BUNDLE"
 mkdir -p "$APP_MACOS"
@@ -48,7 +49,7 @@ cat >"$INFO_PLIST" <<PLIST
 <plist version="1.0">
 <dict>
   <key>CFBundleExecutable</key>
-  <string>$APP_NAME</string>
+  <string>$PRODUCT</string>
   <key>CFBundleIconFile</key>
   <string>Mimir</string>
   <key>CFBundleIdentifier</key>
@@ -63,14 +64,6 @@ cat >"$INFO_PLIST" <<PLIST
   <string>1</string>
   <key>NSPrincipalClass</key>
   <string>NSApplication</string>
-  <key>CFBundleShortVersionString</key>
-  <string>$MARKETING_VERSION</string>
-  <key>CFBundleVersion</key>
-  <string>$BUILD_NUMBER</string>
-  <key>SUFeedURL</key>
-  <string>https://raw.githubusercontent.com/erayendes/mimir/main/appcast.xml</string>
-  <key>SUPublicEDKey</key>
-  <string>AL98f6dND8KQ8nhLPIcesddvzdSXi2d7jQ5AQ3PEbAY=</string>
 </dict>
 </plist>
 PLIST
@@ -83,22 +76,30 @@ if [ -n "$SPARKLE_FW" ]; then
   ditto --norsrc "$SPARKLE_FW" "$FRAMEWORKS_DIR/Sparkle.framework"
 fi
 
-# Clear quarantine/provenance attributes inherited from SPM download
-xattr -cr "$APP_BUNDLE"
+# Sign from /tmp — iCloud Drive (bird daemon) keeps re-adding extended attributes
+# to bundles under ~/Documents, which codesign rejects ("resource fork ... not
+# allowed"). Sign a clean copy outside the synced tree, then ditto it back.
+TMP_BUNDLE="/tmp/${PRODUCT}_dev.app"
+rm -rf "$TMP_BUNDLE"
+ditto --norsrc "$APP_BUNDLE" "$TMP_BUNDLE"
+xattr -cr "$TMP_BUNDLE" 2>/dev/null || true
 
 # Sign Sparkle's nested components first (deepest level → outward).
 # --options runtime preserves Hardened Runtime so Updater.app and XPC services launch correctly.
-SPARKLE_B="$FRAMEWORKS_DIR/Sparkle.framework/Versions/B"
+SPARKLE_B="$TMP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B"
 if [ -d "$SPARKLE_B" ]; then
   codesign --force --sign - --options runtime "$SPARKLE_B/XPCServices/Downloader.xpc"
   codesign --force --sign - --options runtime "$SPARKLE_B/XPCServices/Installer.xpc"
   codesign --force --sign - --options runtime "$SPARKLE_B/Updater.app"
   codesign --force --sign -                   "$SPARKLE_B/Autoupdate"
-  codesign --force --sign - --options runtime "$FRAMEWORKS_DIR/Sparkle.framework"
+  codesign --force --sign - --options runtime "$TMP_BUNDLE/Contents/Frameworks/Sparkle.framework"
 fi
 
-# Seal the whole app bundle last
-codesign --force --sign - "$APP_BUNDLE"
+# Seal the whole app bundle last, then copy the signed bundle back over the original.
+codesign --force --sign - "$TMP_BUNDLE"
+rm -rf "$APP_BUNDLE"
+ditto --norsrc "$TMP_BUNDLE" "$APP_BUNDLE"
+rm -rf "$TMP_BUNDLE"
 
 launch_app() {
   /usr/bin/open -n "$APP_BUNDLE"
@@ -133,7 +134,7 @@ case "$MODE" in
     ;;
   --logs|logs)
     launch_app
-    /usr/bin/log stream --info --style compact --predicate "process == \"$APP_NAME\""
+    /usr/bin/log stream --info --style compact --predicate "process == \"$PRODUCT\""
     ;;
   --telemetry|telemetry)
     launch_app
@@ -142,7 +143,7 @@ case "$MODE" in
   --verify|verify)
     launch_app
     sleep 1
-    pgrep -x "$APP_NAME" >/dev/null
+    pgrep -x "$PRODUCT" >/dev/null
     ;;
   *)
     echo "usage: $0 [run|--debug|--logs|--telemetry|--verify]" >&2

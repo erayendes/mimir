@@ -80,8 +80,8 @@ struct LiveUsageDataSource {
     /// Explains how Antigravity quota is sourced and why it may not be current. Surfaced
     /// behind the (i) icon on the Antigravity card.
     static let antigravityInfo = """
-    Kota, Antigravity'nin yerel dil sunucusundan okunur. Güncel veri için \
-    Antigravity'nin açık olması gerekir; kapalıyken en son görülen değerler gösterilir.
+    Quota is read from Antigravity's local language server. Antigravity must be \
+    running for live data; when it's closed, the last seen values are shown.
     """
 
     /// Fetch every service. Services named in `skip` are in a fetch cooldown (e.g. after a 429)
@@ -165,7 +165,7 @@ struct LiveUsageDataSource {
     /// Claude's live fetch failed — show last-known data instead of vanishing: the still-valid
     /// 24h usage cache, else the persisted snapshot (dimmed when its windows have reset), else
     /// the hidden unavailable card (only when nothing was ever cached).
-    private func claudeFailure(note: String, staleNote: String = "güncel değil") -> ServiceStatus {
+    private func claudeFailure(note: String, staleNote: String = "out of date") -> ServiceStatus {
         // Recent cache → normal card (seed a snapshot so the cooldown/skip path can serve it too).
         if let cached = readClaudeUsageCache(maxAge: 24 * 60 * 60) {
             let status = buildClaudeStatus(from: cached, note: note)
@@ -473,7 +473,7 @@ struct LiveUsageDataSource {
     /// all stale → a dimmed `isStale` card marked with `staleNote`, still visible so the service
     /// never vanishes. Returns nil only when the file is missing, corrupt, or past the 30-day cap.
     private func loadSnapshot(for service: String, iconName: String,
-                              freshNote: String = "snapshot", staleNote: String = "güncel değil") -> ServiceStatus? {
+                              freshNote: String = "snapshot", staleNote: String = "out of date") -> ServiceStatus? {
         guard let data = try? Data(contentsOf: snapshotURL(for: service)),
               let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return nil
@@ -537,7 +537,7 @@ struct LiveUsageDataSource {
     }
 
     /// Antigravity keeps its original method names as thin wrappers over the generic helpers,
-    /// so its fetch chain (and the "antigravity snapshot" / "güncel değil" labels) is unchanged.
+    /// so its fetch chain (and the "antigravity snapshot" / "out of date" labels) is unchanged.
     private func saveAntigravitySnapshot(_ service: ServiceStatus) { saveSnapshot(service) }
     private func fetchAntigravitySnapshot() -> ServiceStatus? {
         loadSnapshot(for: "Antigravity", iconName: "antigravity", freshNote: "antigravity snapshot")
