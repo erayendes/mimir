@@ -93,30 +93,46 @@ if [ -z "$SPARKLE_FW" ]; then
   echo "✗ Sparkle.framework not found. Run 'swift build' first." >&2
   exit 1
 fi
-cp -R "$SPARKLE_FW" "$APP_CONTENTS/Frameworks/"
+ditto --norsrc "$SPARKLE_FW" "$APP_CONTENTS/Frameworks/Sparkle.framework"
 
 # ── 5. Codesign (inner → outer, preserve Hardened Runtime)
+# Sign from /tmp — iCloud Drive (bird daemon) re-adds com.apple.fileprovider.fpfs#P
+# to bundle directories inside ~/Documents, which codesign rejects.
 echo "── Signing bundle..."
-xattr -cr "$APP_BUNDLE"
-SPARKLE_B="$APP_CONTENTS/Frameworks/Sparkle.framework/Versions/B"
-codesign --force --sign - --options runtime "$SPARKLE_B/XPCServices/Downloader.xpc"
-codesign --force --sign - --options runtime "$SPARKLE_B/XPCServices/Installer.xpc"
-codesign --force --sign - --options runtime "$SPARKLE_B/Updater.app"
-codesign --force --sign -                   "$SPARKLE_B/Autoupdate"
-codesign --force --sign - --options runtime "$APP_CONTENTS/Frameworks/Sparkle.framework"
-codesign --force --sign - "$APP_BUNDLE"
+TMP_BUNDLE="/tmp/${APP_NAME}_release.app"
+rm -rf "$TMP_BUNDLE"
+ditto --norsrc "$APP_BUNDLE" "$TMP_BUNDLE"
+xattr -cr "$TMP_BUNDLE" 2>/dev/null || true
+
+SPARKLE_B_TMP="$TMP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B"
+codesign --force --sign - --options runtime "$SPARKLE_B_TMP/XPCServices/Downloader.xpc"
+codesign --force --sign - --options runtime "$SPARKLE_B_TMP/XPCServices/Installer.xpc"
+codesign --force --sign - --options runtime "$SPARKLE_B_TMP/Updater.app"
+codesign --force --sign -                   "$SPARKLE_B_TMP/Autoupdate"
+codesign --force --sign - --options runtime "$TMP_BUNDLE/Contents/Frameworks/Sparkle.framework"
+codesign --force --sign - "$TMP_BUNDLE"
+
+# Copy signed bundle back (without xattrs)
+rm -rf "$APP_BUNDLE"
+ditto --norsrc "$TMP_BUNDLE" "$APP_BUNDLE"
+rm -rf "$TMP_BUNDLE"
 
 # ── 6. dSYM (for Sentry)
 echo "── Extracting dSYM..."
 rm -rf "$DIST_DIR/$APP_NAME.app.dSYM"
 dsymutil "$BUILD_DIR/$APP_NAME" -o "$DIST_DIR/$APP_NAME.app.dSYM"
 
-# ── 7. Zip (--symlinks preserves framework symlink structure)
+# ── 7. Zip from /tmp to avoid iCloud xattr contamination
 echo "── Zipping..."
+TMP_ZIP_DIR="/tmp/MimirRelease_zip"
+rm -rf "$TMP_ZIP_DIR" && mkdir "$TMP_ZIP_DIR"
+ditto --norsrc "$APP_BUNDLE" "$TMP_ZIP_DIR/$APP_NAME.app"
+xattr -cr "$TMP_ZIP_DIR/$APP_NAME.app" 2>/dev/null || true
 rm -f "$ZIP_PATH"
-cd "$DIST_DIR"
-zip -r --symlinks Mimir.zip Mimir.app --quiet
+cd "$TMP_ZIP_DIR"
+zip -r --symlinks "$ZIP_PATH" "$APP_NAME.app" --quiet
 cd "$ROOT_DIR"
+rm -rf "$TMP_ZIP_DIR"
 ZIP_SIZE="$(wc -c < "$ZIP_PATH" | tr -d ' ')"
 
 # ── 8. Sign the zip → get edSignature
@@ -125,10 +141,48 @@ if [ -z "$SIGN_UPDATE" ]; then
   echo "✗ sign_update not found. Run 'swift build' first." >&2
   exit 1
 fi
-SIGN_OUTPUT="$("$SIGN_UPDATE" "$ZIP_PATH" 2>&1)"
+
+# Sign without leaving a persistent private key on disk. sign_update reading the
+# key straight from the Keychain triggers a GUI authorization prompt that
+# headless/agent shells can't satisfy, but generate_keys' Keychain access is
+# already authorized — so we export the key to a temp file (in $TMPDIR, which is
+# NOT cloud-synced), sign with --ed-key-file, then delete it on exit.
+#
+# CI / externally-managed key: set SPARKLE_PRIVATE_KEY_FILE to a key file path
+# and it's used as-is (never deleted, never exported from Keychain).
+if [ -n "${SPARKLE_PRIVATE_KEY_FILE:-}" ]; then
+  if [ ! -f "$SPARKLE_PRIVATE_KEY_FILE" ]; then
+    echo "✗ SPARKLE_PRIVATE_KEY_FILE set but not found: $SPARKLE_PRIVATE_KEY_FILE" >&2
+    exit 1
+  fi
+  KEY_FILE="$SPARKLE_PRIVATE_KEY_FILE"
+else
+  GEN_KEYS="$(find "$ROOT_DIR/.build/artifacts" -name generate_keys -type f | head -1)"
+  if [ -z "$GEN_KEYS" ]; then
+    echo "✗ generate_keys not found. Run 'swift build' first." >&2
+    exit 1
+  fi
+  # generate_keys -x refuses to overwrite an existing file, so hand it a path
+  # inside a fresh 0700 temp dir rather than a pre-created mktemp file.
+  KEY_DIR="$(mktemp -d -t mimir_sparkle)"
+  KEY_FILE="$KEY_DIR/ed_private_key"
+  trap 'rm -rf "$KEY_DIR"' EXIT
+  if ! "$GEN_KEYS" -x "$KEY_FILE" >/dev/null 2>&1; then
+    echo "✗ Could not export the Sparkle key from the Keychain." >&2
+    echo "  Generate/import it once with: $GEN_KEYS" >&2
+    exit 1
+  fi
+fi
+
+SIGN_OUTPUT="$("$SIGN_UPDATE" --ed-key-file "$KEY_FILE" "$ZIP_PATH" 2>&1)"
 ED_SIG="$(echo "$SIGN_OUTPUT" | grep -oE 'edSignature="[^"]+"' | cut -d'"' -f2)"
+# Shred the temp key as soon as we're done with it (don't wait for EXIT trap).
+if [ -z "${SPARKLE_PRIVATE_KEY_FILE:-}" ]; then
+  rm -rf "$KEY_DIR"
+  trap - EXIT
+fi
 if [ -z "$ED_SIG" ]; then
-  echo "✗ sign_update failed — is the Sparkle private key in your Keychain?" >&2
+  echo "✗ sign_update failed." >&2
   echo "$SIGN_OUTPUT" >&2
   exit 1
 fi

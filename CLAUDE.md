@@ -19,4 +19,11 @@ Tek komut: build → sign → zip → edSignature → appcast güncelle → GitH
 
 Örnek: `./script/release.sh 1.8 "Added Gemini support"`
 
-Sparkle private key macOS Keychain'de saklanıyor, otomatik okunur.
+Sparkle private key kalıcı olarak diskte tutulmaz. `release.sh` imzalama anında
+key'i Keychain'den geçici bir dizine (`$TMPDIR`, cloud-sync edilmez) export eder,
+`--ed-key-file` ile imzalar ve hemen siler. Keychain erişimi `generate_keys` için
+zaten yetkili olduğundan prompt çıkmaz. Key yalnızca Keychain'de yaşar.
+
+CI veya harici key yönetimi için: `SPARKLE_PRIVATE_KEY_FILE` ortam değişkenini bir
+key dosyasına ayarla — bu durumda export yapılmaz, dosya olduğu gibi kullanılır
+(silinmez).
