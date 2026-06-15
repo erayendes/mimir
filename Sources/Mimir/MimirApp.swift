@@ -119,7 +119,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         timer?.invalidate()
         stopPopoverDismissMonitors()
-        SentrySDK.flush(timeout: 2)
+        // Keep this strictly below Sentry's 2000 ms app-hang threshold: flushing on the
+        // main thread at quit otherwise trips its own AppHang detector (MIMIR-4).
+        SentrySDK.flush(timeout: 1)
     }
 
     @objc private func togglePopover(_ sender: Any?) {
