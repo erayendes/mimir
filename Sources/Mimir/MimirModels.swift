@@ -98,12 +98,17 @@ struct ModelStatus: Identifiable {
     let remainingPercent: Int
     let resetAt: Date?
     let valueText: String?
+    /// For a `valueText` row (e.g. a credit balance) whose level isn't a 0–100 percent: set true
+    /// when it's below its threshold, so the menu-bar low-quota badge can trigger on it. Percentage
+    /// rows leave this false and are judged by `remainingPercent` instead.
+    let isLow: Bool
 
-    init(name: String, remainingPercent: Int, resetAt: Date?, valueText: String? = nil) {
+    init(name: String, remainingPercent: Int, resetAt: Date?, valueText: String? = nil, isLow: Bool = false) {
         self.name = name
         self.remainingPercent = remainingPercent
         self.resetAt = resetAt
         self.valueText = valueText
+        self.isLow = isLow
     }
 }
 

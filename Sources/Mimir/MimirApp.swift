@@ -232,9 +232,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var isQuotaLow: Bool {
         store.services.filter(\.isAvailable).contains { svc in
+            // Percentage windows + percentage model rows (skip valueText rows — a credit balance
+            // isn't a 0–100 percent, and its `remainingPercent` is a placeholder 0).
             let percents: [Int?] = [svc.sessionRemainingPercent, svc.weeklyRemainingPercent]
-                + svc.models.map { Optional($0.remainingPercent) }
-            return percents.compactMap { $0 }.contains { $0 < 20 }
+                + svc.models.filter { $0.valueText == nil }.map { Optional($0.remainingPercent) }
+            if percents.compactMap({ $0 }).contains(where: { $0 < 20 }) { return true }
+            // Credit/billing rows flag themselves via `isLow` (below their own threshold).
+            return svc.models.contains { $0.isLow }
         }
     }
 
