@@ -31,7 +31,10 @@ DIST_DIR="$ROOT_DIR/dist"
 APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
 APP_CONTENTS="$APP_BUNDLE/Contents"
 ZIP_PATH="$DIST_DIR/Mimir.zip"
-SIGN_UPDATE="$(find "$ROOT_DIR/.build/artifacts" -name "sign_update" -not -path "*/old_dsa*" -type f | head -1)"
+# Resolved lazily: .build/artifacts only exists after `swift build` fetches the
+# Sparkle binary, and under `set -o pipefail` a failing find here would abort the
+# whole script before the build even runs. Tolerate absence; BUILD_ONLY never uses it.
+SIGN_UPDATE="$(find "$ROOT_DIR/.build/artifacts" -name "sign_update" -not -path "*/old_dsa*" -type f 2>/dev/null | head -1 || true)"
 
 cd "$ROOT_DIR"
 
