@@ -1,50 +1,60 @@
 #!/usr/bin/env bash
-# Kullanım: ./script/release.sh 1.0
+# Usage: ./script/release.sh <version> "<release notes>"
+# Example: ./script/release.sh 1.8 "Added Gemini support"
 set -euo pipefail
 
 VERSION="${1:-}"
-if [ -z "$VERSION" ]; then
-  echo "Kullanım: $0 <versiyon>  (örn. 1.0)" >&2
+NOTES="${2:-}"
+
+if [ -z "$VERSION" ] || [ -z "$NOTES" ]; then
+  echo "usage: $0 <version> \"<release notes>\""
+  echo "   eg: $0 1.8 \"Added Gemini support\""
   exit 1
 fi
 
 APP_NAME="Mimir"
 BUNDLE_ID="com.erayendes.mimir"
 MIN_SYSTEM_VERSION="14.0"
+BUILD_NUMBER="$(echo "$VERSION" | tr -d '.')"
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
 APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
-ZIP_NAME="${APP_NAME}-${VERSION}.zip"
-ZIP_PATH="$DIST_DIR/$ZIP_NAME"
+APP_CONTENTS="$APP_BUNDLE/Contents"
+ZIP_PATH="$DIST_DIR/Mimir.zip"
+SIGN_UPDATE="$(find "$ROOT_DIR/.build/artifacts" -name "sign_update" -not -path "*/old_dsa*" -type f | head -1)"
 
 cd "$ROOT_DIR"
 
-pkill -x "$APP_NAME" >/dev/null 2>&1 || true
+echo "▶ Releasing Mimir v$VERSION (build $BUILD_NUMBER)"
+echo ""
 
-echo "→ Derleniyor: $APP_NAME $VERSION"
-# -g: release build'de debug bilgisi üret ki dSYM çıkarılabilsin (Sentry sembolleştirme)
+# ── 1. Bump version in build_and_run.sh so dev builds stay in sync
+echo "── Bumping version..."
+sed -i '' "s/^MARKETING_VERSION=.*/MARKETING_VERSION=\"$VERSION\"/" script/build_and_run.sh
+sed -i '' "s/^BUILD_NUMBER=.*/BUILD_NUMBER=\"$BUILD_NUMBER\"/" script/build_and_run.sh
+
+# ── 2. Build (release, with debug info for Sentry symbolication)
+echo "── Building..."
+pkill -x "$APP_NAME" >/dev/null 2>&1 || true
 swift build -c release -Xswiftc -g
 BUILD_DIR="$(swift build -c release --show-bin-path)"
 
-echo "→ dSYM çıkarılıyor"
-rm -rf "$DIST_DIR/$APP_NAME.app.dSYM"
-mkdir -p "$DIST_DIR"
-dsymutil "$BUILD_DIR/$APP_NAME" -o "$DIST_DIR/$APP_NAME.app.dSYM"
-
+# ── 3. Assemble bundle
+echo "── Assembling bundle..."
 rm -rf "$APP_BUNDLE"
-mkdir -p "$APP_BUNDLE/Contents/MacOS"
-mkdir -p "$APP_BUNDLE/Contents/Resources"
+mkdir -p "$APP_CONTENTS/MacOS" "$APP_CONTENTS/Resources" "$APP_CONTENTS/Frameworks"
 
-cp "$BUILD_DIR/$APP_NAME" "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
-chmod +x "$APP_BUNDLE/Contents/MacOS/$APP_NAME"
+cp "$BUILD_DIR/$APP_NAME" "$APP_CONTENTS/MacOS/$APP_NAME"
+chmod +x "$APP_CONTENTS/MacOS/$APP_NAME"
 
 [ -f "$ROOT_DIR/Sources/Mimir/Resources/Mimir.icns" ] && \
-  cp "$ROOT_DIR/Sources/Mimir/Resources/Mimir.icns" "$APP_BUNDLE/Contents/Resources/"
-cp -R "$ROOT_DIR/Sources/Mimir/Resources/BrandIcons" "$APP_BUNDLE/Contents/Resources/" 2>/dev/null || true
-cp "$ROOT_DIR/Sources/Mimir/Resources/AppIcon.png" "$APP_BUNDLE/Contents/Resources/" 2>/dev/null || true
-cp "$ROOT_DIR/Sources/Mimir/Resources/MenuIcon.png" "$APP_BUNDLE/Contents/Resources/" 2>/dev/null || true
+  cp "$ROOT_DIR/Sources/Mimir/Resources/Mimir.icns" "$APP_CONTENTS/Resources/"
+cp -R "$ROOT_DIR/Sources/Mimir/Resources/BrandIcons" "$APP_CONTENTS/Resources/" 2>/dev/null || true
+cp "$ROOT_DIR/Sources/Mimir/Resources/AppIcon.png"   "$APP_CONTENTS/Resources/" 2>/dev/null || true
+cp "$ROOT_DIR/Sources/Mimir/Resources/MenuIcon.png"  "$APP_CONTENTS/Resources/" 2>/dev/null || true
 
-cat > "$APP_BUNDLE/Contents/Info.plist" << PLIST
+cat > "$APP_CONTENTS/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -62,7 +72,7 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << PLIST
   <key>CFBundleShortVersionString</key>
   <string>$VERSION</string>
   <key>CFBundleVersion</key>
-  <string>$VERSION</string>
+  <string>$BUILD_NUMBER</string>
   <key>LSMinimumSystemVersion</key>
   <string>$MIN_SYSTEM_VERSION</string>
   <key>LSUIElement</key>
@@ -77,59 +87,84 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << PLIST
 </plist>
 PLIST
 
-# Sparkle.framework'ü bundle'a kopyala
-FRAMEWORKS_DIR="$APP_BUNDLE/Contents/Frameworks"
-mkdir -p "$FRAMEWORKS_DIR"
+# ── 4. Embed Sparkle.framework
 SPARKLE_FW="$(find "$ROOT_DIR/.build/artifacts" -name "Sparkle.framework" -type d | head -1)"
 if [ -z "$SPARKLE_FW" ]; then
-  echo "ERROR: Sparkle.framework bulunamadı — önce 'swift build -c release' çalıştırın" >&2
+  echo "✗ Sparkle.framework not found. Run 'swift build' first." >&2
   exit 1
 fi
-cp -R "$SPARKLE_FW" "$FRAMEWORKS_DIR/"
+cp -R "$SPARKLE_FW" "$APP_CONTENTS/Frameworks/"
 
-echo "✓ dist/Mimir.app hazır"
+# ── 5. Codesign (inner → outer, preserve Hardened Runtime)
+echo "── Signing bundle..."
+xattr -cr "$APP_BUNDLE"
+SPARKLE_B="$APP_CONTENTS/Frameworks/Sparkle.framework/Versions/B"
+codesign --force --sign - --options runtime "$SPARKLE_B/XPCServices/Downloader.xpc"
+codesign --force --sign - --options runtime "$SPARKLE_B/XPCServices/Installer.xpc"
+codesign --force --sign - --options runtime "$SPARKLE_B/Updater.app"
+codesign --force --sign -                   "$SPARKLE_B/Autoupdate"
+codesign --force --sign - --options runtime "$APP_CONTENTS/Frameworks/Sparkle.framework"
+codesign --force --sign - "$APP_BUNDLE"
 
-if [ "${SKIP_ZIP:-false}" = "true" ]; then
-  echo "  (zip atlandı — CI imzalama sonrası paketleyecek)"
-  exit 0
-fi
+# ── 6. dSYM (for Sentry)
+echo "── Extracting dSYM..."
+rm -rf "$DIST_DIR/$APP_NAME.app.dSYM"
+dsymutil "$BUILD_DIR/$APP_NAME" -o "$DIST_DIR/$APP_NAME.app.dSYM"
 
-echo "→ Zip oluşturuluyor: $ZIP_NAME"
+# ── 7. Zip (--symlinks preserves framework symlink structure)
+echo "── Zipping..."
 rm -f "$ZIP_PATH"
 cd "$DIST_DIR"
-zip -qr "$ZIP_NAME" "$APP_NAME.app"
+zip -r --symlinks Mimir.zip Mimir.app --quiet
 cd "$ROOT_DIR"
+ZIP_SIZE="$(wc -c < "$ZIP_PATH" | tr -d ' ')"
 
-SHA256=$(shasum -a 256 "$ZIP_PATH" | awk '{print $1}')
-
-# Sparkle EdDSA imzası
-SIGN_UPDATE="$(find "$ROOT_DIR/.build/artifacts" -name "sign_update" -type f | head -1)"
-if [ -n "$SIGN_UPDATE" ]; then
-  SIG_OUTPUT=$("$SIGN_UPDATE" "$ZIP_PATH" 2>/dev/null || true)
-  ED_SIG=$(echo "$SIG_OUTPUT" | grep -o 'edSignature="[^"]*"' | cut -d'"' -f2)
-  ZIP_LEN=$(echo "$SIG_OUTPUT" | grep -o 'length="[^"]*"' | cut -d'"' -f2)
-  if [ -n "$ED_SIG" ] && [ -n "$ZIP_LEN" ]; then
-    python3 "$ROOT_DIR/script/gen_appcast_item.py" \
-      --version "$VERSION" \
-      --url "https://github.com/erayendes/mimir/releases/download/v${VERSION}/${ZIP_NAME}" \
-      --signature "$ED_SIG" \
-      --length "$ZIP_LEN" \
-      --appcast "$ROOT_DIR/appcast.xml"
-    echo "✓ appcast.xml güncellendi"
-  else
-    echo "⚠️  Sparkle imzası alınamadı (Keychain'de anahtar yok?). appcast.xml güncellenmedi."
-  fi
-else
-  echo "⚠️  sign_update bulunamadı. appcast.xml güncellenmedi."
+# ── 8. Sign the zip → get edSignature
+echo "── Getting edSignature..."
+if [ -z "$SIGN_UPDATE" ]; then
+  echo "✗ sign_update not found. Run 'swift build' first." >&2
+  exit 1
+fi
+SIGN_OUTPUT="$("$SIGN_UPDATE" "$ZIP_PATH" 2>&1)"
+ED_SIG="$(echo "$SIGN_OUTPUT" | grep -oE 'edSignature="[^"]+"' | cut -d'"' -f2)"
+if [ -z "$ED_SIG" ]; then
+  echo "✗ sign_update failed — is the Sparkle private key in your Keychain?" >&2
+  echo "$SIGN_OUTPUT" >&2
+  exit 1
 fi
 
+# ── 9. Update appcast.xml
+echo "── Updating appcast.xml..."
+python3 "$ROOT_DIR/script/gen_appcast_item.py" \
+  --version "$VERSION" \
+  --build-number "$BUILD_NUMBER" \
+  --url "https://github.com/erayendes/mimir/releases/download/v${VERSION}/Mimir.zip" \
+  --signature "$ED_SIG" \
+  --length "$ZIP_SIZE" \
+  --notes "$NOTES" \
+  --appcast "$ROOT_DIR/appcast.xml"
+
+# ── 10. Commit + tag
+echo "── Committing..."
+git add appcast.xml script/build_and_run.sh
+git commit -m "chore: release v$VERSION"
+git tag "v$VERSION"
+
+# ── 11. GitHub release + upload zip
+echo "── Creating GitHub release..."
+if gh release view "v$VERSION" &>/dev/null; then
+  gh release upload "v$VERSION" "$ZIP_PATH" --clobber
+  gh release edit "v$VERSION" --title "Mimir v$VERSION" --notes "$NOTES"
+else
+  gh release create "v$VERSION" "$ZIP_PATH" \
+    --title "Mimir v$VERSION" \
+    --notes "$NOTES"
+fi
+
+# ── 12. Push
+echo "── Pushing..."
+git push && git push --tags
+
 echo ""
-echo "✓ dist/$ZIP_NAME hazır"
-echo "  SHA256: $SHA256"
-echo ""
-echo "Sonraki adımlar:"
-echo "  git tag v$VERSION && git push origin v$VERSION"
-echo ""
-echo "Homebrew cask için:"
-echo "  sha256 \"$SHA256\""
-echo "  url \"https://github.com/erayendes/mimir/releases/download/v$VERSION/$ZIP_NAME\""
+echo "✓ Mimir v$VERSION released"
+echo "  https://github.com/erayendes/mimir/releases/tag/v$VERSION"
