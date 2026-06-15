@@ -1,8 +1,6 @@
 .DS_Store
 .build/
-dist/*.app
-dist/*.zip
-dist/*.dmg
+dist/
 *.xcuserstate
 xcuserdata/
 DerivedData/
