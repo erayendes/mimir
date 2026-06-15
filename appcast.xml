@@ -7,6 +7,32 @@
     <link>https://github.com/erayendes/mimir</link>
     <description>Mimir update feed</description>
     <language>en</language>
+    <item>
+      <title>Mimir 1.9</title>
+      <sparkle:version>19</sparkle:version>
+      <sparkle:shortVersionString>1.9</sparkle:shortVersionString>
+      <pubDate>Mon, 15 Jun 2026 18:36:53 +0000</pubDate>
+      <description>### Added
+- Sparkle auto-update integration: "Check for updates" now uses the native Sparkle sheet instead of a browser redirect. The button moved to an inline refresh icon next to the version number in the branding footer.
+
+### Changed
+- Branding footer: the "milowda" byline is now a clickable link to milowda.com/apps/mimir.
+
+---
+
+### Eklendi
+- Sparkle otomatik güncelleme entegrasyonu: "Check for updates" artık tarayıcıya yönlendirmek yerine native Sparkle sheet'ini açıyor. Buton, branding footer'da versiyon numarasının yanındaki inline yenile ikonuna taşındı.
+
+### Değişti
+- Branding footer: "milowda" yazısı milowda.com/apps/mimir'e tıklanabilir link oldu.</description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v1.9/Mimir.zip"
+        sparkle:edSignature="WBWeDPuVThhJThY2MmU7SkRIyGRpAMFkJfTbMe5K9kM2E/GX20yitBQBiR/rEs8Gx4sw0Y80LWibqts7Eg28AQ=="
+        length="5937511"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
 <item>
       <title>Mimir 1.7</title>
       <sparkle:version>17</sparkle:version>

@@ -5,8 +5,8 @@ MODE="${1:-run}"
 APP_NAME="Mimir"
 BUNDLE_ID="com.erayendes.mimir"
 MIN_SYSTEM_VERSION="14.0"
-MARKETING_VERSION="1.8"
-BUILD_NUMBER="18"
+MARKETING_VERSION="1.9"
+BUILD_NUMBER="19"
 # SUFeedURL lokal test için: http://localhost:8765/appcast.xml
 # Production için Info.plist'teki değer kullanılır (aşağıda)
 
