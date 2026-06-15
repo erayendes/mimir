@@ -9,21 +9,29 @@ macOS menu bar app — Claude Code, Codex ve Antigravity için quota takibi.
 ./script/build_and_run.sh logs   # log stream ile çalıştır
 ```
 
-## Release
+## Release (CI üzerinden)
+
+Releaseler tamamen GitHub Actions'ta yapılır (`.github/workflows/release.yml`).
+Geliştiricinin yaptığı:
+
+1. `CHANGELOG.md`'ye yeni sürüm bölümünü ekle — **hem `## English` hem `## Türkçe`
+   altında** `### [X.Y]` başlığıyla (release notları buradan çekilir, EN sonra TR).
+2. Tag at ve push'la:
 
 ```bash
-./script/release.sh <version> "<notes>"
+git tag vX.Y && git push && git push origin vX.Y
 ```
 
-Tek komut: build → sign → zip → edSignature → appcast güncelle → GitHub release → push.
+CI şunları yapar: build → Developer ID imzala → **notarize + staple** → dSYM'i
+Sentry'ye yükle → `Mimir.zip` paketle → Sparkle `edSignature` üret → `appcast.xml`'i
+main'e commit'le → GitHub release oluştur. Artifact notarized'dır (Gatekeeper geçer).
 
-Örnek: `./script/release.sh 1.8 "Added Gemini support"`
+Gerekli secret'lar: `DEVELOPER_ID_CERT(_PASSWORD)`, `NOTARIZATION_API_*`,
+`SPARKLE_PRIVATE_KEY` (base64 ed25519), `SENTRY_AUTH_TOKEN`.
 
-Sparkle private key kalıcı olarak diskte tutulmaz. `release.sh` imzalama anında
-key'i Keychain'den geçici bir dizine (`$TMPDIR`, cloud-sync edilmez) export eder,
-`--ed-key-file` ile imzalar ve hemen siler. Keychain erişimi `generate_keys` için
-zaten yetkili olduğundan prompt çıkmaz. Key yalnızca Keychain'de yaşar.
+### Yerel build
 
-CI veya harici key yönetimi için: `SPARKLE_PRIVATE_KEY_FILE` ortam değişkenini bir
-key dosyasına ayarla — bu durumda export yapılmaz, dosya olduğu gibi kullanılır
-(silinmez).
+`./script/release.sh <version>` `BUILD_ONLY=1` ile çağrılınca sadece imzasız bundle
++ dSYM üretir (CI'ın kullandığı mod). `BUILD_ONLY` olmadan tam yerel yayın yapar ama
+artifact yalnızca ad-hoc imzalı olur (notarize edilmez) — kullanıcıya dağıtım için
+CI yolunu kullan. Hızlı deneme için `./script/build_and_run.sh`.
