@@ -7,7 +7,21 @@
     <link>https://github.com/erayendes/mimir</link>
     <description>Mimir update feed</description>
     <language>en</language>
-    <item>
+        <item>
+      <title>Mimir 1.8</title>
+      <sparkle:version>18</sparkle:version>
+      <sparkle:shortVersionString>1.8</sparkle:shortVersionString>
+      <pubDate>Mon, 15 Jun 2026 16:55:53 +0000</pubDate>
+      <description>Sparkle native auto-update, version yanında güncelleme ikonu, milowda footer linki</description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v1.8/Mimir.zip"
+        sparkle:edSignature="J2pFoHlgdaSLFf6q/LZDqXGTLErCjz3tZh2z0LVHpYMrJuskEMtN00yBHSy24m76d93OL2wVxZgN6Bw+PbbLBw=="
+        length="5937511"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 1.7</title>
       <sparkle:version>17</sparkle:version>
       <sparkle:shortVersionString>1.7</sparkle:shortVersionString>
