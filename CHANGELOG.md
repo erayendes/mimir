@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+#### Added
+- Credit & billing tracking ([#8](https://github.com/erayendes/mimir/issues/8), [#9](https://github.com/erayendes/mimir/issues/9), [#10](https://github.com/erayendes/mimir/issues/10)): each service card now surfaces its financial layer when there is one — Antigravity shows the Google One AI credit balance, Codex shows the premium credit balance, and Claude shows pay-as-you-go billing usage (spent / monthly limit). All of it is read from data the existing integrations already fetch (no extra login), the row is omitted for accounts without credits/billing, and the menu-bar low badge also lights when a balance is below its threshold. (Antigravity credit expiry/activity and a dedicated Gemini quota card, [#11](https://github.com/erayendes/mimir/issues/11), are deferred — no reachable data source yet.)
+
 ### [1.6] - 2026-06-15
 
 #### Added
@@ -146,6 +149,9 @@ Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
 
 ### [Yayımlanmadı]
+
+#### Eklendi
+- Kredi & fatura takibi ([#8](https://github.com/erayendes/mimir/issues/8), [#9](https://github.com/erayendes/mimir/issues/9), [#10](https://github.com/erayendes/mimir/issues/10)): her servis kartı, varsa finansal katmanını da gösteriyor — Antigravity Google One AI kredi bakiyesini, Codex premium kredi bakiyesini, Claude ise kullandıkça-öde fatura kullanımını (harcanan / aylık limit). Hepsi mevcut entegrasyonların zaten çektiği veriden okunuyor (ek giriş yok); kredi/fatura olmayan hesaplarda satır gizleniyor ve menü çubuğu düşük rozeti bakiye eşiğin altına düşünce de yanıyor. (Antigravity kredi son-kullanma/aktivitesi ve ayrı bir Gemini kota kartı, [#11](https://github.com/erayendes/mimir/issues/11), erişilebilir kaynak olmadığı için ertelendi.)
 
 ### [1.6] - 2026-06-15
 
