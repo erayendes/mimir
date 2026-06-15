@@ -7,7 +7,37 @@
     <link>https://github.com/erayendes/mimir</link>
     <description>Mimir update feed</description>
     <language>en</language>
-        <item>
+            <item>
+      <title>Mimir 1.11</title>
+      <sparkle:version>1011000</sparkle:version>
+      <sparkle:shortVersionString>1.11</sparkle:shortVersionString>
+      <pubDate>Mon, 15 Jun 2026 20:56:38 +0000</pubDate>
+      <description>
+#### Added
+- First launch now offers to open Mimir automatically at login (toggleable later in System Settings › Login Items).
+
+#### Fixed
+- Security: OAuth credentials and the Antigravity language-server token are no longer passed as command-line arguments, so other local processes can't read them from the process table.
+- The Antigravity info text and status labels are now in English, matching the rest of the app.
+
+---
+
+
+#### Eklendi
+- İlk açılışta Mimir'i girişte otomatik başlatma seçeneği sunuluyor (sonradan System Settings › Login Items'tan değiştirilebilir).
+
+#### Düzeltildi
+- Güvenlik: OAuth kimlik bilgileri ve Antigravity dil-sunucusu token'ı artık komut satırı argümanı olarak geçirilmiyor; böylece sistemdeki başka süreçler bunları process table'dan okuyamıyor.
+- Antigravity bilgi metni ve durum etiketleri artık İngilizce (uygulamanın geri kalanıyla uyumlu).</description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v1.11/Mimir.zip"
+        sparkle:edSignature="r4+z3YO4oIUq73ayZJgSqG79rfKozcpjAe5AIJfkvq3yntCa1lKbcryiC0tfpgEP+APo17Bb3LHbS++wvXTGDQ=="
+        length="6006392"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 1.10</title>
       <sparkle:version>110</sparkle:version>
       <sparkle:shortVersionString>1.10</sparkle:shortVersionString>
