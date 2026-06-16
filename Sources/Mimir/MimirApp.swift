@@ -828,8 +828,9 @@ private struct LimitMetricRow: View {
 
     /// Weekly windows ("Weekly", "Gemini · Weekly", …) reset days out, so the exact
     /// reset clock is meaningless — these rows show only the remaining countdown.
+    /// "Sonnet" is Claude's 7-day window, so it counts as weekly too.
     private var isWeekly: Bool {
-        title.localizedCaseInsensitiveContains("weekly")
+        title.localizedCaseInsensitiveContains("weekly") || title == "Sonnet"
     }
 
     private var clockStr: String? {

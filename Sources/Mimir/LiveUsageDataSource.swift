@@ -213,14 +213,16 @@ struct LiveUsageDataSource {
         let sevenDay = mergeClaudeWindows(root: root, baseKey: "seven_day")
         let sonnet = mergeClaudeWindows(root: root, baseKey: "seven_day_sonnet")
 
-        var models: [ModelStatus] = []
-        if sonnet.utilization > 0 || sonnet.resetAt != nil {
-            models.append(ModelStatus(
+        // Sonnet is a weekly (7-day) window, so it's always shown like the overall
+        // Weekly row — even at 0% used. When the API omits its own reset, fall back
+        // to the seven-day reset since they reset together.
+        var models: [ModelStatus] = [
+            ModelStatus(
                 name: "Sonnet",
                 remainingPercent: remainingPercent(fromUsed: sonnet.utilization),
                 resetAt: sonnet.resetAt ?? sevenDay.resetAt
-            ))
-        }
+            )
+        ]
         if let billing = claudeBillingRow(root["extra_usage"]) {
             models.append(billing)
         }
