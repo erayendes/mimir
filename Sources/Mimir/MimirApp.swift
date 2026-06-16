@@ -35,19 +35,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var cachedIconLow: NSImage?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        SentrySDK.start { options in
-            options.dsn = "https://66d3b6b50b79ba45dc89e86329579302@o4511381595291648.ingest.us.sentry.io/4511537599086592"
-            #if DEBUG
-            options.debug = true
-            #else
-            options.debug = false
-            #endif
-            options.sendDefaultPii = false
-            options.tracesSampleRate = 0.1
-            // SentryBreadcrumbTracker swizzles AppKit from a background queue, which
-            // trips macOS 26's strict main-thread assertions (MIMIR-2). We only use
-            // manual breadcrumbs, so the automatic tracker is safe to disable.
-            options.enableAutoBreadcrumbTracking = false
+        // Dev builds (com.erayendes.mimir.dev) must not report to the production
+        // Sentry project — their crashes/hangs are just local development noise (MIMIR-7).
+        let isDevBuild = Bundle.main.bundleIdentifier?.hasSuffix(".dev") ?? false
+        if !isDevBuild {
+            SentrySDK.start { options in
+                options.dsn = "https://66d3b6b50b79ba45dc89e86329579302@o4511381595291648.ingest.us.sentry.io/4511537599086592"
+                #if DEBUG
+                options.debug = true
+                #else
+                options.debug = false
+                #endif
+                options.sendDefaultPii = false
+                options.tracesSampleRate = 0.1
+                // SentryBreadcrumbTracker swizzles AppKit from a background queue, which
+                // trips macOS 26's strict main-thread assertions (MIMIR-2). We only use
+                // manual breadcrumbs, so the automatic tracker is safe to disable.
+                options.enableAutoBreadcrumbTracking = false
+                // App-hang detection can't distinguish a modal dialog waiting for input
+                // (Sparkle's update sheet, the launch-at-login prompt) from a real freeze,
+                // so it fires false positives whenever a modal is open (MIMIR-4/5/6/7).
+                // Crash and error reporting stay on.
+                options.enableAppHangTracking = false
+            }
         }
 
         updaterController = SPUStandardUpdaterController(
