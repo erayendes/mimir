@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+### [1.12] - 2026-06-16
+
+#### Changed
+- Crash reporting no longer flags normal dialogs (the update sheet or the login prompt) as "app not responding".
+
 ### [1.11] - 2026-06-15
 
 #### Added
@@ -175,6 +180,11 @@ Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
 
 ### [Yayımlanmadı]
+
+### [1.12] - 2026-06-16
+
+#### Değişti
+- Hata raporlama, normal dialog'ları (güncelleme penceresi veya giriş sorusu) artık "uygulama yanıt vermiyor" olarak işaretlemiyor.
 
 ### [1.11] - 2026-06-15
 
