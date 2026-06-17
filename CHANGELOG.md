@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+### [1.13] - 2026-06-17
+
+#### Added
+- Turkish localization: Mimir now displays in Turkish when macOS is set to Turkish, and in English otherwise — chosen automatically from the system language.
+
+#### Changed
+- Usage rows now lead with the remaining time; the reset clock moved to a secondary spot, and weekly windows show just the countdown. Claude's Sonnet weekly window is now always shown.
+
 ### [1.12] - 2026-06-16
 
 #### Changed
@@ -180,6 +188,14 @@ Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
 
 ### [Yayımlanmadı]
+
+### [1.13] - 2026-06-17
+
+#### Eklendi
+- Türkçe dil desteği: macOS Türkçe olduğunda Mimir Türkçe, değilse İngilizce görünür — sistem dilinden otomatik seçilir.
+
+#### Değişti
+- Kullanım satırları artık önce kalan süreyi gösteriyor; sıfırlanma saati ikincil konuma alındı ve haftalık pencereler yalnızca geri sayımı gösteriyor. Claude'un Sonnet haftalık penceresi artık her zaman görünüyor.
 
 ### [1.12] - 2026-06-16
 
