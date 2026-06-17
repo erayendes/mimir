@@ -795,13 +795,18 @@ private struct LimitMetricRow: View {
 
                 Spacer(minLength: 6)
 
-                if let clock = clockStr, let rel = relativeStr {
-                    Text(clock)
+                if let rel = relativeStr {
+                    // Remaining time is the headline; the wall-clock reset time is secondary.
+                    Text(rel)
                         .font(.system(size: 13, weight: .medium).monospacedDigit())
                         .foregroundStyle(valueColor)
-                    Text("(\(rel))")
-                        .font(.system(size: 11, weight: .regular).monospacedDigit())
-                        .foregroundStyle(Color.secondary.opacity(0.58))
+                    // Weekly windows reset days away, so a HH:mm clock is just noise —
+                    // show the countdown only.
+                    if !isWeekly, let clock = clockStr {
+                        Text("(\(clock))")
+                            .font(.system(size: 11, weight: .regular).monospacedDigit())
+                            .foregroundStyle(Color.secondary.opacity(0.58))
+                    }
                 } else if let valueText {
                     Text(valueText)
                         .font(.system(size: 13, weight: .medium).monospacedDigit())
@@ -819,6 +824,13 @@ private struct LimitMetricRow: View {
     private var percentLabel: String {
         guard let percent else { return "" }
         return String(format: String(localized: "(%d%% left)"), max(0, min(100, percent)))
+    }
+
+    /// Weekly windows ("Weekly", "Gemini · Weekly", …) reset days out, so the exact
+    /// reset clock is meaningless — these rows show only the remaining countdown.
+    /// "Sonnet" is Claude's 7-day window, so it counts as weekly too.
+    private var isWeekly: Bool {
+        title.localizedCaseInsensitiveContains("weekly") || title == "Sonnet"
     }
 
     private var clockStr: String? {
