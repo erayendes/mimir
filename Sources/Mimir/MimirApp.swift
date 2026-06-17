@@ -155,10 +155,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func presentLaunchAtLoginPrompt() {
         let alert = NSAlert()
-        alert.messageText = "Launch Mimir at login?"
-        alert.informativeText = "Mimir can open automatically each time you log in, so your usage is always in the menu bar. You can change this later in System Settings › General › Login Items."
-        alert.addButton(withTitle: "Launch at Login")
-        alert.addButton(withTitle: "Not Now")
+        alert.messageText = String(localized: "Launch Mimir at login?")
+        alert.informativeText = String(localized: "Mimir can open automatically each time you log in, so your usage is always in the menu bar. You can change this later in System Settings › General › Login Items.")
+        alert.addButton(withTitle: String(localized: "Launch at Login"))
+        alert.addButton(withTitle: String(localized: "Not Now"))
         NSApp.activate(ignoringOtherApps: true)
         if alert.runModal() == .alertFirstButtonReturn {
             setLaunchAtLogin(true)
@@ -265,7 +265,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem?.button?.title = ""
         statusItem?.button?.imagePosition = .imageOnly
         statusItem?.button?.toolTip = store.services.isEmpty
-            ? "Loading..."
+            ? String(localized: "Loading...")
             : store.services.map(\.name).joined(separator: " | ")
         checkNotifications()
     }
@@ -346,8 +346,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if defaults.double(forKey: Self.agyResetNotifiedKey) != armed {
                 sendNotification(
                     identifier: "Antigravity-weekly-refilled",
-                    title: "🚀 Antigravity weekly quota refilled",
-                    body: "Back to 100% for the week."
+                    title: String(format: String(localized: "🚀 %@ weekly quota refilled"), "Antigravity"),
+                    body: String(localized: "Back to 100%% for the week.")
                 )
                 defaults.set(armed, forKey: Self.agyResetNotifiedKey)
             }
@@ -390,16 +390,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 if depleted5h.contains(service.name) {
                     sendNotification(
                         identifier: "\(key)-refilled",
-                        title: "🔋 \(service.name) 5-hour quota refilled",
-                        body: "You're back to 100% — pick up where you left off."
+                        title: String(format: String(localized: "🔋 %@ 5-hour quota refilled"), service.name),
+                        body: String(localized: "You're back to 100%% — pick up where you left off.")
                     )
                 }
                 depleted5h.remove(service.name)
             case .weekly:
                 sendNotification(
                     identifier: "\(key)-refilled",
-                    title: "🚀 \(service.name) weekly quota refilled",
-                    body: "Back to 100% for the week."
+                    title: String(format: String(localized: "🚀 %@ weekly quota refilled"), service.name),
+                    body: String(localized: "Back to 100%% for the week.")
                 )
             }
             lowNotified.remove(key)
@@ -408,19 +408,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Low: crossed below the threshold. Warn once, then stay quiet until the window resets.
         if percent < window.lowThreshold, !lowNotified.contains(key) {
-            let resets = resetAt.map { "Resets in ~\(TimeFormatter.duration(from: $0.timeIntervalSinceNow))." }
+            let resets = resetAt.map { String(format: String(localized: "Resets in ~%@."), TimeFormatter.duration(from: $0.timeIntervalSinceNow)) }
             switch window {
             case .fiveHour:
                 sendNotification(
                     identifier: key,
-                    title: "🪫 \(service.name) 5-hour quota low — \(percent)%",
-                    body: resets ?? "Your 5-hour limit is running out."
+                    title: String(format: String(localized: "🪫 %@ 5-hour quota low — %d%%"), service.name, percent),
+                    body: resets ?? String(localized: "Your 5-hour limit is running out.")
                 )
             case .weekly:
                 sendNotification(
                     identifier: key,
-                    title: "🚨 \(service.name) weekly quota low — \(percent)%",
-                    body: resets ?? "Your weekly limit is running out."
+                    title: String(format: String(localized: "🚨 %@ weekly quota low — %d%%"), service.name, percent),
+                    body: resets ?? String(localized: "Your weekly limit is running out.")
                 )
             }
             lowNotified.insert(key)
@@ -743,8 +743,8 @@ private struct ServiceCard: View {
     @ViewBuilder
     private var limitRows: some View {
         if hasServiceQuotas {
-            LimitMetricRow(title: "5h Session", percent: service.sessionRemainingPercent, resetAt: service.sessionResetAt, now: now)
-            LimitMetricRow(title: "Weekly", percent: service.weeklyRemainingPercent, resetAt: service.weeklyResetAt, now: now)
+            LimitMetricRow(title: String(localized: "5h Session"), percent: service.sessionRemainingPercent, resetAt: service.sessionResetAt, now: now)
+            LimitMetricRow(title: String(localized: "Weekly"), percent: service.weeklyRemainingPercent, resetAt: service.weeklyResetAt, now: now)
 
             if !service.models.isEmpty {
                 Divider().opacity(0.4)
@@ -818,7 +818,7 @@ private struct LimitMetricRow: View {
 
     private var percentLabel: String {
         guard let percent else { return "" }
-        return "(\(max(0, min(100, percent)))% left)"
+        return String(format: String(localized: "(%d%% left)"), max(0, min(100, percent)))
     }
 
     private var clockStr: String? {

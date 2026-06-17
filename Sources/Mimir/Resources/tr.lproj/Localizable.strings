@@ -1,0 +1,48 @@
+/* Metric row titles */
+"5h Session" = "5 Saatlik Oturum";
+"Weekly" = "Haftalık";
+
+/* Percent label */
+"(%d%% left)" = "(%%%d kaldı)";
+
+/* Tooltip / status */
+"Loading..." = "Yükleniyor...";
+
+/* Empty state */
+"No active services detected.\nMake sure Claude Code, Codex, or Antigravity is running." = "Aktif servis bulunamadı.\nClaude Code, Codex veya Antigravity'nin çalıştığından emin ol.";
+
+/* Update */
+"Check for updates" = "Güncellemeleri denetle";
+
+/* Launch at login prompt */
+"Launch Mimir at login?" = "Mimir girişte açılsın mı?";
+"Mimir can open automatically each time you log in, so your usage is always in the menu bar. You can change this later in System Settings › General › Login Items." = "Mimir her oturum açtığında otomatik başlayabilir, böylece kullanımın hep menü çubuğunda olur. Bunu daha sonra Sistem Ayarları › Genel › Giriş Öğeleri'nden değiştirebilirsin.";
+"Launch at Login" = "Girişte Başlat";
+"Not Now" = "Şimdi Değil";
+
+/* Notifications */
+"🚀 %@ weekly quota refilled" = "🚀 %@ haftalık kota yenilendi";
+"Back to 100%% for the week." = "Hafta için %%100'e döndü.";
+"🔋 %@ 5-hour quota refilled" = "🔋 %@ 5 saatlik kota yenilendi";
+"You're back to 100%% — pick up where you left off." = "%%100'e döndün — kaldığın yerden devam et.";
+"🪫 %@ 5-hour quota low — %d%%" = "🪫 %@ 5 saatlik kota düşük — %%%d";
+"Your 5-hour limit is running out." = "5 saatlik limitin tükeniyor.";
+"🚨 %@ weekly quota low — %d%%" = "🚨 %@ haftalık kota düşük — %%%d";
+"Your weekly limit is running out." = "Haftalık limitin tükeniyor.";
+"Resets in ~%@." = "~%@ içinde sıfırlanır.";
+
+/* Status notes */
+"out of date" = "güncel değil";
+"token expired — open Claude Code" = "token süresi doldu — Claude Code'u aç";
+"open Antigravity or Cockpit" = "Antigravity veya Cockpit'i aç";
+"no local source" = "yerel kaynak yok";
+
+/* Credit / billing labels */
+"Google One credits" = "Google One kredisi";
+"Billing" = "Fatura";
+"Credits" = "Kredi";
+"Unlimited" = "Sınırsız";
+"%@ credits" = "%@ kredi";
+
+/* Antigravity info */
+"Quota is read from Antigravity's local language server. Antigravity must be running for live data; when it's closed, the last seen values are shown." = "Kota, Antigravity'nin yerel dil sunucusundan okunur. Canlı veri için Antigravity'nin açık olması gerekir; kapalıyken son görülen değerler gösterilir.";
