@@ -58,6 +58,8 @@ chmod +x "$APP_CONTENTS/MacOS/$APP_NAME"
 [ -f "$ROOT_DIR/Sources/Mimir/Resources/Mimir.icns" ] && \
   cp "$ROOT_DIR/Sources/Mimir/Resources/Mimir.icns" "$APP_CONTENTS/Resources/"
 cp -R "$ROOT_DIR/Sources/Mimir/Resources/BrandIcons" "$APP_CONTENTS/Resources/" 2>/dev/null || true
+cp -R "$ROOT_DIR/Sources/Mimir/Resources/en.lproj"   "$APP_CONTENTS/Resources/" 2>/dev/null || true
+cp -R "$ROOT_DIR/Sources/Mimir/Resources/tr.lproj"   "$APP_CONTENTS/Resources/" 2>/dev/null || true
 cp "$ROOT_DIR/Sources/Mimir/Resources/AppIcon.png"   "$APP_CONTENTS/Resources/" 2>/dev/null || true
 cp "$ROOT_DIR/Sources/Mimir/Resources/MenuIcon.png"  "$APP_CONTENTS/Resources/" 2>/dev/null || true
 
@@ -68,6 +70,13 @@ cat > "$APP_CONTENTS/Info.plist" <<PLIST
 <dict>
   <key>CFBundleExecutable</key>
   <string>$APP_NAME</string>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>en</string>
+  <key>CFBundleLocalizations</key>
+  <array>
+    <string>en</string>
+    <string>tr</string>
+  </array>
   <key>CFBundleIconFile</key>
   <string>Mimir</string>
   <key>CFBundleIdentifier</key>

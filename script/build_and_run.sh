@@ -40,6 +40,8 @@ if [ -f "$ROOT_DIR/Sources/Mimir/Resources/Mimir.icns" ]; then
   cp "$ROOT_DIR/Sources/Mimir/Resources/Mimir.icns" "$APP_RESOURCES/"
 fi
 cp -R "$ROOT_DIR/Sources/Mimir/Resources/BrandIcons" "$APP_RESOURCES/" 2>/dev/null || true
+cp -R "$ROOT_DIR/Sources/Mimir/Resources/en.lproj" "$APP_RESOURCES/" 2>/dev/null || true
+cp -R "$ROOT_DIR/Sources/Mimir/Resources/tr.lproj" "$APP_RESOURCES/" 2>/dev/null || true
 cp "$ROOT_DIR/Sources/Mimir/Resources/AppIcon.png" "$APP_RESOURCES/" 2>/dev/null || true
 cp "$ROOT_DIR/Sources/Mimir/Resources/MenuIcon.png" "$APP_RESOURCES/" 2>/dev/null || true
 
@@ -50,6 +52,13 @@ cat >"$INFO_PLIST" <<PLIST
 <dict>
   <key>CFBundleExecutable</key>
   <string>$PRODUCT</string>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>en</string>
+  <key>CFBundleLocalizations</key>
+  <array>
+    <string>en</string>
+    <string>tr</string>
+  </array>
   <key>CFBundleIconFile</key>
   <string>Mimir</string>
   <key>CFBundleIdentifier</key>

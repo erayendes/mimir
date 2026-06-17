@@ -1,0 +1,48 @@
+/* Metric row titles */
+"5h Session" = "5h Session";
+"Weekly" = "Weekly";
+
+/* Percent label */
+"(%d%% left)" = "(%d%% left)";
+
+/* Tooltip / status */
+"Loading..." = "Loading...";
+
+/* Empty state */
+"No active services detected.\nMake sure Claude Code, Codex, or Antigravity is running." = "No active services detected.\nMake sure Claude Code, Codex, or Antigravity is running.";
+
+/* Update */
+"Check for updates" = "Check for updates";
+
+/* Launch at login prompt */
+"Launch Mimir at login?" = "Launch Mimir at login?";
+"Mimir can open automatically each time you log in, so your usage is always in the menu bar. You can change this later in System Settings › General › Login Items." = "Mimir can open automatically each time you log in, so your usage is always in the menu bar. You can change this later in System Settings › General › Login Items.";
+"Launch at Login" = "Launch at Login";
+"Not Now" = "Not Now";
+
+/* Notifications */
+"🚀 %@ weekly quota refilled" = "🚀 %@ weekly quota refilled";
+"Back to 100%% for the week." = "Back to 100%% for the week.";
+"🔋 %@ 5-hour quota refilled" = "🔋 %@ 5-hour quota refilled";
+"You're back to 100%% — pick up where you left off." = "You're back to 100%% — pick up where you left off.";
+"🪫 %@ 5-hour quota low — %d%%" = "🪫 %@ 5-hour quota low — %d%%";
+"Your 5-hour limit is running out." = "Your 5-hour limit is running out.";
+"🚨 %@ weekly quota low — %d%%" = "🚨 %@ weekly quota low — %d%%";
+"Your weekly limit is running out." = "Your weekly limit is running out.";
+"Resets in ~%@." = "Resets in ~%@.";
+
+/* Status notes */
+"out of date" = "out of date";
+"token expired — open Claude Code" = "token expired — open Claude Code";
+"open Antigravity or Cockpit" = "open Antigravity or Cockpit";
+"no local source" = "no local source";
+
+/* Credit / billing labels */
+"Google One credits" = "Google One credits";
+"Billing" = "Billing";
+"Credits" = "Credits";
+"Unlimited" = "Unlimited";
+"%@ credits" = "%@ credits";
+
+/* Antigravity info */
+"Quota is read from Antigravity's local language server. Antigravity must be running for live data; when it's closed, the last seen values are shown." = "Quota is read from Antigravity's local language server. Antigravity must be running for live data; when it's closed, the last seen values are shown.";

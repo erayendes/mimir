@@ -54,7 +54,7 @@ struct LiveUsageDataSource {
                     ModelStatus(name: "Gemini Flash", remainingPercent: 0, resetAt: nil)
                 ],
                 isAvailable: false,
-                statusNote: "no local source"
+                statusNote: String(localized: "no local source")
             ),
             ServiceStatus(
                 name: "Claude",
@@ -63,7 +63,7 @@ struct LiveUsageDataSource {
                 weeklyResetAt: nil,
                 models: [],
                 isAvailable: false,
-                statusNote: "no local source"
+                statusNote: String(localized: "no local source")
             ),
             ServiceStatus(
                 name: "Codex",
@@ -72,17 +72,14 @@ struct LiveUsageDataSource {
                 weeklyResetAt: nil,
                 models: [],
                 isAvailable: false,
-                statusNote: "no local source"
+                statusNote: String(localized: "no local source")
             )
         ]
     }
 
     /// Explains how Antigravity quota is sourced and why it may not be current. Surfaced
     /// behind the (i) icon on the Antigravity card.
-    static let antigravityInfo = """
-    Quota is read from Antigravity's local language server. Antigravity must be \
-    running for live data; when it's closed, the last seen values are shown.
-    """
+    static let antigravityInfo = String(localized: "Quota is read from Antigravity's local language server. Antigravity must be running for live data; when it's closed, the last seen values are shown.")
 
     /// Fetch every service. Services named in `skip` are in a fetch cooldown (e.g. after a 429)
     /// and are served from their snapshot instead of hitting the network. A live fetch that times
@@ -130,7 +127,7 @@ struct LiveUsageDataSource {
         // fails, fall back to last-known data and back off rather than hammering the token endpoint.
         if let exp = tokenInfo.expiresAt, exp.timeIntervalSinceNow <= 300 {
             guard let fresh = await refreshClaudeToken() else {
-                let note = "token expired — open Claude Code"
+                let note = String(localized: "token expired — open Claude Code")
                 return claudeFailure(note: note, staleNote: note).withCooldownHint(15 * 60)
             }
             tokenInfo = ClaudeToken(accessToken: fresh, expiresAt: nil)
@@ -165,7 +162,7 @@ struct LiveUsageDataSource {
     /// Claude's live fetch failed — show last-known data instead of vanishing: the still-valid
     /// 24h usage cache, else the persisted snapshot (dimmed when its windows have reset), else
     /// the hidden unavailable card (only when nothing was ever cached).
-    private func claudeFailure(note: String, staleNote: String = "out of date") -> ServiceStatus {
+    private func claudeFailure(note: String, staleNote: String = String(localized: "out of date")) -> ServiceStatus {
         // Recent cache → normal card (seed a snapshot so the cooldown/skip path can serve it too).
         if let cached = readClaudeUsageCache(maxAge: 24 * 60 * 60) {
             let status = buildClaudeStatus(from: cached, note: note)
@@ -254,7 +251,7 @@ struct LiveUsageDataSource {
         }
         let text = limit.map { "\(money(used)) / \(money($0))" } ?? money(used)
         let util = doubleValue(e["utilization"]) ?? (limit.map { $0 > 0 ? used / $0 * 100 : 0 } ?? 0)
-        return ModelStatus(name: "Billing", remainingPercent: 0, resetAt: nil,
+        return ModelStatus(name: String(localized: "Billing"), remainingPercent: 0, resetAt: nil,
                            valueText: text, isLow: util >= 80)
     }
 
@@ -386,14 +383,14 @@ struct LiveUsageDataSource {
     private func codexCreditRow(_ raw: Any?) -> ModelStatus? {
         guard let c = raw as? [String: Any] else { return nil }
         if c["unlimited"] as? Bool == true {
-            return ModelStatus(name: "Credits", remainingPercent: 0, resetAt: nil, valueText: "Unlimited")
+            return ModelStatus(name: String(localized: "Credits"), remainingPercent: 0, resetAt: nil, valueText: String(localized: "Unlimited"))
         }
         guard c["has_credits"] as? Bool == true else { return nil }
         let amount = (c["balance"] as? String).flatMap(Double.init) ?? doubleValue(c["balance"]) ?? 0
         guard amount > 0 else { return nil }
         let text = amount.truncatingRemainder(dividingBy: 1) == 0 ? String(Int(amount)) : String(amount)
-        return ModelStatus(name: "Credits", remainingPercent: 0, resetAt: nil,
-                           valueText: "\(text) credits", isLow: amount < 5)
+        return ModelStatus(name: String(localized: "Credits"), remainingPercent: 0, resetAt: nil,
+                           valueText: String(format: String(localized: "%@ credits"), text), isLow: amount < 5)
     }
 
     private func fetchAntigravity() async -> ServiceStatus {
@@ -423,7 +420,7 @@ struct LiveUsageDataSource {
         }
 
         let note = readAntigravityCockpitAccount() == nil
-            ? "open Antigravity or Cockpit"
+            ? String(localized: "open Antigravity or Cockpit")
             : "antigravity auth failed"
         return unavailableService(name: "Antigravity", iconName: "antigravity", models: defaults, note: note)
     }
@@ -473,7 +470,7 @@ struct LiveUsageDataSource {
     /// all stale → a dimmed `isStale` card marked with `staleNote`, still visible so the service
     /// never vanishes. Returns nil only when the file is missing, corrupt, or past the 30-day cap.
     private func loadSnapshot(for service: String, iconName: String,
-                              freshNote: String = "snapshot", staleNote: String = "out of date") -> ServiceStatus? {
+                              freshNote: String = "snapshot", staleNote: String = String(localized: "out of date")) -> ServiceStatus? {
         guard let data = try? Data(contentsOf: snapshotURL(for: service)),
               let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return nil
@@ -699,7 +696,7 @@ struct LiveUsageDataSource {
             let one = credits.first { ($0["creditType"] as? String)?.contains("GOOGLE_ONE") == true } ?? credits[0]
             guard let amount = num(one["creditAmount"]) else { return nil }
             let minimum = num(one["minimumCreditAmountForUsage"]) ?? 0
-            return ModelStatus(name: "Google One credits", remainingPercent: 0, resetAt: nil,
+            return ModelStatus(name: String(localized: "Google One credits"), remainingPercent: 0, resetAt: nil,
                                valueText: String(Int(amount)), isLow: amount < minimum)
         }
         return nil
