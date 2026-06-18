@@ -1090,8 +1090,10 @@ struct LiveUsageDataSource {
     /// ("Claude Code-credentials") or the `~/.claude/.credentials.json` fallback. `expiresAt`
     /// drives whether `fetchClaude` refreshes before calling the usage API (see `refreshClaudeToken`).
     private func readClaudeTokenInfo() -> ClaudeToken? {
-        let keychainRaw = runCommand("/usr/bin/security", ["find-generic-password", "-s", "Claude Code-credentials", "-w"]).trimmingCharacters(in: .whitespacesAndNewlines)
-        if let info = parseClaudeToken(keychainRaw) { return info }
+        if let raw = readClaudeKeychainItem()?.value,
+           let info = parseClaudeToken(raw.trimmingCharacters(in: .whitespacesAndNewlines)) {
+            return info
+        }
 
         let credPath = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/.credentials.json")
         guard let data = try? Data(contentsOf: credPath),
@@ -1167,16 +1169,41 @@ struct LiveUsageDataSource {
         case file(URL)
     }
 
+    /// Read the Claude Code generic-password item in-process via the Security framework — no
+    /// `/usr/bin/security` subprocess. This matters for the keychain prompt: an in-process read is
+    /// attributed to Mimir's own code signature, so the user's "Always Allow" is tied to Mimir
+    /// (stable in release builds) rather than to `/usr/bin/security`, whose grant the item's owner
+    /// (Claude Code) wipes whenever it rewrites the entry on token refresh. Returns the stored value
+    /// plus the item's account attribute (needed to update the same entry in place).
+    private func readClaudeKeychainItem() -> (value: String, account: String?)? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: Self.claudeKeychainService,
+            kSecReturnData as String: true,
+            kSecReturnAttributes as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        var result: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+              let dict = result as? [String: Any],
+              let data = dict[kSecValueData as String] as? Data,
+              let value = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+        return (value, dict[kSecAttrAccount as String] as? String)
+    }
+
     /// Read the full Claude credential JSON and remember where it came from, so a refreshed token
     /// can be written back to the same store (preserving the rest of the blob, e.g. `mcpOAuth`).
     private func readClaudeCredential() -> (root: [String: Any], source: ClaudeCredentialSource)? {
-        let raw = runCommand("/usr/bin/security", ["find-generic-password", "-s", Self.claudeKeychainService, "-w"])
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        if let data = raw.data(using: .utf8),
+        if let item = readClaudeKeychainItem(),
+           let data = item.value.trimmingCharacters(in: .whitespacesAndNewlines).data(using: .utf8),
            let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           root["claudeAiOauth"] != nil,
-           let account = claudeKeychainAccount() {
-            return (root, .keychain(account: account))
+           root["claudeAiOauth"] != nil {
+            // SecItemUpdate locates the entry to rewrite by account; fall back to the login name.
+            if let account = item.account ?? (NSUserName().isEmpty ? nil : NSUserName()) {
+                return (root, .keychain(account: account))
+            }
         }
         let url = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/.credentials.json")
         if let data = try? Data(contentsOf: url),
@@ -1184,19 +1211,6 @@ struct LiveUsageDataSource {
             return (root, .file(url))
         }
         return nil
-    }
-
-    /// The keychain item's account, needed so `security -U` updates the existing entry in place
-    /// rather than adding a duplicate. Parsed from the item attributes; falls back to the login name.
-    private func claudeKeychainAccount() -> String? {
-        let out = runCommand("/usr/bin/security", ["find-generic-password", "-s", Self.claudeKeychainService])
-        for line in out.split(separator: "\n") where line.contains("\"acct\"") {
-            if let open = line.range(of: "=\"") {
-                let rest = line[open.upperBound...]
-                if let close = rest.firstIndex(of: "\"") { return String(rest[..<close]) }
-            }
-        }
-        return NSUserName().isEmpty ? nil : NSUserName()
     }
 
     /// Refresh Claude's access token with the stored refresh token, then write the rotated pair back
