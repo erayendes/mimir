@@ -1,9 +1,19 @@
 /* Metric row titles */
 "5h Session" = "5 Saatlik Oturum";
+"Current session" = "Mevcut oturum";
 "Weekly" = "Haftalık";
 
-/* Percent label */
-"(%d%% left)" = "(%%%d kaldı)";
+/* Window badges (5-hour session, weekly) */
+"5s" = "5s";
+"7g" = "7g";
+
+/* Card layout (v2) */
+"WEEKLY" = "HAFTALIK";
+"5h session" = "5 saatlik oturum";
+"5h session · %@" = "5 saatlik oturum · %@";
+"All models" = "Tüm modeller";
+"Usage credit" = "Kullanım kredisi";
+"Resets at %@" = "%@'da sıfırlanır";
 
 /* Tooltip / status */
 "Loading..." = "Yükleniyor...";

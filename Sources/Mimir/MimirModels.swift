@@ -92,6 +92,13 @@ struct ServiceStatus: Identifiable {
     }
 }
 
+/// Which quota window a model row belongs to. Lets the UI place a row in the weekly
+/// summary vs the prominent session block without parsing (localized) labels.
+enum ModelWindow {
+    case weekly
+    case session
+}
+
 struct ModelStatus: Identifiable {
     let id = UUID()
     let name: String
@@ -102,13 +109,16 @@ struct ModelStatus: Identifiable {
     /// when it's below its threshold, so the menu-bar low-quota badge can trigger on it. Percentage
     /// rows leave this false and are judged by `remainingPercent` instead.
     let isLow: Bool
+    /// Weekly vs session window (Antigravity's grouped rows). `nil` for credit rows.
+    let window: ModelWindow?
 
-    init(name: String, remainingPercent: Int, resetAt: Date?, valueText: String? = nil, isLow: Bool = false) {
+    init(name: String, remainingPercent: Int, resetAt: Date?, valueText: String? = nil, isLow: Bool = false, window: ModelWindow? = nil) {
         self.name = name
         self.remainingPercent = remainingPercent
         self.resetAt = resetAt
         self.valueText = valueText
         self.isLow = isLow
+        self.window = window
     }
 }
 

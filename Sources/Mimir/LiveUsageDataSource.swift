@@ -454,6 +454,7 @@ struct LiveUsageDataSource {
                 var dict: [String: Any] = ["name": m.name, "remainingPercent": m.remainingPercent]
                 if let reset = m.resetAt { dict["resetAt"] = iso.string(from: reset) }
                 if let valueText = m.valueText { dict["valueText"] = valueText }
+                if let w = m.window { dict["window"] = (w == .weekly) ? "weekly" : "session" }
                 return dict
             }
         }
@@ -486,8 +487,13 @@ struct LiveUsageDataSource {
             guard let name = dict["name"] as? String else { return nil }
             let percent = dict["remainingPercent"] as? Int ?? 0
             let reset = (dict["resetAt"] as? String).flatMap { parseISO8601($0) }
+            let window: ModelWindow? = switch dict["window"] as? String {
+            case "weekly": .weekly
+            case "session": .session
+            default: nil
+            }
             return ModelStatus(name: name, remainingPercent: percent, resetAt: reset,
-                               valueText: dict["valueText"] as? String)
+                               valueText: dict["valueText"] as? String, window: window)
         }
         let sessionReset = (root["sessionResetAt"] as? String).flatMap { parseISO8601($0) }
         let weeklyReset = (root["weeklyResetAt"] as? String).flatMap { parseISO8601($0) }
@@ -714,8 +720,8 @@ struct LiveUsageDataSource {
                 guard let fraction = doubleValue(bucket["remainingFraction"]) else { continue }
                 let percent = Int((min(1, max(0, fraction)) * 100).rounded())
                 let reset = (bucket["resetTime"] as? String).flatMap { parseISO8601($0) }
-                let window = antigravityWindowLabel(bucket["window"] as? String, fallback: bucket["displayName"] as? String)
-                rows.append(ModelStatus(name: "\(family) · \(window)", remainingPercent: percent, resetAt: reset))
+                let window: ModelWindow = (bucket["window"] as? String == "weekly") ? .weekly : .session
+                rows.append(ModelStatus(name: family, remainingPercent: percent, resetAt: reset, window: window))
             }
         }
         return rows
@@ -730,17 +736,9 @@ struct LiveUsageDataSource {
 
     private func antigravityWindowRank(_ window: String?) -> Int {
         switch window {
-        case "5h": return 0
-        case "weekly": return 1
+        case "weekly": return 0
+        case "5h": return 1
         default: return 2
-        }
-    }
-
-    private func antigravityWindowLabel(_ window: String?, fallback: String?) -> String {
-        switch window {
-        case "5h": return "5h"
-        case "weekly": return "Weekly"
-        default: return fallback ?? "Limit"
         }
     }
 

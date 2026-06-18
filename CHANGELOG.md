@@ -11,6 +11,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+### [2.0] - 2026-06-18
+
+**The best Mimir there has ever been.**
+
+Can a menu bar app really be this beautiful? With Mimir 2.0, yes.
+
+We took everything you love and redesigned it from scratch: the session up front, colours that come alive with status, weekly limits clean and clear — all in a single frosted-glass panel. Flawless in light mode and dark.
+
+The same Mimir; just better in every way. 😊
+
+> "When I first opened it I said 'wow.' My wife heard me, looked, and said 'wow' too."
+> — **Kenan**, a very close friend of Eray's
+
+> "There's a light mode now, so I use it during the day too."
+> — **Tayfun**, who owes Eray ₺400
+
+> "My quota dropped into the red, the dot lit up, my heart broke — but the design is just so beautiful."
+> — **Selin**, a LinkedIn connection (they've never met)
+
+> "I'm completely unbiased: the best app in the world."
+> — anonymous, **Eray's mother**
+
+> "Everything in a single panel. I can't imagine anything better."
+> — **Burak**, who needs something from Eray
+
+#### Changed
+- Redesigned popover. Each service now leads with its 5-hour session as a prominent row — name, a big percentage, and a thin progress bar — with the reset countdown and reset time beneath it. Weekly limits sit below as compact rows, each with a status dot, and any purchased usage credit is shown at the bottom. Antigravity lists its Gemini and Claude/GPT sessions separately.
+- Quota level is now colour-coded everywhere (bar, percentage, and weekly dots): green at 50% or above, amber between 15–50%, red below 15%.
+- The popover grows to show everything at once — no more inner scrolling — inside a single frosted-glass panel.
+
+#### Added
+- Light mode: the popover now follows the system appearance (light or dark).
+- The version badge in the footer checks for updates when you click it; hovering it or the milowda link shows the pointer cursor.
+
+#### Fixed
+- The menu-bar icon shows its low-quota dot when a model drops into the red band (below 15%).
+
+### [1.13] - 2026-06-17
+
+#### Added
+- Turkish localization: Mimir now displays in Turkish when macOS is set to Turkish, and in English otherwise — chosen automatically from the system language.
+
+#### Changed
+- Usage rows now lead with the remaining time; the reset clock moved to a secondary spot, and weekly windows show just the countdown. Claude's Sonnet weekly window is now always shown.
+
 ### [1.12] - 2026-06-16
 
 #### Changed
@@ -156,8 +201,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Build and install script (`script/build_and_run.sh`)
 - Automated DMG release pipeline via GitHub Actions
 
-[Unreleased]: https://github.com/erayendes/mimir/compare/v1.8...HEAD
-[1.8]: https://github.com/erayendes/mimir/compare/v1.7...v1.8
+[Unreleased]: https://github.com/erayendes/mimir/compare/v2.0...HEAD
+[2.0]: https://github.com/erayendes/mimir/compare/v1.13...v2.0
+[1.13]: https://github.com/erayendes/mimir/compare/v1.12...v1.13
+[1.12]: https://github.com/erayendes/mimir/compare/v1.11...v1.12
+[1.11]: https://github.com/erayendes/mimir/compare/v1.10...v1.11
+[1.10]: https://github.com/erayendes/mimir/compare/v1.9...v1.10
+[1.9]: https://github.com/erayendes/mimir/compare/v1.7...v1.9
 [1.7]: https://github.com/erayendes/mimir/compare/v1.6...v1.7
 [1.6]: https://github.com/erayendes/mimir/compare/v1.5...v1.6
 [1.5]: https://github.com/erayendes/mimir/compare/v1.4...v1.5
@@ -180,6 +230,51 @@ Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
 
 ### [Yayımlanmadı]
+
+### [2.0] - 2026-06-18
+
+**Bugüne kadar gelmiş geçmiş en güzel Mimir.**
+
+Bir menü çubuğu uygulaması bu kadar mı güzel olur? Mimir 2.0 ile, evet.
+
+Sevdiğin her şeyi aldık ve baştan tasarladık: öne çıkan oturum, durumuna göre canlanan renkler, sade ve net haftalıklar — hepsi tek bir buzlu cam panelde. Açık modda da koyu modda da kusursuz.
+
+Aynı Mimir; sadece her şeyiyle daha iyisi. 😊
+
+> "İlk açtığımda 'vay be' dedim. Eşim duydu, o da baktı, o da 'vay be' dedi."
+> — **Kenan**, Eray'ın çok yakın arkadaşı
+
+> "Açık mod gelmiş, artık gündüz de kullanıyorum."
+> — **Tayfun**, Eray'a 400 TL borcu olan biri
+
+> "Kotam kırmızıya düştü, nokta yandı, kalbim kırıldı — ama tasarım o kadar güzel ki."
+> — **Selin**, LinkedIn bağlantısı (hiç tanışmadılar)
+
+> "Tamamen tarafsızım: dünyanın en iyi uygulaması."
+> — anonim, **Eray'ın annesi**
+
+> "Tek panelde her şey. Daha iyisini düşünemiyorum."
+> — **Burak**, Eray'a işi düşmüş biri
+
+#### Değişti
+- Popover yeniden tasarlandı. Her servis artık önce 5 saatlik oturumunu öne çıkan bir satır olarak gösteriyor — isim, büyük bir yüzde ve ince bir ilerleme çubuğu — altında geri sayım ve sıfırlanma saati. Haftalık limitler aşağıda kompakt satırlar olarak, her biri bir durum noktasıyla; satın alınan kullanım kredisi en altta. Antigravity, Gemini ve Claude/GPT oturumlarını ayrı ayrı listeliyor.
+- Kota seviyesi artık her yerde (çubuk, yüzde ve haftalık noktalar) renk kodlu: %50 ve üzeri yeşil, %15–50 arası amber, %15 altı kırmızı.
+- Popover her şeyi tek seferde gösterecek kadar büyüyor — iç kaydırma yok — ve tek bir buzlu cam panelde.
+
+#### Eklendi
+- Açık mod: popover artık sistem görünümünü (açık veya koyu) takip ediyor.
+- Footer'daki sürüm rozetine tıklayınca güncelleme kontrolü yapılıyor; rozetin veya milowda bağlantısının üzerine gelince işaretçi imleci görünüyor.
+
+#### Düzeltildi
+- Menü çubuğu ikonu, bir model kırmızı banda (%15 altı) düştüğünde düşük-kota noktasını gösteriyor.
+
+### [1.13] - 2026-06-17
+
+#### Eklendi
+- Türkçe dil desteği: macOS Türkçe olduğunda Mimir Türkçe, değilse İngilizce görünür — sistem dilinden otomatik seçilir.
+
+#### Değişti
+- Kullanım satırları artık önce kalan süreyi gösteriyor; sıfırlanma saati ikincil konuma alındı ve haftalık pencereler yalnızca geri sayımı gösteriyor. Claude'un Sonnet haftalık penceresi artık her zaman görünüyor.
 
 ### [1.12] - 2026-06-16
 
@@ -326,8 +421,13 @@ sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) k
 - Derleme ve kurulum scripti (`script/build_and_run.sh`)
 - GitHub Actions üzerinden otomatik DMG release pipeline'ı
 
-[Yayımlanmadı]: https://github.com/erayendes/mimir/compare/v1.8...HEAD
-[1.8]: https://github.com/erayendes/mimir/compare/v1.7...v1.8
+[Yayımlanmadı]: https://github.com/erayendes/mimir/compare/v2.0...HEAD
+[2.0]: https://github.com/erayendes/mimir/compare/v1.13...v2.0
+[1.13]: https://github.com/erayendes/mimir/compare/v1.12...v1.13
+[1.12]: https://github.com/erayendes/mimir/compare/v1.11...v1.12
+[1.11]: https://github.com/erayendes/mimir/compare/v1.10...v1.11
+[1.10]: https://github.com/erayendes/mimir/compare/v1.9...v1.10
+[1.9]: https://github.com/erayendes/mimir/compare/v1.7...v1.9
 [1.7]: https://github.com/erayendes/mimir/compare/v1.6...v1.7
 [1.6]: https://github.com/erayendes/mimir/compare/v1.5...v1.6
 [1.5]: https://github.com/erayendes/mimir/compare/v1.4...v1.5

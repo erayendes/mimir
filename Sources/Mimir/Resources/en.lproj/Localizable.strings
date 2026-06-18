@@ -1,9 +1,19 @@
 /* Metric row titles */
 "5h Session" = "5h Session";
+"Current session" = "Current session";
 "Weekly" = "Weekly";
 
-/* Percent label */
-"(%d%% left)" = "(%d%% left)";
+/* Window badges (5-hour session, weekly) */
+"5s" = "5h";
+"7g" = "7d";
+
+/* Card layout (v2) */
+"WEEKLY" = "WEEKLY";
+"5h session" = "5h session";
+"5h session · %@" = "5h session · %@";
+"All models" = "All models";
+"Usage credit" = "Usage credit";
+"Resets at %@" = "Resets at %@";
 
 /* Tooltip / status */
 "Loading..." = "Loading...";

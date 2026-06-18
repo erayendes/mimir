@@ -85,18 +85,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         popover.behavior = .transient
-        popover.contentSize = NSSize(width: PopoverMetrics.width, height: PopoverMetrics.maxHeight)
+        popover.contentSize = NSSize(width: PopoverMetrics.width, height: 400)
         // Height is driven manually from the measured SwiftUI content (see
-        // onContentHeightChange): preference-based plumbing silently drops
-        // updates inside this TimelineView/ScrollView hierarchy, so the view
-        // reports its size through a plain callback instead.
+        // onContentHeightChange): the popover grows to fit ALL content (no inner
+        // scroll), capped only by the screen so it can't run off-screen.
         let hosting = NSHostingController(
             rootView: PopoverView(
                 store: store,
                 onDismiss: { [weak self] in self?.closePopover(nil) },
                 onContentHeightChange: { [weak self] height in
                     guard let self else { return }
-                    let clamped = min(max(height, 80), PopoverMetrics.maxHeight)
+                    let screenCap = (NSScreen.main?.visibleFrame.height ?? 900) - 60
+                    let ceiling = min(PopoverMetrics.maxHeight, screenCap)
+                    let clamped = min(max(height, 80), ceiling)
                     guard abs(self.popover.contentSize.height - clamped) > 0.5 else { return }
                     self.popover.contentSize = NSSize(width: PopoverMetrics.width, height: clamped)
                 },
@@ -199,8 +200,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             store.refresh()
             refreshStatusTitle()
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+            makePopoverTransparent()
             NSApp.activate(ignoringOtherApps: true)
             startPopoverDismissMonitors()
+        }
+    }
+
+    /// NSPopover paints an opaque system background bubble; clear it (and the hosting
+    /// view chain) so our behind-window blur reaches the desktop and the panel reads
+    /// as transparent glass rather than a solid dark card.
+    private func makePopoverTransparent() {
+        guard let host = popover.contentViewController?.view,
+              let window = host.window else { return }
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        host.wantsLayer = true
+        host.layer?.backgroundColor = NSColor.clear.cgColor
+        // Walk up to the popover frame view and clear any opaque fill it draws.
+        var view: NSView? = host
+        while let current = view {
+            current.wantsLayer = true
+            current.layer?.backgroundColor = NSColor.clear.cgColor
+            view = current.superview
         }
     }
 
@@ -264,9 +285,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem?.button?.contentTintColor = nil
         statusItem?.button?.title = ""
         statusItem?.button?.imagePosition = .imageOnly
-        statusItem?.button?.toolTip = store.services.isEmpty
-            ? String(localized: "Loading...")
-            : store.services.map(\.name).joined(separator: " | ")
+        statusItem?.button?.toolTip = "mimir by milowda"
         checkNotifications()
     }
 
@@ -302,7 +321,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // isn't a 0–100 percent, and its `remainingPercent` is a placeholder 0).
             let percents: [Int?] = [svc.sessionRemainingPercent, svc.weeklyRemainingPercent]
                 + svc.models.filter { $0.valueText == nil }.map { Optional($0.remainingPercent) }
-            if percents.compactMap({ $0 }).contains(where: { $0 < 20 }) { return true }
+            // A model in the red status band (< 15%) raises the menu-bar dot.
+            if percents.compactMap({ $0 }).contains(where: { $0 < 15 }) { return true }
             // Credit/billing rows flag themselves via `isLow` (below their own threshold).
             return svc.models.contains { $0.isLow }
         }
@@ -362,7 +382,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         let upcoming = antigravity.models
-            .filter { $0.name.contains("Weekly") }
+            .filter { $0.window == .weekly }
             .compactMap(\.resetAt)
             .filter { $0 > now }
             .min()
@@ -439,6 +459,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 private struct PopoverView: View {
     @ObservedObject var store: UsageStore
+    @Environment(\.colorScheme) private var colorScheme
     let onDismiss: () -> Void
     /// Reports the measured content height so AppKit can size the popover.
     /// Plain callback on purpose — see the note at the construction site.
@@ -453,13 +474,15 @@ private struct PopoverView: View {
                     .onTapGesture(perform: onDismiss)
 
                 ScrollView(showsIndicators: false) {
-                    VStack(alignment: .leading, spacing: PopoverMetrics.edgeInset) {
+                    VStack(alignment: .leading, spacing: 0) {
                         contentView(now: context.date)
 
+                        sectionDivider
                         BrandingFooter(checkForUpdates: checkForUpdates)
                     }
-                    .padding(.vertical, PopoverMetrics.contentInset)
-                    .padding(.horizontal, PopoverMetrics.edgeInset)
+                    .padding(.vertical, 8)
+                    .background(innerPanel)
+                    .padding(10)
                     .background {
                         GeometryReader { proxy in
                             Color.clear
@@ -470,23 +493,29 @@ private struct PopoverView: View {
                         }
                     }
                 }
-                // Scrolled cards dissolve in a gradient band and never reach the
-                // popover edge: the outer `edgeClearZone` stays permanently empty,
-                // so content can't appear to escape the background area. At rest
-                // the cards sit exactly below/above the bands, so nothing is dimmed.
-                .mask {
-                    VStack(spacing: 0) {
-                        Color.clear.frame(height: PopoverMetrics.edgeClearZone)
-                        LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
-                            .frame(height: PopoverMetrics.contentInset - PopoverMetrics.edgeClearZone)
-                        Rectangle().fill(Color.black)
-                        LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom)
-                            .frame(height: PopoverMetrics.contentInset - PopoverMetrics.edgeClearZone)
-                        Color.clear.frame(height: PopoverMetrics.edgeClearZone)
-                    }
-                }
             }
         }
+    }
+
+    /// The inner panel: a distinct card with a hairline border that floats on the outer
+    /// ambient backdrop, giving the panel-in-panel depth. Adapts to light/dark.
+    @ViewBuilder
+    private var innerPanel: some View {
+        let dark = colorScheme == .dark
+        RoundedRectangle(cornerRadius: 18, style: .continuous)
+            .fill((dark ? Color(hex: 0x14141C) : Color(hex: 0xFFFFFF)).opacity(dark ? 0.86 : 0.80))
+            .overlay {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(Color.primary.opacity(dark ? 0.10 : 0.08), lineWidth: 1)
+            }
+    }
+
+    /// A hairline divider between the inner panel's sections, inset from the edges.
+    private var sectionDivider: some View {
+        Rectangle()
+            .fill(Color.primary.opacity(0.06))
+            .frame(height: 1)
+            .padding(.horizontal, 13)
     }
 
     /// Show live services and stale snapshots; hide services that have no data at all.
@@ -494,9 +523,13 @@ private struct PopoverView: View {
     /// the last-known reading when the IDE is closed, instead of the card vanishing.
     @ViewBuilder
     private func contentView(now: Date) -> some View {
-        let visible = store.services.filter { $0.isAvailable || $0.isStale }
+        let order = ["Claude", "Codex", "Antigravity"]
+        let visible = store.services
+            .filter { $0.isAvailable || $0.isStale }
+            .sorted { (order.firstIndex(of: $0.name) ?? 99) < (order.firstIndex(of: $1.name) ?? 99) }
         if !visible.isEmpty {
-            ForEach(visible) { service in
+            ForEach(Array(visible.enumerated()), id: \.element.id) { index, service in
+                if index > 0 { sectionDivider }
                 ServiceCard(service: service, now: now)
             }
         } else if store.isRefreshing {
@@ -525,75 +558,64 @@ private struct PopoverView: View {
     }
 }
 
-/// Quiet identity mark under the last card: logo, name, version, and update link.
-/// Deliberately low-contrast — branding should be findable, never loud.
+/// Footer: "mimir" + version badge (tap to check for updates) on the left, the
+/// milowda link on the right. Version comes from the bundle, not hardcoded.
 private struct BrandingFooter: View {
     let checkForUpdates: () -> Void
-    private static let logo: NSImage? = {
-        guard let url = Bundle.main.url(forResource: "MenuIcon", withExtension: "png"),
-              let image = NSImage(contentsOf: url) else { return nil }
-        image.isTemplate = true
-        return image
-    }()
 
     private static let version: String =
         (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String).map { "v\($0)" } ?? "dev"
 
     var body: some View {
-        // Logo spans both text lines; the name line mirrors the card headers
-        // (15pt semibold) and the version/byline use the relative-time label size.
-        HStack(spacing: 10) {
-            if let logo = Self.logo {
-                // MenuIcon's glyph fills only ~60% of its canvas; oversize the
-                // drawn frame so the visible face spans the two text lines, while
-                // the layout frame stays at the two-line height.
-                Image(nsImage: logo)
-                    .renderingMode(.template)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 46, height: 46)
-                    .frame(width: 30, height: 30)
+        HStack(spacing: 7) {
+            Text("mimir")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Color.primary.opacity(0.55))
+
+            Button { checkForUpdates() } label: {
+                Text(Self.version)
+                    .font(.system(size: 9, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(Color.primary.opacity(0.4))
+                    .padding(.horizontal, 5)
+                    .padding(.vertical, 1.5)
+                    .background(
+                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                            .fill(Color.primary.opacity(0.07))
+                    )
+                    .contentShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
             }
+            .buttonStyle(.plain)
+            .pointingHandCursor()
+            .help(String(localized: "Check for updates"))
 
-            VStack(alignment: .leading, spacing: 1) {
-                HStack(alignment: .firstTextBaseline, spacing: 5) {
-                    Text("Mimir")
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .tracking(0.05)
+            Spacer(minLength: 6)
 
-                    Text(Self.version)
-                        .font(.system(size: 11, weight: .regular).monospacedDigit())
-                        .opacity(0.8)
-
-                    Button { checkForUpdates() } label: {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 10, weight: .regular))
-                    }
-                    .buttonStyle(.plain)
-                    .opacity(0.45)
-                    .help("Check for updates")
-                }
-
-                Link("milowda", destination: URL(string: "https://milowda.com/apps/mimir")!)
-                    .font(.system(size: 11, weight: .regular, design: .rounded))
-                    .opacity(0.8)
-            }
+            Link("milowda", destination: URL(string: "https://milowda.com/apps/mimir")!)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(Color.primary.opacity(0.4))
+                .pointingHandCursor()
         }
-        .foregroundStyle(Color.secondary.opacity(0.7))
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.leading, 12)
-        .padding(.top, 1)
+        .padding(13)
+    }
+}
+
+private extension View {
+    /// Show the link/pointing-hand cursor while hovering — the default cursor behaviour
+    /// for clickable text, which SwiftUI doesn't apply on its own here.
+    func pointingHandCursor() -> some View {
+        onHover { hovering in
+            if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+        }
     }
 }
 
 private enum PopoverMetrics {
-    static let edgeInset: CGFloat = 15
-    /// Resting top/bottom padding; scrolled cards dissolve inside its inner part.
-    static let contentInset: CGFloat = 25
-    /// Outer band that always stays empty — content never appears this close to the edge.
-    static let edgeClearZone: CGFloat = 12
-    static let width: CGFloat = 360
-    static let maxHeight: CGFloat = 500
+    static let edgeInset: CGFloat = 14
+    /// Resting top/bottom padding.
+    static let contentInset: CGFloat = 18
+    static let width: CGFloat = 300
+    /// Safety ceiling only; the popover otherwise grows to fit all content (no inner scroll).
+    static let maxHeight: CGFloat = 1400
     static let placeholderHeight: CGFloat = 200
 }
 
@@ -608,56 +630,51 @@ private struct PressableButtonStyle: ButtonStyle {
     }
 }
 
+/// Behind-window blur: blurs the actual desktop behind the popover (not just the
+/// window's own content like SwiftUI's `.ultraThinMaterial`). This is what makes
+/// the panel read as transparent glass over the wallpaper.
+private struct DesktopBlur: NSViewRepresentable {
+    let dark: Bool
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.blendingMode = .behindWindow
+        view.state = .active
+        apply(view)
+        return view
+    }
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) { apply(nsView) }
+
+    private func apply(_ view: NSVisualEffectView) {
+        // hudWindow is a dark vibrant blur; popover is the light counterpart.
+        view.material = dark ? .hudWindow : .popover
+        view.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+    }
+}
+
+/// Outer ambient layer behind the inner panel: behind-window desktop blur, a dark
+/// base, and faint brand-tinted glows in the corners (the v4 showcase frame). The
+/// inner panel sits inset on top of this, giving the panel-in-panel depth.
 private struct PopoverBackdrop: View {
+    @Environment(\.colorScheme) private var scheme
+    private var dark: Bool { scheme == .dark }
+
     var body: some View {
         ZStack {
-            Rectangle()
-                .fill(.ultraThinMaterial)
+            DesktopBlur(dark: dark)
 
-            RadialGradient(
-                colors: [
-                    Color(nsColor: .systemGreen).opacity(0.10),
-                    Color.clear
-                ],
-                center: .topTrailing,
-                startRadius: 10,
-                endRadius: 260
-            )
-
-            RadialGradient(
-                colors: [
-                    Color(nsColor: .systemYellow).opacity(0.08),
-                    Color.clear
-                ],
-                center: .bottomLeading,
-                startRadius: 20,
-                endRadius: 280
-            )
-
-            Rectangle()
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.035),
-                            Color.primary.opacity(0.012),
-                            Color.black.opacity(0.07)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-        }
-        .overlay {
             LinearGradient(
-                colors: [
-                    Color.white.opacity(0.06),
-                    Color.clear,
-                    Color.black.opacity(0.10)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
+                colors: dark
+                    ? [Color(hex: 0x12121A), Color(hex: 0x0C0D14), Color(hex: 0x08090E)]
+                    : [Color(hex: 0xF4F4F7), Color(hex: 0xECECEF), Color(hex: 0xE6E6EA)],
+                startPoint: .top, endPoint: .bottom
             )
-            .blendMode(.softLight)
+            .opacity(dark ? 0.82 : 0.72)
+
+            RadialGradient(colors: [Color(hex: 0x7E8BF2).opacity(dark ? 0.18 : 0.12), .clear],
+                           center: .topTrailing, startRadius: 8, endRadius: 280)
+            RadialGradient(colors: [Color(hex: 0xE6885B).opacity(dark ? 0.14 : 0.10), .clear],
+                           center: .bottomLeading, startRadius: 8, endRadius: 280)
         }
         .ignoresSafeArea()
     }
@@ -666,100 +683,111 @@ private struct PopoverBackdrop: View {
 private struct ServiceCard: View {
     let service: ServiceStatus
     let now: Date
-    @State private var showInfo = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                BrandIconView(iconName: service.iconName, size: 18)
-                    .frame(width: 18)
-
+        VStack(alignment: .leading, spacing: 0) {
+            // Header: white brand glyph + service name.
+            HStack(spacing: 8) {
+                BrandIconView(iconName: service.iconName, size: 15)
+                    .foregroundStyle(Color.primary.opacity(0.92))
+                    .frame(width: 15, height: 15)
                 Text(service.name)
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    .tracking(0.05)
-                    .foregroundStyle(Color.primary.opacity(0.86))
-
-                if let info = service.infoText {
-                    Button {
-                        withAnimation(.easeOut(duration: 0.18)) { showInfo.toggle() }
-                    } label: {
-                        Image(systemName: showInfo ? "info.circle.fill" : "info.circle")
-                            .font(.system(size: 11, weight: .regular))
-                            .foregroundStyle(Color.secondary.opacity(showInfo ? 0.95 : 0.6))
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .help(info)
-                    .accessibilityLabel(Text(info))
-                }
-
-                if !service.isAvailable {
-                    Text(service.statusNote ?? "unavailable")
-                        .font(.system(size: 11, weight: .regular, design: .rounded))
-                        .foregroundStyle(Color.secondary.opacity(0.72))
-                        .lineLimit(1)
-                }
-
-                Spacer(minLength: 0)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.primary.opacity(0.92))
+                    .lineLimit(1)
             }
 
-            if showInfo, let info = service.infoText {
-                Text(info)
-                    .font(.system(size: 11, weight: .regular, design: .rounded))
-                    .foregroundStyle(Color.secondary.opacity(0.82))
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background {
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(Color.primary.opacity(0.05))
-                    }
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+            // One prominent block per session (Claude/Codex: one; Antigravity: two).
+            ForEach(Array(sessionHeroes.enumerated()), id: \.offset) { index, hero in
+                SessionRow(label: hero.label, percent: hero.percent, resetAt: hero.resetAt, now: now)
+                    .padding(.top, index == 0 ? 11 : 13)
             }
 
-            VStack(alignment: .leading, spacing: 10) {
-                limitRows
+            // Weekly rows: status dot + label + 7g badge + percent + reset countdown.
+            if !weeklyEntries.isEmpty {
+                VStack(spacing: 6) {
+                    ForEach(Array(weeklyEntries.enumerated()), id: \.offset) { _, entry in
+                        weeklyRow(entry)
+                    }
+                }
+                .padding(.top, 11)
+            }
+
+            if let credit = creditEntry {
+                HStack {
+                    Text(credit.label)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Color.primary.opacity(0.4))
+                    Spacer()
+                    Text(credit.value)
+                        .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                        .foregroundStyle(Color.primary.opacity(0.7))
+                }
+                .padding(.top, 11)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 12)
-        .background {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(.thinMaterial)
-                .overlay {
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(Color.white.opacity(0.035))
-                }
-                .overlay {
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(Color.primary.opacity(0.075), lineWidth: 1)
-                }
-        }
+        .padding(13)
         // Dim a stale snapshot so it reads as "last known, not live".
         .opacity(service.isStale ? 0.66 : 1)
     }
 
-    @ViewBuilder
-    private var limitRows: some View {
+    private func weeklyRow(_ entry: (label: String, percent: Int, resetAt: Date?)) -> some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(quotaStatusColor(entry.percent))
+                .frame(width: 7, height: 7)
+            Text(entry.label)
+                .font(.system(size: 11, weight: .regular))
+                .foregroundStyle(Color.primary.opacity(0.62))
+                .lineLimit(1)
+            QuotaBadge(text: String(localized: "7g"))
+            Spacer(minLength: 6)
+            Text("%\(clampPct(entry.percent))")
+                .font(.system(size: 11, weight: .semibold).monospacedDigit())
+                .foregroundStyle(Color.primary.opacity(0.62))
+            Text(relDuration(entry.resetAt, now) ?? "—")
+                .font(.system(size: 11, weight: .regular).monospacedDigit())
+                .foregroundStyle(Color.primary.opacity(0.38))
+                .frame(width: 52, alignment: .trailing)
+        }
+    }
+
+    // MARK: Data shaping
+
+    /// Weekly rows. Claude/Codex: the all-models weekly (labelled with the service name)
+    /// plus any per-model weekly (e.g. Sonnet). Antigravity: its grouped weekly buckets.
+    private var weeklyEntries: [(label: String, percent: Int, resetAt: Date?)] {
         if hasServiceQuotas {
-            LimitMetricRow(title: String(localized: "5h Session"), percent: service.sessionRemainingPercent, resetAt: service.sessionResetAt, now: now)
-            LimitMetricRow(title: String(localized: "Weekly"), percent: service.weeklyRemainingPercent, resetAt: service.weeklyResetAt, now: now)
-
-            if !service.models.isEmpty {
-                Divider().opacity(0.4)
+            var out: [(label: String, percent: Int, resetAt: Date?)] = []
+            if let weekly = service.weeklyRemainingPercent {
+                out.append((service.name, weekly, service.weeklyResetAt))
             }
+            for model in service.models where model.valueText == nil {
+                out.append((model.name, model.remainingPercent, model.resetAt))
+            }
+            return out
         }
+        return service.models
+            .filter { $0.window == .weekly && $0.valueText == nil }
+            .map { (label: $0.name, percent: $0.remainingPercent, resetAt: $0.resetAt) }
+    }
 
-        ForEach(service.models) { model in
-            LimitMetricRow(
-                title: model.name,
-                percent: model.valueText == nil ? model.remainingPercent : nil,
-                resetAt: model.resetAt,
-                valueText: model.valueText,
-                now: now
-            )
+    /// The prominent 5-hour session block(s). Claude/Codex have one (labelled with the
+    /// service name); Antigravity has one per family (Gemini, Claude/GPT).
+    private var sessionHeroes: [(label: String, percent: Int, resetAt: Date?)] {
+        if hasServiceQuotas {
+            guard let session = service.sessionRemainingPercent else { return [] }
+            return [(service.name, session, service.sessionResetAt)]
         }
+        return service.models
+            .filter { $0.window == .session }
+            .map { (label: $0.name, percent: $0.remainingPercent, resetAt: $0.resetAt) }
+    }
+
+    private var creditEntry: (label: String, value: String)? {
+        guard let model = service.models.first(where: { $0.valueText != nil }),
+              let value = model.valueText else { return nil }
+        return (String(localized: "Usage credit"), value)
     }
 
     private var hasServiceQuotas: Bool {
@@ -767,105 +795,145 @@ private struct ServiceCard: View {
     }
 }
 
-private struct LimitMetricRow: View {
-    let title: String
-    let percent: Int?
+private extension Color {
+    init(hex: UInt32) {
+        self.init(
+            .sRGB,
+            red: Double((hex >> 16) & 0xFF) / 255,
+            green: Double((hex >> 8) & 0xFF) / 255,
+            blue: Double(hex & 0xFF) / 255,
+            opacity: 1
+        )
+    }
+}
+
+private func clampPct(_ percent: Int) -> Int { max(0, min(100, percent)) }
+
+private func relDuration(_ resetAt: Date?, _ now: Date) -> String? {
+    guard let resetAt, resetAt.timeIntervalSince(now) > 0 else { return nil }
+    return TimeFormatter.duration(from: resetAt.timeIntervalSince(now))
+}
+
+/// A small grey pill badge (e.g. "5s" for the 5-hour session, "7g" for the weekly window).
+private struct QuotaBadge: View {
+    let text: String
+    var prominent = false
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: prominent ? 10 : 9.5, weight: .semibold))
+            .foregroundStyle(Color.primary.opacity(0.34))
+            .padding(.horizontal, prominent ? 5 : 4.5)
+            .padding(.vertical, prominent ? 1.5 : 1)
+            .background(
+                RoundedRectangle(cornerRadius: prominent ? 5 : 4, style: .continuous)
+                    .fill(Color.primary.opacity(0.06))
+            )
+    }
+}
+
+/// The prominent session block: model name + "5s" badge + big status-coloured percent,
+/// a thin status-coloured bar, then remaining time (left) and reset clock (right).
+private struct SessionRow: View {
+    let label: String
+    let percent: Int
     let resetAt: Date?
-    var valueText: String?
     let now: Date
 
     private static let clockFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "HH:mm"
-        return f
+        let f = DateFormatter(); f.dateFormat = "HH:mm"; return f
     }()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text(title)
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Color.primary.opacity(0.78))
-
-                if !percentLabel.isEmpty {
-                    Text(percentLabel)
-                        .font(.system(size: 12, weight: .regular))
-                        .foregroundStyle(Color.secondary.opacity(0.62))
-                }
-
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(label)
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(Color.primary.opacity(0.88))
+                    .lineLimit(1)
+                QuotaBadge(text: String(localized: "5s"), prominent: true)
                 Spacer(minLength: 6)
+                Text("%\(clampPct(percent))")
+                    .font(.system(size: 18, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(quotaStatusColor(percent))
+            }
 
-                if let clock = clockStr, let rel = relativeStr {
-                    Text(clock)
-                        .font(.system(size: 13, weight: .medium).monospacedDigit())
-                        .foregroundStyle(valueColor)
-                    Text("(\(rel))")
-                        .font(.system(size: 11, weight: .regular).monospacedDigit())
-                        .foregroundStyle(Color.secondary.opacity(0.58))
-                } else if let valueText {
-                    Text(valueText)
-                        .font(.system(size: 13, weight: .medium).monospacedDigit())
-                        .foregroundStyle(Color.primary.opacity(0.80))
+            QuotaBar(percent: percent)
+                .padding(.top, 9)
+
+            HStack(spacing: 8) {
+                Label {
+                    Text(relDuration(resetAt, now) ?? "—")
+                } icon: {
+                    Image(systemName: "gauge.medium")
+                }
+                Spacer(minLength: 4)
+                if let resetClock {
+                    Label {
+                        Text(resetClock)
+                    } icon: {
+                        Image(systemName: "clock")
+                    }
                 }
             }
-
-            if let percent {
-                LineGauge(percent: percent, tint: metricTint)
-            }
+            .font(.system(size: 11, weight: .medium).monospacedDigit())
+            .foregroundStyle(Color.primary.opacity(0.42))
+            .labelStyle(.titleAndIcon)
+            .padding(.top, 6)
         }
-        .padding(.vertical, 1)
     }
 
-    private var percentLabel: String {
-        guard let percent else { return "" }
-        return String(format: String(localized: "(%d%% left)"), max(0, min(100, percent)))
-    }
-
-    private var clockStr: String? {
+    private var resetClock: String? {
         guard let resetAt, resetAt.timeIntervalSince(now) > 0 else { return nil }
         return Self.clockFormatter.string(from: resetAt)
     }
-
-    private var relativeStr: String? {
-        guard let resetAt, resetAt.timeIntervalSince(now) > 0 else { return nil }
-        return TimeFormatter.duration(from: resetAt.timeIntervalSince(now))
-    }
-
-    private var valueColor: Color {
-        guard percent != nil else { return Color.primary.opacity(0.82) }
-        return metricTint.opacity(0.90)
-    }
-
-    private var metricTint: Color {
-        guard let percent else { return Color.primary.opacity(0.58) }
-        switch max(0, min(100, percent)) {
-        case 0...25:  return Color(nsColor: .systemRed)
-        case 26...60: return Color(nsColor: .systemYellow)
-        default:      return Color(nsColor: .systemGreen)
-        }
-    }
 }
 
-private struct LineGauge: View {
+private struct QuotaBar: View {
     let percent: Int
-    let tint: Color
 
     var body: some View {
+        let color = quotaStatusColor(percent)
         GeometryReader { proxy in
-            let ratio = CGFloat(max(0, min(100, percent))) / 100
-
+            let ratio = CGFloat(clampPct(percent)) / 100
             ZStack(alignment: .leading) {
+                Capsule().fill(Color.primary.opacity(0.08))
                 Capsule()
-                    .fill(Color.primary.opacity(0.09))
-
-                Capsule()
-                    .fill(tint.opacity(0.74))
-                    .frame(width: max(3, proxy.size.width * ratio))
+                    .fill(color)
+                    .frame(width: max(5, proxy.size.width * ratio))
             }
         }
-        .frame(height: 3)
+        .frame(height: 5)
     }
 }
+
+/// Single status colour for a quota level (applies to every model, its percentage, and
+/// its weekly dot): green ≥50%, amber 15–50%, red <15%. Returns a dynamic colour that
+/// darkens in light mode so it stays legible on the light panel.
+private func quotaStatusColor(_ percent: Int) -> Color {
+    let darkHex: UInt32, lightHex: UInt32
+    switch clampPct(percent) {
+    case 50...100: darkHex = 0x3FB984; lightHex = 0x1F9E63  // green
+    case 15..<50:  darkHex = 0xE0A93C; lightHex = 0xB07E1C  // amber
+    default:       darkHex = 0xE5564E; lightHex = 0xCF3A33  // red
+    }
+    return Color(nsColor: NSColor(name: nil) { appearance in
+        let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        return NSColor(hex: isDark ? darkHex : lightHex)
+    })
+}
+
+private extension NSColor {
+    convenience init(hex: UInt32) {
+        self.init(
+            srgbRed: Double((hex >> 16) & 0xFF) / 255,
+            green: Double((hex >> 8) & 0xFF) / 255,
+            blue: Double(hex & 0xFF) / 255,
+            alpha: 1
+        )
+    }
+}
+
 
 private struct BrandIconView: View {
     let iconName: String
