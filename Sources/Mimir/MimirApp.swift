@@ -43,6 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var timer: Timer?
     private var localEventMonitor: Any?
     private var globalEventMonitor: Any?
+    private var resignObserver: NSObjectProtocol?
     private var cancellables: Set<AnyCancellable> = []
     private var updaterController: SPUStandardUpdaterController?
     // Per-window notification state, keyed "<service>-5h" / "<service>-weekly".
@@ -107,7 +108,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 onDismiss: { [weak self] in self?.hidePanel() },
                 onContentHeightChange: { [weak self] height in
                     guard let self else { return }
-                    let screenCap = (NSScreen.main?.visibleFrame.height ?? 900) - 60
+                    // Cap against the screen the panel actually opens on (the menu-bar
+                    // button's screen), not necessarily the main display — otherwise a
+                    // short secondary display could let the panel run off its bottom.
+                    let panelScreen = self.statusItem?.button?.window?.screen ?? NSScreen.main
+                    let screenCap = (panelScreen?.visibleFrame.height ?? 900) - 60
                     let ceiling = min(PopoverMetrics.maxHeight, screenCap)
                     self.resizePanel(toHeight: min(max(height, 80), ceiling))
                 },
@@ -251,9 +256,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func startPopoverDismissMonitors() {
         stopPopoverDismissMonitors()
 
-        localEventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
+        localEventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown, .keyDown]) { [weak self] event in
             guard let self else { return event }
             guard self.panel.isVisible else { return event }
+
+            // Escape closes the panel and the keystroke is swallowed.
+            if event.type == .keyDown {
+                if event.keyCode == 53 { self.hidePanel(); return nil }
+                return event
+            }
 
             if event.window === self.panel { return event }
             if event.window === self.statusItem?.button?.window { return event }
@@ -267,6 +278,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.hidePanel()
             }
         }
+
+        // Unlike the old transient NSPopover, a bare NSPanel won't auto-close when the
+        // app loses focus. Mouse-driven switches are caught by the global monitor above;
+        // this covers the keyboard/Spaces paths (Cmd-Tab, Mission Control) that produce
+        // no outside mouse-down, so the panel can't be left floating across Spaces.
+        resignObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didResignActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.hidePanel() }
+        }
     }
 
     private func stopPopoverDismissMonitors() {
@@ -278,6 +299,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let globalEventMonitor {
             NSEvent.removeMonitor(globalEventMonitor)
             self.globalEventMonitor = nil
+        }
+
+        if let resignObserver {
+            NotificationCenter.default.removeObserver(resignObserver)
+            self.resignObserver = nil
         }
     }
 
@@ -318,7 +344,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Menu-bar image: the Mimir glyph plus a vertical column of three status dots
     /// (Claude / Codex / Antigravity, 5-hour window). Non-template so the dots keep
-    /// their colour; the glyph is tinted to the bar's appearance.
+    /// their colour; in light mode the glyph is filled black for contrast, in dark
+    /// mode the source artwork is drawn as-is.
     private func buildMenuBarImage(dotColors: [NSColor?]) -> NSImage {
         let iconW: CGFloat = 19
         let height: CGFloat = 19
