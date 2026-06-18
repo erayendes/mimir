@@ -7,7 +7,95 @@
     <link>https://github.com/erayendes/mimir</link>
     <description>Mimir update feed</description>
     <language>en</language>
-                    <item>
+                        <item>
+      <title>Mimir 2.0</title>
+      <sparkle:version>2000000</sparkle:version>
+      <sparkle:shortVersionString>2.0</sparkle:shortVersionString>
+      <pubDate>Thu, 18 Jun 2026 21:48:02 +0000</pubDate>
+      <description>
+**The best Mimir there has ever been.**
+
+Can a menu bar app really be this beautiful? With Mimir 2.0, yes.
+
+We took everything you love and redesigned it from scratch: the session up front, colours that come alive with status, weekly limits clean and clear — all in a single frosted-glass panel. Flawless in light mode and dark.
+
+The same Mimir; just better in every way. 😊
+
+> "When I first opened it I said 'wow.' My wife heard me, looked, and said 'wow' too."
+> — **Kenan**, a very close friend of Eray's
+
+> "There's a light mode now, so I use it during the day too."
+> — **Tayfun**, who owes Eray ₺400
+
+> "My quota dropped into the red, the dot lit up, my heart broke — but the design is just so beautiful."
+> — **Selin**, a LinkedIn connection (they've never met)
+
+> "I'm completely unbiased: the best app in the world."
+> — anonymous, **Eray's mother**
+
+> "Everything in a single panel. I can't imagine anything better."
+> — **Burak**, who needs something from Eray
+
+#### Changed
+- Redesigned popover. Each service now leads with its 5-hour session as a prominent row — name, a big percentage, and a thin progress bar — with the reset countdown and reset time beneath it. Weekly limits sit below as compact rows, each with a status dot, and any purchased usage credit is shown at the bottom. Antigravity lists its Gemini and Claude/GPT sessions separately.
+- Quota level is now colour-coded everywhere (bar, percentage, and weekly dots): green at 50% or above, amber between 15–50%, red below 15%.
+- The popover grows to show everything at once — no more inner scrolling — and the whole panel is now real glass: the desktop and windows behind it read through, gently blurred.
+
+#### Added
+- Light mode: the popover now follows the system appearance (light or dark).
+- The version badge in the footer checks for updates when you click it; hovering it or the milowda link shows the pointer cursor.
+- A column of three status dots next to the menu-bar icon shows the 5-hour status of Claude, Codex, and Antigravity at a glance (top to bottom) — green, amber, or red. Built for my brother İlker Utlu ([sigortadanismani.com](https://sigortadanismani.com)).
+
+#### Fixed
+- The macOS keychain no longer keeps asking for permission to read your Claude Code login. Mimir now reads it in-process instead of through the `security` command-line tool, so "Always Allow" sticks.
+
+---
+
+
+**Bugüne kadar gelmiş geçmiş en güzel Mimir.**
+
+Bir menü çubuğu uygulaması bu kadar mı güzel olur? Mimir 2.0 ile, evet.
+
+Sevdiğin her şeyi aldık ve baştan tasarladık: öne çıkan oturum, durumuna göre canlanan renkler, sade ve net haftalıklar — hepsi tek bir buzlu cam panelde. Açık modda da koyu modda da kusursuz.
+
+Aynı Mimir; sadece her şeyiyle daha iyisi. 😊
+
+> "İlk açtığımda 'vay be' dedim. Eşim duydu, o da baktı, o da 'vay be' dedi."
+> — **Kenan**, Eray'ın çok yakın arkadaşı
+
+> "Açık mod gelmiş, artık gündüz de kullanıyorum."
+> — **Tayfun**, Eray'a 400 TL borcu olan biri
+
+> "Kotam kırmızıya düştü, nokta yandı, kalbim kırıldı — ama tasarım o kadar güzel ki."
+> — **Selin**, LinkedIn bağlantısı (hiç tanışmadılar)
+
+> "Tamamen tarafsızım: dünyanın en iyi uygulaması."
+> — anonim, **Eray'ın annesi**
+
+> "Tek panelde her şey. Daha iyisini düşünemiyorum."
+> — **Burak**, Eray'a işi düşmüş biri
+
+#### Değişti
+- Popover yeniden tasarlandı. Her servis artık önce 5 saatlik oturumunu öne çıkan bir satır olarak gösteriyor — isim, büyük bir yüzde ve ince bir ilerleme çubuğu — altında geri sayım ve sıfırlanma saati. Haftalık limitler aşağıda kompakt satırlar olarak, her biri bir durum noktasıyla; satın alınan kullanım kredisi en altta. Antigravity, Gemini ve Claude/GPT oturumlarını ayrı ayrı listeliyor.
+- Kota seviyesi artık her yerde (çubuk, yüzde ve haftalık noktalar) renk kodlu: %50 ve üzeri yeşil, %15–50 arası amber, %15 altı kırmızı.
+- Popover her şeyi tek seferde gösterecek kadar büyüyor — iç kaydırma yok — ve panelin tamamı artık gerçek bir cam: arkasındaki masaüstü ve pencereler hafif bulanık şekilde camın ardından görünüyor.
+
+#### Eklendi
+- Açık mod: popover artık sistem görünümünü (açık veya koyu) takip ediyor.
+- Footer'daki sürüm rozetine tıklayınca güncelleme kontrolü yapılıyor; rozetin veya milowda bağlantısının üzerine gelince işaretçi imleci görünüyor.
+- Menü çubuğu ikonunun yanında üç dikey durum noktası: üstten Claude, Codex ve Antigravity'nin 5 saatlik durumunu tek bakışta yeşil/amber/kırmızı gösteriyor. Bu özelliği abim İlker Utlu ([sigortadanismani.com](https://sigortadanismani.com)) için yaptım.
+
+#### Düzeltildi
+- macOS anahtar zinciri, Claude Code girişini okumak için artık sürekli izin sormuyor. Mimir bunu `security` komut satırı aracı yerine uygulama içinden okuyor; böylece "Her Zaman İzin Ver" kalıcı oluyor.</description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v2.0/Mimir.zip"
+        sparkle:edSignature="fksLZclv4NNEaCOigre2pjnvYsY4cX0gGMeRlBJtaIVv0rdR2ZdECIRtDXnyhGzBgvfEGwtUGsC4n8PWCJpRDA=="
+        length="6037760"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 1.13</title>
       <sparkle:version>1013000</sparkle:version>
       <sparkle:shortVersionString>1.13</sparkle:shortVersionString>
