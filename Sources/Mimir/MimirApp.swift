@@ -20,7 +20,25 @@ struct MimirApp: App {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let store = UsageStore()
-    private let popover = NSPopover()
+    /// Borderless translucent panel instead of NSPopover: NSPopover paints an opaque
+    /// system background that blocks behind-window blur, so the desktop can never read
+    /// through. A custom NSPanel lets our `.behindWindow` glass show the desktop.
+    private let panel: NSPanel = {
+        let p = NSPanel(
+            contentRect: NSRect(x: 0, y: 0, width: PopoverMetrics.width, height: 400),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered, defer: false
+        )
+        p.isOpaque = false
+        p.backgroundColor = .clear
+        p.hasShadow = true
+        p.level = .statusBar
+        p.isMovableByWindowBackground = false
+        p.becomesKeyOnlyIfNeeded = true
+        p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        p.hidesOnDeactivate = false
+        return p
+    }()
     private var statusItem: NSStatusItem?
     private var timer: Timer?
     private var localEventMonitor: Any?
@@ -31,8 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var lowNotified: Set<String> = []     // window is below its low threshold (until it resets)
     private var depleted5h: Set<String> = []      // service's 5h window hit 0% since its last refill
     private var lastWindowPercent: [String: Int] = [:]  // previous reading, for refill edge detection
-    private var cachedIconNormal: NSImage?
-    private var cachedIconLow: NSImage?
+    private var iconSource: NSImage?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Dev builds (com.erayendes.mimir.dev) must not report to the production
@@ -68,11 +85,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         NSApp.setActivationPolicy(.accessory)
 
-        if let source = Bundle.main.url(forResource: "MenuIcon", withExtension: "png")
-            .flatMap({ NSImage(contentsOf: $0) }) {
-            cachedIconNormal = buildStatusIcon(source: source, isLow: false)
-            cachedIconLow    = buildStatusIcon(source: source, isLow: true)
-        }
+        iconSource = Bundle.main.url(forResource: "MenuIcon", withExtension: "png")
+            .flatMap { NSImage(contentsOf: $0) }
 
         NSApp.publisher(for: \.effectiveAppearance)
             .receive(on: RunLoop.main)
@@ -84,30 +98,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
         }
 
-        popover.behavior = .transient
-        popover.contentSize = NSSize(width: PopoverMetrics.width, height: 400)
         // Height is driven manually from the measured SwiftUI content (see
-        // onContentHeightChange): the popover grows to fit ALL content (no inner
+        // onContentHeightChange): the panel grows to fit ALL content (no inner
         // scroll), capped only by the screen so it can't run off-screen.
-        let hosting = NSHostingController(
+        let host = NSHostingView(
             rootView: PopoverView(
                 store: store,
-                onDismiss: { [weak self] in self?.closePopover(nil) },
+                onDismiss: { [weak self] in self?.hidePanel() },
                 onContentHeightChange: { [weak self] height in
                     guard let self else { return }
                     let screenCap = (NSScreen.main?.visibleFrame.height ?? 900) - 60
                     let ceiling = min(PopoverMetrics.maxHeight, screenCap)
-                    let clamped = min(max(height, 80), ceiling)
-                    guard abs(self.popover.contentSize.height - clamped) > 0.5 else { return }
-                    self.popover.contentSize = NSSize(width: PopoverMetrics.width, height: clamped)
+                    self.resizePanel(toHeight: min(max(height, 80), ceiling))
                 },
                 checkForUpdates: { [weak self] in
                     self?.updaterController?.checkForUpdates(nil)
                 }
             )
         )
-        hosting.sizingOptions = []
-        popover.contentViewController = hosting
+        host.wantsLayer = true
+        host.layer?.cornerRadius = 22
+        host.layer?.cornerCurve = .continuous
+        host.layer?.masksToBounds = true
+        panel.contentView = host
 
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.button?.target = self
@@ -192,42 +205,47 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func togglePopover(_ sender: Any?) {
-        guard let button = statusItem?.button else { return }
-
-        if popover.isShown {
-            closePopover(sender)
+        if panel.isVisible {
+            hidePanel()
         } else {
             store.refresh()
             refreshStatusTitle()
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-            makePopoverTransparent()
-            NSApp.activate(ignoringOtherApps: true)
-            startPopoverDismissMonitors()
+            showPanel()
         }
     }
 
-    /// NSPopover paints an opaque system background bubble; clear it (and the hosting
-    /// view chain) so our behind-window blur reaches the desktop and the panel reads
-    /// as transparent glass rather than a solid dark card.
-    private func makePopoverTransparent() {
-        guard let host = popover.contentViewController?.view,
-              let window = host.window else { return }
-        window.isOpaque = false
-        window.backgroundColor = .clear
-        host.wantsLayer = true
-        host.layer?.backgroundColor = NSColor.clear.cgColor
-        // Walk up to the popover frame view and clear any opaque fill it draws.
-        var view: NSView? = host
-        while let current = view {
-            current.wantsLayer = true
-            current.layer?.backgroundColor = NSColor.clear.cgColor
-            view = current.superview
+    /// Position the panel just below the menu-bar button, clamped to the screen, and show it.
+    private func showPanel() {
+        guard let button = statusItem?.button, let buttonWindow = button.window else { return }
+        let onScreen = buttonWindow.convertToScreen(button.convert(button.bounds, to: nil))
+        let width = PopoverMetrics.width
+        let height = panel.frame.height > 80 ? panel.frame.height : 400
+        let topY = onScreen.minY - 6
+        var x = onScreen.midX - width / 2
+        if let screen = buttonWindow.screen ?? NSScreen.main {
+            let vf = screen.visibleFrame
+            x = min(max(x, vf.minX + 8), vf.maxX - width - 8)
         }
+        panel.setFrame(NSRect(x: x, y: topY - height, width: width, height: height), display: true)
+        panel.orderFrontRegardless()
+        NSApp.activate(ignoringOtherApps: true)
+        panel.makeKey()
+        startPopoverDismissMonitors()
     }
 
-    private func closePopover(_ sender: Any?) {
-        popover.performClose(sender)
+    private func hidePanel() {
+        panel.orderOut(nil)
         stopPopoverDismissMonitors()
+    }
+
+    /// Grow/shrink to fit content, keeping the top edge fixed so the panel hangs down
+    /// from the menu bar rather than drifting.
+    private func resizePanel(toHeight h: CGFloat) {
+        var frame = panel.frame
+        guard abs(frame.height - h) > 0.5 else { return }
+        frame.origin.y = frame.maxY - h
+        frame.size.height = h
+        panel.setFrame(frame, display: true)
     }
 
     private func startPopoverDismissMonitors() {
@@ -235,23 +253,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         localEventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] event in
             guard let self else { return event }
-            guard self.popover.isShown else { return event }
+            guard self.panel.isVisible else { return event }
 
-            if event.window === self.popover.contentViewController?.view.window {
-                return event
-            }
+            if event.window === self.panel { return event }
+            if event.window === self.statusItem?.button?.window { return event }
 
-            if event.window === self.statusItem?.button?.window {
-                return event
-            }
-
-            self.closePopover(event)
+            self.hidePanel()
             return event
         }
 
         globalEventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
             Task { @MainActor in
-                self?.closePopover(nil)
+                self?.hidePanel()
             }
         }
     }
@@ -269,63 +282,82 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func refreshStatusTitle() {
-        let isLow = isQuotaLow
-        if let icon = isLow ? cachedIconLow : cachedIconNormal {
-            statusItem?.button?.image = icon
-        } else {
-            let size = NSSize(width: 18, height: 18)
-            let fallback = NSImage(size: size, flipped: false) { [isLow] rect in
-                (isLow ? NSColor.systemRed : NSColor.labelColor).setFill()
-                NSBezierPath(ovalIn: rect.insetBy(dx: 2, dy: 2)).fill()
-                return true
-            }
-            fallback.isTemplate = false
-            statusItem?.button?.image = fallback
-        }
+        let image = buildMenuBarImage(dotColors: menuBarDotColors())
+        statusItem?.button?.image = image
         statusItem?.button?.contentTintColor = nil
         statusItem?.button?.title = ""
         statusItem?.button?.imagePosition = .imageOnly
         statusItem?.button?.toolTip = "mimir by milowda"
+        statusItem?.length = image.size.width + 8
         checkNotifications()
     }
 
-    private func buildStatusIcon(source: NSImage, isLow: Bool) -> NSImage {
-        let iconSize = NSSize(width: 22, height: 22)
-        let img = NSImage(size: iconSize, flipped: false) { rect in
+    /// The 5-hour status colour per service, ordered top→bottom: Claude, Codex,
+    /// Antigravity. `nil` when the service has no current session reading (drawn grey).
+    /// Antigravity has two sessions (Gemini, Claude/GPT) → take the most constrained.
+    private func menuBarDotColors() -> [NSColor?] {
+        ["Claude", "Codex", "Antigravity"].map { name -> NSColor? in
+            guard let svc = store.services.first(where: { $0.name == name }) else { return nil }
+            let percent: Int?
+            if name == "Antigravity" {
+                percent = svc.models.filter { $0.window == .session }.map(\.remainingPercent).min()
+            } else {
+                percent = svc.sessionRemainingPercent
+            }
+            return percent.map(statusNSColor)
+        }
+    }
+
+    private func statusNSColor(_ percent: Int) -> NSColor {
+        switch max(0, min(100, percent)) {
+        case 50...100: return NSColor(hex: 0x3FB984)  // green
+        case 15..<50:  return NSColor(hex: 0xE0A93C)  // amber
+        default:       return NSColor(hex: 0xE5564E)  // red
+        }
+    }
+
+    /// Menu-bar image: the Mimir glyph plus a vertical column of three status dots
+    /// (Claude / Codex / Antigravity, 5-hour window). Non-template so the dots keep
+    /// their colour; the glyph is tinted to the bar's appearance.
+    private func buildMenuBarImage(dotColors: [NSColor?]) -> NSImage {
+        let iconW: CGFloat = 19
+        let height: CGFloat = 19
+        let gap: CGFloat = 3.5
+        let dot: CGFloat = 3.5
+        let dotGapV: CGFloat = 2.2
+        let totalW = iconW + gap + dot
+
+        let img = NSImage(size: NSSize(width: totalW, height: height), flipped: false) { [iconSource] _ in
             guard let ctx = NSGraphicsContext.current else { return true }
             ctx.imageInterpolation = .high
-            NSBezierPath(ovalIn: rect).addClip()
-            source.draw(in: rect, from: NSRect(origin: .zero, size: source.size),
-                        operation: .sourceOver, fraction: 1.0)
-            let isDark = NSAppearance.currentDrawing().bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            if !isDark {
-                ctx.compositingOperation = .sourceAtop
-                NSColor.black.setFill()
-                NSBezierPath(ovalIn: rect).fill()
-                ctx.compositingOperation = .sourceOver
+
+            if let source = iconSource {
+                let iconRect = NSRect(x: 0, y: (height - iconW) / 2, width: iconW, height: iconW)
+                NSGraphicsContext.saveGraphicsState()
+                NSBezierPath(ovalIn: iconRect).addClip()
+                source.draw(in: iconRect, from: .zero, operation: .sourceOver, fraction: 1.0)
+                let isDark = NSAppearance.currentDrawing().bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+                if !isDark {
+                    ctx.compositingOperation = .sourceAtop
+                    NSColor.black.setFill()
+                    NSBezierPath(ovalIn: iconRect).fill()
+                    ctx.compositingOperation = .sourceOver
+                }
+                NSGraphicsContext.restoreGraphicsState()
             }
-            if isLow {
-                let d: CGFloat = 6
-                NSColor.systemRed.setFill()
-                NSBezierPath(ovalIn: NSRect(x: rect.maxX - 8, y: rect.minY + 1, width: d, height: d)).fill()
+
+            let dotsX = iconW + gap
+            let stackH = dot * 3 + dotGapV * 2
+            var y = (height + stackH) / 2 - dot   // top dot
+            for color in dotColors {
+                (color ?? NSColor.tertiaryLabelColor).setFill()
+                NSBezierPath(ovalIn: NSRect(x: dotsX, y: y, width: dot, height: dot)).fill()
+                y -= dot + dotGapV
             }
             return true
         }
         img.isTemplate = false
         return img
-    }
-
-    private var isQuotaLow: Bool {
-        store.services.filter(\.isAvailable).contains { svc in
-            // Percentage windows + percentage model rows (skip valueText rows — a credit balance
-            // isn't a 0–100 percent, and its `remainingPercent` is a placeholder 0).
-            let percents: [Int?] = [svc.sessionRemainingPercent, svc.weeklyRemainingPercent]
-                + svc.models.filter { $0.valueText == nil }.map { Optional($0.remainingPercent) }
-            // A model in the red status band (< 15%) raises the menu-bar dot.
-            if percents.compactMap({ $0 }).contains(where: { $0 < 15 }) { return true }
-            // Credit/billing rows flag themselves via `isLow` (below their own threshold).
-            return svc.models.contains { $0.isLow }
-        }
     }
 
     private enum QuotaWindow {
@@ -497,16 +529,16 @@ private struct PopoverView: View {
         }
     }
 
-    /// The inner panel: a distinct card with a hairline border that floats on the outer
-    /// ambient backdrop, giving the panel-in-panel depth. Adapts to light/dark.
+    /// The single panel. Kept very translucent so the frosted desktop reads through it
+    /// like glass — just a faint tint for legibility plus a hairline glass edge.
     @ViewBuilder
     private var innerPanel: some View {
         let dark = colorScheme == .dark
         RoundedRectangle(cornerRadius: 18, style: .continuous)
-            .fill((dark ? Color(hex: 0x14141C) : Color(hex: 0xFFFFFF)).opacity(dark ? 0.86 : 0.80))
+            .fill((dark ? Color(hex: 0x14141C) : Color(hex: 0xFFFFFF)).opacity(dark ? 0.10 : 0.16))
             .overlay {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(Color.primary.opacity(dark ? 0.10 : 0.08), lineWidth: 1)
+                    .stroke(Color.primary.opacity(dark ? 0.16 : 0.12), lineWidth: 1)
             }
     }
 
@@ -613,7 +645,7 @@ private enum PopoverMetrics {
     static let edgeInset: CGFloat = 14
     /// Resting top/bottom padding.
     static let contentInset: CGFloat = 18
-    static let width: CGFloat = 300
+    static let width: CGFloat = 288
     /// Safety ceiling only; the popover otherwise grows to fit all content (no inner scroll).
     static let maxHeight: CGFloat = 1400
     static let placeholderHeight: CGFloat = 200
@@ -663,17 +695,19 @@ private struct PopoverBackdrop: View {
         ZStack {
             DesktopBlur(dark: dark)
 
+            // Tint kept minimal so the behind-window blur (the desktop) carries the
+            // look — frosted glass rather than a solid panel.
             LinearGradient(
                 colors: dark
                     ? [Color(hex: 0x12121A), Color(hex: 0x0C0D14), Color(hex: 0x08090E)]
                     : [Color(hex: 0xF4F4F7), Color(hex: 0xECECEF), Color(hex: 0xE6E6EA)],
                 startPoint: .top, endPoint: .bottom
             )
-            .opacity(dark ? 0.82 : 0.72)
+            .opacity(dark ? 0.05 : 0.04)
 
-            RadialGradient(colors: [Color(hex: 0x7E8BF2).opacity(dark ? 0.18 : 0.12), .clear],
+            RadialGradient(colors: [Color(hex: 0x7E8BF2).opacity(dark ? 0.10 : 0.07), .clear],
                            center: .topTrailing, startRadius: 8, endRadius: 280)
-            RadialGradient(colors: [Color(hex: 0xE6885B).opacity(dark ? 0.14 : 0.10), .clear],
+            RadialGradient(colors: [Color(hex: 0xE6885B).opacity(dark ? 0.08 : 0.06), .clear],
                            center: .bottomLeading, startRadius: 8, endRadius: 280)
         }
         .ignoresSafeArea()

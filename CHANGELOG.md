@@ -39,14 +39,12 @@ The same Mimir; just better in every way. 😊
 #### Changed
 - Redesigned popover. Each service now leads with its 5-hour session as a prominent row — name, a big percentage, and a thin progress bar — with the reset countdown and reset time beneath it. Weekly limits sit below as compact rows, each with a status dot, and any purchased usage credit is shown at the bottom. Antigravity lists its Gemini and Claude/GPT sessions separately.
 - Quota level is now colour-coded everywhere (bar, percentage, and weekly dots): green at 50% or above, amber between 15–50%, red below 15%.
-- The popover grows to show everything at once — no more inner scrolling — inside a single frosted-glass panel.
+- The popover grows to show everything at once — no more inner scrolling — and the whole panel is now real glass: the desktop and windows behind it read through, gently blurred.
 
 #### Added
 - Light mode: the popover now follows the system appearance (light or dark).
 - The version badge in the footer checks for updates when you click it; hovering it or the milowda link shows the pointer cursor.
-
-#### Fixed
-- The menu-bar icon shows its low-quota dot when a model drops into the red band (below 15%).
+- A column of three status dots next to the menu-bar icon shows the 5-hour status of Claude, Codex, and Antigravity at a glance (top to bottom) — green, amber, or red. Built for my brother İlker Utlu ([sigortadanismani.com](https://sigortadanismani.com)).
 
 ### [1.13] - 2026-06-17
 
@@ -259,14 +257,12 @@ Aynı Mimir; sadece her şeyiyle daha iyisi. 😊
 #### Değişti
 - Popover yeniden tasarlandı. Her servis artık önce 5 saatlik oturumunu öne çıkan bir satır olarak gösteriyor — isim, büyük bir yüzde ve ince bir ilerleme çubuğu — altında geri sayım ve sıfırlanma saati. Haftalık limitler aşağıda kompakt satırlar olarak, her biri bir durum noktasıyla; satın alınan kullanım kredisi en altta. Antigravity, Gemini ve Claude/GPT oturumlarını ayrı ayrı listeliyor.
 - Kota seviyesi artık her yerde (çubuk, yüzde ve haftalık noktalar) renk kodlu: %50 ve üzeri yeşil, %15–50 arası amber, %15 altı kırmızı.
-- Popover her şeyi tek seferde gösterecek kadar büyüyor — iç kaydırma yok — ve tek bir buzlu cam panelde.
+- Popover her şeyi tek seferde gösterecek kadar büyüyor — iç kaydırma yok — ve panelin tamamı artık gerçek bir cam: arkasındaki masaüstü ve pencereler hafif bulanık şekilde camın ardından görünüyor.
 
 #### Eklendi
 - Açık mod: popover artık sistem görünümünü (açık veya koyu) takip ediyor.
 - Footer'daki sürüm rozetine tıklayınca güncelleme kontrolü yapılıyor; rozetin veya milowda bağlantısının üzerine gelince işaretçi imleci görünüyor.
-
-#### Düzeltildi
-- Menü çubuğu ikonu, bir model kırmızı banda (%15 altı) düştüğünde düşük-kota noktasını gösteriyor.
+- Menü çubuğu ikonunun yanında üç dikey durum noktası: üstten Claude, Codex ve Antigravity'nin 5 saatlik durumunu tek bakışta yeşil/amber/kırmızı gösteriyor. Bu özelliği abim İlker Utlu ([sigortadanismani.com](https://sigortadanismani.com)) için yaptım.
 
 ### [1.13] - 2026-06-17
 
