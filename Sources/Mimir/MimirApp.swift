@@ -731,20 +731,35 @@ private struct ServiceCard: View {
                     .lineLimit(1)
             }
 
-            // One prominent block per session (Claude/Codex: one; Antigravity: two).
-            ForEach(Array(sessionHeroes.enumerated()), id: \.offset) { index, hero in
-                SessionRow(label: hero.label, percent: hero.percent, resetAt: hero.resetAt, now: now)
-                    .padding(.top, index == 0 ? 11 : 13)
-            }
-
-            // Weekly rows: status dot + label + 7g badge + percent + reset countdown.
-            if !weeklyEntries.isEmpty {
-                VStack(spacing: 6) {
-                    ForEach(Array(weeklyEntries.enumerated()), id: \.offset) { _, entry in
-                        weeklyRow(entry)
-                    }
+            if hasServiceQuotas {
+                // Claude / Codex: a single session block, then the weekly rows.
+                ForEach(Array(sessionHeroes.enumerated()), id: \.offset) { index, hero in
+                    SessionRow(label: hero.label, percent: hero.percent, resetAt: hero.resetAt, now: now)
+                        .padding(.top, index == 0 ? 11 : 13)
                 }
-                .padding(.top, 11)
+                if !weeklyEntries.isEmpty {
+                    VStack(spacing: 6) {
+                        ForEach(Array(weeklyEntries.enumerated()), id: \.offset) { _, entry in
+                            weeklyRow(entry)
+                        }
+                    }
+                    .padding(.top, 11)
+                }
+            } else {
+                // Antigravity: group each family's session and weekly together, so a
+                // family's weekly row sits under its own session — not the next family's.
+                ForEach(Array(antigravityFamilies.enumerated()), id: \.offset) { index, family in
+                    VStack(alignment: .leading, spacing: 0) {
+                        if let session = family.session {
+                            SessionRow(label: family.name, percent: session.percent, resetAt: session.resetAt, now: now)
+                        }
+                        if let weekly = family.weekly {
+                            weeklyRow((label: family.name, percent: weekly.percent, resetAt: weekly.resetAt))
+                                .padding(.top, family.session != nil ? 8 : 0)
+                        }
+                    }
+                    .padding(.top, index == 0 ? 11 : 13)
+                }
             }
 
             if let credit = creditEntry {
@@ -806,16 +821,31 @@ private struct ServiceCard: View {
             .map { (label: $0.name, percent: $0.remainingPercent, resetAt: $0.resetAt) }
     }
 
-    /// The prominent 5-hour session block(s). Claude/Codex have one (labelled with the
-    /// service name); Antigravity has one per family (Gemini, Claude/GPT).
+    /// The prominent 5-hour session block (Claude/Codex only — one each).
     private var sessionHeroes: [(label: String, percent: Int, resetAt: Date?)] {
-        if hasServiceQuotas {
-            guard let session = service.sessionRemainingPercent else { return [] }
-            return [(service.name, session, service.sessionResetAt)]
+        guard let session = service.sessionRemainingPercent else { return [] }
+        return [(service.name, session, service.sessionResetAt)]
+    }
+
+    /// Antigravity grouped by family, preserving first-seen order, each family carrying
+    /// its own session (5h) and weekly (7g) so they render together.
+    private var antigravityFamilies: [(name: String, session: (percent: Int, resetAt: Date?)?, weekly: (percent: Int, resetAt: Date?)?)] {
+        var order: [String] = []
+        var sessions: [String: (Int, Date?)] = [:]
+        var weeklies: [String: (Int, Date?)] = [:]
+        for model in service.models where model.valueText == nil {
+            if !order.contains(model.name) { order.append(model.name) }
+            switch model.window {
+            case .session: sessions[model.name] = (model.remainingPercent, model.resetAt)
+            case .weekly:  weeklies[model.name] = (model.remainingPercent, model.resetAt)
+            case .none:    break
+            }
         }
-        return service.models
-            .filter { $0.window == .session }
-            .map { (label: $0.name, percent: $0.remainingPercent, resetAt: $0.resetAt) }
+        return order.map { name in
+            (name: name,
+             session: sessions[name].map { (percent: $0.0, resetAt: $0.1) },
+             weekly: weeklies[name].map { (percent: $0.0, resetAt: $0.1) })
+        }
     }
 
     private var creditEntry: (label: String, value: String)? {
@@ -897,7 +927,9 @@ private struct SessionRow: View {
 
             HStack(spacing: 8) {
                 Label {
-                    Text(relDuration(resetAt, now) ?? "—")
+                    // No reset scheduled (window full / not yet counting down) → show the
+                    // full 5-hour window rather than a bare dash.
+                    Text(relDuration(resetAt, now) ?? TimeFormatter.duration(from: 5 * 3600))
                 } icon: {
                     Image(systemName: "gauge.medium")
                 }
