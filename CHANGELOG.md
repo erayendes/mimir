@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
-### [2.0] - 2026-06-18
+### [2.0] - 2026-06-19
 
 **The best Mimir there has ever been.**
 
@@ -45,6 +45,9 @@ The same Mimir; just better in every way. 😊
 - Light mode: the popover now follows the system appearance (light or dark).
 - The version badge in the footer checks for updates when you click it; hovering it or the milowda link shows the pointer cursor.
 - A column of three status dots next to the menu-bar icon shows the 5-hour status of Claude, Codex, and Antigravity at a glance (top to bottom) — green, amber, or red. Built for my brother İlker Utlu ([sigortadanismani.com](https://sigortadanismani.com)).
+
+#### Fixed
+- The macOS keychain no longer keeps asking for permission to read your Claude Code login. Mimir now reads it in-process instead of through the `security` command-line tool, so "Always Allow" sticks.
 
 ### [1.13] - 2026-06-17
 
@@ -229,7 +232,7 @@ sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) k
 
 ### [Yayımlanmadı]
 
-### [2.0] - 2026-06-18
+### [2.0] - 2026-06-19
 
 **Bugüne kadar gelmiş geçmiş en güzel Mimir.**
 
@@ -263,6 +266,9 @@ Aynı Mimir; sadece her şeyiyle daha iyisi. 😊
 - Açık mod: popover artık sistem görünümünü (açık veya koyu) takip ediyor.
 - Footer'daki sürüm rozetine tıklayınca güncelleme kontrolü yapılıyor; rozetin veya milowda bağlantısının üzerine gelince işaretçi imleci görünüyor.
 - Menü çubuğu ikonunun yanında üç dikey durum noktası: üstten Claude, Codex ve Antigravity'nin 5 saatlik durumunu tek bakışta yeşil/amber/kırmızı gösteriyor. Bu özelliği abim İlker Utlu ([sigortadanismani.com](https://sigortadanismani.com)) için yaptım.
+
+#### Düzeltildi
+- macOS anahtar zinciri, Claude Code girişini okumak için artık sürekli izin sormuyor. Mimir bunu `security` komut satırı aracı yerine uygulama içinden okuyor; böylece "Her Zaman İzin Ver" kalıcı oluyor.
 
 ### [1.13] - 2026-06-17
 
