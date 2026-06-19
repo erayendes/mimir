@@ -7,7 +7,31 @@
     <link>https://github.com/erayendes/mimir</link>
     <description>Mimir update feed</description>
     <language>en</language>
-                        <item>
+                            <item>
+      <title>Mimir 2.1</title>
+      <sparkle:version>2001000</sparkle:version>
+      <sparkle:shortVersionString>2.1</sparkle:shortVersionString>
+      <pubDate>Fri, 19 Jun 2026 12:25:40 +0000</pubDate>
+      <description>
+#### Fixed
+- The macOS keychain no longer keeps asking for permission to read your Claude Code login. Mimir now keeps the token in memory and reads the keychain only at launch and around token expiry, instead of every few minutes.
+- The menu-bar icon shows one status dot per service you actually use — no more grey placeholder dots when you track only one or two of Claude, Codex, and Antigravity.
+
+---
+
+
+#### Düzeltildi
+- macOS anahtar zinciri, Claude Code girişini okumak için artık sürekli izin sormuyor. Mimir token'ı bellekte tutuyor ve keychain'i her birkaç dakikada bir değil, yalnızca açılışta ve token süresi dolarken okuyor.
+- Menü çubuğu ikonu artık gerçekten kullandığın her servis için tek bir durum noktası gösteriyor — Claude, Codex ve Antigravity'den yalnızca birini ya da ikisini takip ederken gri placeholder noktalar çıkmıyor.</description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v2.1/Mimir.zip"
+        sparkle:edSignature="UZ7GhoFe/RxyqXzZeOrBG1VQyh+HOwJ0O/DbcNfJFFzgDkFrBaX0fSGpnitp74pSdbvp3HL+ujqOIvNiuy0fBw=="
+        length="6040918"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 2.0</title>
       <sparkle:version>2000000</sparkle:version>
       <sparkle:shortVersionString>2.0</sparkle:shortVersionString>
