@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+### [2.1] - 2026-06-19
+
+#### Fixed
+- The macOS keychain no longer keeps asking for permission to read your Claude Code login. Mimir now keeps the token in memory and reads the keychain only at launch and around token expiry, instead of every few minutes.
+- The menu-bar icon shows one status dot per service you actually use — no more grey placeholder dots when you track only one or two of Claude, Codex, and Antigravity.
+
 ### [2.0] - 2026-06-19
 
 **The best Mimir there has ever been.**
@@ -231,6 +237,12 @@ Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
 
 ### [Yayımlanmadı]
+
+### [2.1] - 2026-06-19
+
+#### Düzeltildi
+- macOS anahtar zinciri, Claude Code girişini okumak için artık sürekli izin sormuyor. Mimir token'ı bellekte tutuyor ve keychain'i her birkaç dakikada bir değil, yalnızca açılışta ve token süresi dolarken okuyor.
+- Menü çubuğu ikonu artık gerçekten kullandığın her servis için tek bir durum noktası gösteriyor — Claude, Codex ve Antigravity'den yalnızca birini ya da ikisini takip ederken gri placeholder noktalar çıkmıyor.
 
 ### [2.0] - 2026-06-19
 
