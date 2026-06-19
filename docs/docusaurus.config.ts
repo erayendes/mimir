@@ -7,7 +7,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 const config: Config = {
   title: 'Mimir',
   tagline: 'Claude Code, Codex ve Antigravity için menü çubuğu kota takibi',
-  favicon: 'img/favicon.ico',
+  favicon: 'img/favicon.png',
 
   // Future flags, see https://docusaurus.io/docs/api/docusaurus-config#future
   future: {
@@ -24,12 +24,9 @@ const config: Config = {
 
   onBrokenLinks: 'throw',
 
-  // Even if you don't use internationalization, you can use this field to set
-  // useful metadata like html lang. For example, if your site is Chinese, you
-  // may want to replace "en" with "zh-Hans".
   i18n: {
-    defaultLocale: 'en',
-    locales: ['en'],
+    defaultLocale: 'tr',
+    locales: ['tr'],
   },
 
   presets: [
@@ -41,19 +38,7 @@ const config: Config = {
           editUrl:
             'https://github.com/erayendes/mimir/tree/main/docs/',
         },
-        blog: {
-          showReadingTime: true,
-          feedOptions: {
-            type: ['rss', 'atom'],
-            xslt: true,
-          },
-          editUrl:
-            'https://github.com/erayendes/mimir/tree/main/docs/',
-          // Useful options to enforce blogging best practices
-          onInlineTags: 'warn',
-          onInlineAuthors: 'warn',
-          onUntruncatedBlogPosts: 'warn',
-        },
+        blog: false,
         theme: {
           customCss: './src/css/custom.css',
         },
@@ -62,8 +47,7 @@ const config: Config = {
   ],
 
   themeConfig: {
-    // Replace with your project's social card
-    image: 'img/docusaurus-social-card.jpg',
+    image: 'img/mimir-logo.png',
     colorMode: {
       respectPrefersColorScheme: true,
     },
@@ -71,7 +55,7 @@ const config: Config = {
       title: 'Mimir',
       logo: {
         alt: 'Mimir Logo',
-        src: 'img/logo.svg',
+        src: 'img/mimir-logo.png',
       },
       items: [
         {
@@ -80,7 +64,11 @@ const config: Config = {
           position: 'left',
           label: 'Dokümanlar',
         },
-        {to: '/blog', label: 'Blog', position: 'left'},
+        {
+          href: 'https://github.com/erayendes/mimir/releases',
+          label: 'İndir',
+          position: 'right',
+        },
         {
           href: 'https://github.com/erayendes/mimir',
           label: 'GitHub',
@@ -95,8 +83,16 @@ const config: Config = {
           title: 'Dokümanlar',
           items: [
             {
-              label: 'Başlangıç',
+              label: 'Mimir nedir?',
               to: '/docs/intro',
+            },
+            {
+              label: 'Kurulum',
+              to: '/docs/kurulum',
+            },
+            {
+              label: 'Sorun Giderme',
+              to: '/docs/sorun-giderme',
             },
           ],
         },
@@ -108,6 +104,10 @@ const config: Config = {
               href: 'https://github.com/erayendes/mimir',
             },
             {
+              label: 'İndir (Releases)',
+              href: 'https://github.com/erayendes/mimir/releases',
+            },
+            {
               label: 'Sürüm Notları',
               href: 'https://github.com/erayendes/mimir/blob/main/CHANGELOG.md',
             },
@@ -117,8 +117,12 @@ const config: Config = {
           title: 'Daha Fazla',
           items: [
             {
-              label: 'Blog',
-              to: '/blog',
+              label: 'Issue / Yol Haritası',
+              href: 'https://github.com/erayendes/mimir/issues',
+            },
+            {
+              label: 'milowda',
+              href: 'https://milowda.com/apps/mimir',
             },
           ],
         },

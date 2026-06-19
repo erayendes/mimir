@@ -21,7 +21,12 @@ function HomepageHeader() {
           <Link
             className="button button--secondary button--lg"
             to="/docs/intro">
-            Docusaurus Tutorial - 5min ⏱️
+            Mimir nedir? →
+          </Link>
+          <Link
+            className="button button--outline button--secondary button--lg"
+            href="https://github.com/erayendes/mimir/releases">
+            macOS için indir
           </Link>
         </div>
       </div>
@@ -33,8 +38,8 @@ export default function Home(): ReactNode {
   const {siteConfig} = useDocusaurusContext();
   return (
     <Layout
-      title={`Hello from ${siteConfig.title}`}
-      description="Description will go into a meta tag in <head />">
+      title={siteConfig.title}
+      description="Claude, Codex, Gemini ve Antigravity kullanım limitlerinizi macOS menü çubuğundan anlık takip edin.">
       <HomepageHeader />
       <main>
         <HomepageFeatures />

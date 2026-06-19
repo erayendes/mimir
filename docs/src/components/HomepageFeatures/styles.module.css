@@ -5,7 +5,11 @@
   width: 100%;
 }
 
-.featureSvg {
-  height: 200px;
-  width: 200px;
+.featureEmoji {
+  font-size: 4rem;
+  line-height: 1;
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
