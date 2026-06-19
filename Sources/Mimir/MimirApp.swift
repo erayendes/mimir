@@ -318,11 +318,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         checkNotifications()
     }
 
-    /// The 5-hour status colour per service, ordered top→bottom: Claude, Codex,
-    /// Antigravity. `nil` when the service has no current session reading (drawn grey).
-    /// Antigravity has two sessions (Gemini, Claude/GPT) → take the most constrained.
-    private func menuBarDotColors() -> [NSColor?] {
-        ["Claude", "Codex", "Antigravity"].map { name -> NSColor? in
+    /// One 5-hour status colour per service that actually has a session reading, ordered
+    /// top→bottom: Claude, Codex, Antigravity. Services that are absent or have no current
+    /// session reading are omitted entirely (no grey placeholder dot), so the dot count
+    /// matches the number of LLMs in use. Antigravity has two sessions (Gemini, Claude/GPT)
+    /// → take the most constrained.
+    private func menuBarDotColors() -> [NSColor] {
+        let colors = ["Claude", "Codex", "Antigravity"].compactMap { name -> NSColor? in
             guard let svc = store.services.first(where: { $0.name == name }) else { return nil }
             let percent: Int?
             if name == "Antigravity" {
@@ -332,6 +334,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             return percent.map(statusNSColor)
         }
+        return colors
     }
 
     private func statusNSColor(_ percent: Int) -> NSColor {
@@ -342,17 +345,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Menu-bar image: the Mimir glyph plus a vertical column of three status dots
-    /// (Claude / Codex / Antigravity, 5-hour window). Non-template so the dots keep
-    /// their colour; in light mode the glyph is filled black for contrast, in dark
-    /// mode the source artwork is drawn as-is.
-    private func buildMenuBarImage(dotColors: [NSColor?]) -> NSImage {
+    /// Menu-bar image: the Mimir glyph plus a vertical column of status dots — one per
+    /// service that has a 5-hour reading (Claude / Codex / Antigravity, top→bottom). The
+    /// column sizes to the actual dot count and is dropped entirely when there are none, so
+    /// the glyph stays centred. Non-template so the dots keep their colour; in light mode the
+    /// glyph is filled black for contrast, in dark mode the source artwork is drawn as-is.
+    private func buildMenuBarImage(dotColors: [NSColor]) -> NSImage {
         let iconW: CGFloat = 19
         let height: CGFloat = 19
         let gap: CGFloat = 3.5
         let dot: CGFloat = 3.5
         let dotGapV: CGFloat = 2.2
-        let totalW = iconW + gap + dot
+        let n = dotColors.count
+        let totalW = n > 0 ? iconW + gap + dot : iconW
 
         let img = NSImage(size: NSSize(width: totalW, height: height), flipped: false) { [iconSource] _ in
             guard let ctx = NSGraphicsContext.current else { return true }
@@ -373,13 +378,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 NSGraphicsContext.restoreGraphicsState()
             }
 
-            let dotsX = iconW + gap
-            let stackH = dot * 3 + dotGapV * 2
-            var y = (height + stackH) / 2 - dot   // top dot
-            for color in dotColors {
-                (color ?? NSColor.tertiaryLabelColor).setFill()
-                NSBezierPath(ovalIn: NSRect(x: dotsX, y: y, width: dot, height: dot)).fill()
-                y -= dot + dotGapV
+            if n > 0 {
+                let dotsX = iconW + gap
+                let stackH = dot * CGFloat(n) + dotGapV * CGFloat(n - 1)
+                var y = (height + stackH) / 2 - dot   // top dot
+                for color in dotColors {
+                    color.setFill()
+                    NSBezierPath(ovalIn: NSRect(x: dotsX, y: y, width: dot, height: dot)).fill()
+                    y -= dot + dotGapV
+                }
             }
             return true
         }
