@@ -117,24 +117,36 @@ struct LiveUsageDataSource {
             return buildClaudeStatus(from: cached, note: "oauth usage cache").withCooldownHint(0)
         }
 
-        guard var tokenInfo = readClaudeTokenInfo() else {
+        // Reuse the in-memory token while it's comfortably valid, so the keychain — and its macOS
+        // permission prompt — is touched only at launch and around token expiry, not every refresh.
+        var tokenInfo = await Self.claudeTokenCache.get()
+        let needsKeychain = tokenInfo.map { $0.expiresAt.map { $0.timeIntervalSinceNow <= 300 } ?? false } ?? true
+
+        if needsKeychain {
+            guard let read = readClaudeTokenInfo() else {
+                return claudeFailure(note: "claude token missing")
+            }
+            tokenInfo = read
+
+            // Refresh proactively when the freshly-read token is expired or within 5 min of expiry.
+            // Anthropic rotates the refresh token, so `refreshClaudeToken()` writes the new pair back
+            // to the keychain — keeping Claude Code's own login valid. If refresh fails, back off.
+            if let exp = read.expiresAt, exp.timeIntervalSinceNow <= 300 {
+                guard let fresh = await refreshClaudeToken() else {
+                    let note = String(localized: "token expired — open Claude Code")
+                    return claudeFailure(note: note, staleNote: note).withCooldownHint(15 * 60)
+                }
+                tokenInfo = fresh
+            }
+            await Self.claudeTokenCache.set(tokenInfo)
+        }
+
+        guard let token = tokenInfo else {
             return claudeFailure(note: "claude token missing")
         }
 
-        // Refresh proactively when the token is expired or within 5 min of expiry (like Codex /
-        // Antigravity do). Anthropic rotates the refresh token, so `refreshClaudeToken()` writes the
-        // new pair straight back to the keychain — keeping Claude Code's own login valid. If refresh
-        // fails, fall back to last-known data and back off rather than hammering the token endpoint.
-        if let exp = tokenInfo.expiresAt, exp.timeIntervalSinceNow <= 300 {
-            guard let fresh = await refreshClaudeToken() else {
-                let note = String(localized: "token expired — open Claude Code")
-                return claudeFailure(note: note, staleNote: note).withCooldownHint(15 * 60)
-            }
-            tokenInfo = ClaudeToken(accessToken: fresh, expiresAt: nil)
-        }
-
         var req = URLRequest(url: URL(string: "https://api.anthropic.com/api/oauth/usage")!, timeoutInterval: 10)
-        req.setValue("Bearer \(tokenInfo.accessToken)", forHTTPHeaderField: "Authorization")
+        req.setValue("Bearer \(token.accessToken)", forHTTPHeaderField: "Authorization")
         req.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
 
         do {
@@ -143,6 +155,11 @@ struct LiveUsageDataSource {
                 return claudeFailure(note: "claude no http response")
             }
             guard 200 ... 299 ~= http.statusCode else {
+                // A rejected token is likely stale (rotated out by Claude Code); drop the cache so the
+                // next refresh re-reads the keychain instead of replaying the dead token.
+                if http.statusCode == 401 || http.statusCode == 403 {
+                    await Self.claudeTokenCache.set(nil)
+                }
                 // Back off on rate limiting so we stop pounding a 429ing endpoint.
                 let cooldown: TimeInterval? = http.statusCode == 429 ? (retryAfterSeconds(http) ?? 15 * 60) : nil
                 return claudeFailure(note: "claude http \(http.statusCode)").withCooldownHint(cooldown)
@@ -1086,6 +1103,19 @@ struct LiveUsageDataSource {
         let expiresAt: Date?   // nil when the source is a bare token with no expiry metadata
     }
 
+    /// In-memory cache of the Claude OAuth token so the keychain is read only at launch and around
+    /// token expiry — not on every refresh. The "Claude Code-credentials" item is owned by Claude
+    /// Code, which resets the item's ACL each time it rewrites the entry on its own token refresh;
+    /// reading it repeatedly therefore re-triggers the macOS permission prompt. Mirroring Claude
+    /// Code's own "read once, reuse" behaviour keeps that prompt rare. An actor because refreshes
+    /// run off the main thread.
+    private actor ClaudeTokenCache {
+        private var token: ClaudeToken?
+        func get() -> ClaudeToken? { token }
+        func set(_ value: ClaudeToken?) { token = value }
+    }
+    private static let claudeTokenCache = ClaudeTokenCache()
+
     /// Read the Claude Code OAuth token plus its expiry, from the keychain entry
     /// ("Claude Code-credentials") or the `~/.claude/.credentials.json` fallback. `expiresAt`
     /// drives whether `fetchClaude` refreshes before calling the usage API (see `refreshClaudeToken`).
@@ -1216,7 +1246,7 @@ struct LiveUsageDataSource {
     /// Refresh Claude's access token with the stored refresh token, then write the rotated pair back
     /// to the same store so Claude Code's own login keeps working (Anthropic rotates the refresh
     /// token, so persisting it is mandatory). Returns the new access token, or nil on any failure.
-    private func refreshClaudeToken() async -> String? {
+    private func refreshClaudeToken() async -> ClaudeToken? {
         guard let credential = readClaudeCredential(),
               var oauth = credential.root["claudeAiOauth"] as? [String: Any],
               let refresh = oauth["refreshToken"] as? String, !refresh.isEmpty else {
@@ -1249,7 +1279,7 @@ struct LiveUsageDataSource {
         var root = credential.root
         root["claudeAiOauth"] = oauth
         writeClaudeCredential(root, to: credential.source)
-        return newAccess
+        return ClaudeToken(accessToken: newAccess, expiresAt: epochMillisToDate(oauth["expiresAt"]))
     }
 
     private func writeClaudeCredential(_ root: [String: Any], to source: ClaudeCredentialSource) {
