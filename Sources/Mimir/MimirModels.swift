@@ -123,22 +123,33 @@ struct ModelStatus: Identifiable {
 }
 
 enum TimeFormatter {
+    /// Localised single-letter unit suffixes — en: d/h/m, tr: g/s/d.
+    static var dayUnit: String { String(localized: "duration.unit.day") }
+    static var hourUnit: String { String(localized: "duration.unit.hour") }
+    static var minuteUnit: String { String(localized: "duration.unit.minute") }
+
     static func duration(from interval: TimeInterval) -> String {
+        duration(from: interval, day: dayUnit, hour: hourUnit, minute: minuteUnit)
+    }
+
+    /// Unit-injectable core so the numeric breakdown can be unit-tested without a locale,
+    /// and so the localised suffixes are applied in exactly one place.
+    static func duration(from interval: TimeInterval, day: String, hour: String, minute: String) -> String {
         let clamped = max(0, Int(interval.rounded(.down)))
         let days = clamped / 86_400
         let hours = (clamped % 86_400) / 3_600
         let minutes = (clamped % 3_600) / 60
 
         if days > 0 {
-            if hours > 0 { return "\(days)d \(hours)h" }
-            return "\(days)d"
+            if hours > 0 { return "\(days)\(day) \(hours)\(hour)" }
+            return "\(days)\(day)"
         }
 
         if hours > 0 {
-            if minutes > 0 { return "\(hours)h \(minutes)m" }
-            return "\(hours)h"
+            if minutes > 0 { return "\(hours)\(hour) \(minutes)\(minute)" }
+            return "\(hours)\(hour)"
         }
 
-        return "\(max(minutes, 1))m"
+        return "\(max(minutes, 1))\(minute)"
     }
 }

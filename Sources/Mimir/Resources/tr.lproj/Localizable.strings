@@ -7,6 +7,11 @@
 "5s" = "5s";
 "7g" = "7g";
 
+/* Duration unit suffixes (e.g. "5g 3s", "2s 10d") */
+"duration.unit.day" = "g";
+"duration.unit.hour" = "s";
+"duration.unit.minute" = "d";
+
 /* Card layout (v2) */
 "WEEKLY" = "HAFTALIK";
 "5h session" = "5 saatlik oturum";
