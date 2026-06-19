@@ -252,7 +252,7 @@ struct LiveUsageDataSource {
             ?? unavailableService(name: "Claude", iconName: "claude", models: [], note: note)
     }
 
-    private func remainingPercent(fromUsed used: Double) -> Int {
+    func remainingPercent(fromUsed used: Double) -> Int {
         max(0, min(100, Int((100 - used).rounded())))
     }
 
@@ -950,7 +950,7 @@ struct LiveUsageDataSource {
         return CodexWindowSummary(usedPercent: used, resetAt: reset)
     }
 
-    private func codexAPIWindow(_ raw: Any?) -> (usedPercent: Double?, resetAt: Date?) {
+    func codexAPIWindow(_ raw: Any?) -> (usedPercent: Double?, resetAt: Date?) {
         guard let obj = raw as? [String: Any] else {
             return (nil, nil)
         }
@@ -1186,7 +1186,7 @@ struct LiveUsageDataSource {
     }
 
     /// Claude stores `expiresAt` as epoch milliseconds (distinct from the ISO8601 used elsewhere).
-    private func epochMillisToDate(_ raw: Any?) -> Date? {
+    func epochMillisToDate(_ raw: Any?) -> Date? {
         guard let ms = doubleValue(raw), ms > 0 else { return nil }
         return Date(timeIntervalSince1970: ms / 1000)
     }
@@ -1307,7 +1307,7 @@ struct LiveUsageDataSource {
         }
     }
 
-    private func decodeJWTPayload(_ token: String) -> [String: Any]? {
+    func decodeJWTPayload(_ token: String) -> [String: Any]? {
         let parts = token.split(separator: ".")
         guard parts.count >= 2 else { return nil }
         var base64 = String(parts[1])
@@ -1324,7 +1324,7 @@ struct LiveUsageDataSource {
         return payload
     }
 
-    private func jwtExpiry(_ token: String) -> Date? {
+    func jwtExpiry(_ token: String) -> Date? {
         guard let payload = decodeJWTPayload(token),
               let exp = doubleValue(payload["exp"]) else {
             return nil
@@ -1389,7 +1389,7 @@ struct LiveUsageDataSource {
         }
     }
 
-    private func doubleValue(_ raw: Any?) -> Double? {
+    func doubleValue(_ raw: Any?) -> Double? {
         if let value = raw as? Double { return value }
         if let value = raw as? Int { return Double(value) }
         if let value = raw as? NSNumber { return value.doubleValue }
