@@ -4,7 +4,7 @@
 
 🇬🇧 [English](#english) · 🇹🇷 [Türkçe](#türkçe)
 
-![Mimir menu bar](assets/AppIcon.png)
+![Mimir menu bar](assets/mimir_github-social-preview-0.png)
 
 | Light | Dark |
 |:---:|:---:|
