@@ -11,6 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+### [2.2] - 2026-06-21
+
+#### Fixed
+- The menu-bar dots now always match the panel. Every service you're tracking keeps its dot, and a dot turns grey while its 5-hour reading is briefly missing — for example right after the window resets — instead of disappearing. So you'll never again see three services in the panel but only two dots.
+- Mimir no longer pops the macOS keychain permission prompt in the background. It reads your Claude login from the credentials file or its own securely cached token, and only reaches for Claude Code's keychain item when you open Mimir yourself — so glancing at Codex or Antigravity never triggers a Claude prompt.
+
+#### Changed
+- The menu-bar dots are ordered to match the panel top to bottom, and the grey "no data yet" dot stays legible on both the light and dark menu bar.
+
 ### [2.1] - 2026-06-19
 
 #### Fixed
@@ -238,6 +247,15 @@ Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
 
 ### [Yayımlanmadı]
+
+### [2.2] - 2026-06-21
+
+#### Düzeltildi
+- Menü çubuğu noktaları artık panelle her zaman aynı. Takip ettiğin her servis noktasını koruyor; 5 saatlik okuması kısa süre eksikken — örneğin pencere yeni sıfırlandığında — nokta kaybolmak yerine grileşiyor. Yani panelde üç servis varken iki nokta görmeyeceksin.
+- Mimir arka planda artık macOS anahtar zinciri izin penceresini açmıyor. Claude girişini kimlik dosyasından ya da kendi güvenli önbelleğindeki token'dan okuyor ve Claude Code'un anahtar zinciri öğesine yalnızca sen Mimir'i açtığında erişiyor — böylece Codex veya Antigravity'ye göz atmak asla Claude istemi tetiklemiyor.
+
+#### Değiştirildi
+- Menü çubuğu noktaları panelle aynı sırada (üstten alta) diziliyor ve gri "henüz veri yok" noktası hem açık hem koyu menü çubuğunda okunaklı kalıyor.
 
 ### [2.1] - 2026-06-19
 
