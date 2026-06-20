@@ -99,6 +99,32 @@ enum ModelWindow {
     case session
 }
 
+/// The menu-bar status dots, one per service the popover shows, ordered top→bottom to match
+/// the popover's card order (services are name-sorted, so: Antigravity, Claude, Codex) — dot N
+/// then lines up with card N. A service is included on the *same* rule the popover uses
+/// (`isAvailable || isStale`), so the dot count always matches the visible card count —
+/// the source of the "3 cards, 2 dots" bug was the menu bar instead *dropping* a service
+/// that had no 5-hour reading. Each value is the service's **5-hour (session)** remaining
+/// percent, or `nil` when there is no current session reading (its 5h window reset, or live
+/// data couldn't be fetched yet). The menu bar renders `nil` as a neutral grey "no data" dot
+/// and recolours it once the 5h number arrives, so a visible service is never silently
+/// dotless. Pure (no AppKit) so the selection logic is unit-testable.
+func menuBarDots(from services: [ServiceStatus]) -> [Int?] {
+    var dots: [Int?] = []
+    for name in ["Antigravity", "Claude", "Codex"] {
+        guard let svc = services.first(where: { $0.name == name }),
+              svc.isAvailable || svc.isStale else { continue }
+        if name == "Antigravity" {
+            // Two grouped families (Gemini, Claude/GPT); take the most constrained 5h session
+            // row. `.min()` over no session rows is nil → grey, same as Claude/Codex below.
+            dots.append(svc.models.filter { $0.window == .session }.map(\.remainingPercent).min())
+        } else {
+            dots.append(svc.sessionRemainingPercent)
+        }
+    }
+    return dots
+}
+
 struct ModelStatus: Identifiable {
     let id = UUID()
     let name: String

@@ -318,23 +318,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         checkNotifications()
     }
 
-    /// One 5-hour status colour per service that actually has a session reading, ordered
-    /// top→bottom: Claude, Codex, Antigravity. Services that are absent or have no current
-    /// session reading are omitted entirely (no grey placeholder dot), so the dot count
-    /// matches the number of LLMs in use. Antigravity has two sessions (Gemini, Claude/GPT)
-    /// → take the most constrained.
+    /// One colour per dot from `menuBarDots` (the popover-matching service set, ordered to match
+    /// the popover: Antigravity, Claude, Codex). The selection logic lives in that pure helper so it
+    /// can be unit-tested; here we only colour each: a 5-hour percent → its status colour, `nil`
+    /// (no 5h reading yet, or the fetch hasn't landed) → a neutral grey placeholder. It recolours on
+    /// the next refresh.
     private func menuBarDotColors() -> [NSColor] {
-        let colors = ["Claude", "Codex", "Antigravity"].compactMap { name -> NSColor? in
-            guard let svc = store.services.first(where: { $0.name == name }) else { return nil }
-            let percent: Int?
-            if name == "Antigravity" {
-                percent = svc.models.filter { $0.window == .session }.map(\.remainingPercent).min()
-            } else {
-                percent = svc.sessionRemainingPercent
-            }
-            return percent.map(statusNSColor)
-        }
-        return colors
+        menuBarDots(from: store.services).map { $0.map(statusNSColor) ?? Self.noDataDotColor }
+    }
+
+    /// Grey "no data yet" dot for a visible service whose 5-hour reading is missing. Appearance-
+    /// aware (resolved at `setFill` time inside the menu-bar draw pass): a darker grey on the light
+    /// menu bar, a lighter grey on the dark one, so it stays legible either way — unlike the
+    /// saturated status colours, a single fixed grey washes out against one of the two backgrounds.
+    private static let noDataDotColor = NSColor(name: "mimirNoData") { appearance in
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            ? NSColor(hex: 0x9A9AA0)   // lighter grey for the dark menu bar
+            : NSColor(hex: 0x6E6E73)   // darker grey for the light menu bar
     }
 
     private func statusNSColor(_ percent: Int) -> NSColor {
@@ -346,9 +346,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Menu-bar image: the Mimir glyph plus a vertical column of status dots — one per
-    /// service that has a 5-hour reading (Claude / Codex / Antigravity, top→bottom). The
-    /// column sizes to the actual dot count and is dropped entirely when there are none, so
-    /// the glyph stays centred. Non-template so the dots keep their colour; in light mode the
+    /// visible service (Claude / Codex / Antigravity, top→bottom), coloured by its 5-hour
+    /// quota or grey when that reading is missing. The column sizes to the actual dot count
+    /// and is dropped entirely when there are none, so the glyph stays centred. Non-template
+    /// so the dots keep their colour; in light mode the
     /// glyph is filled black for contrast, in dark mode the source artwork is drawn as-is.
     private func buildMenuBarImage(dotColors: [NSColor]) -> NSImage {
         let iconW: CGFloat = 19
