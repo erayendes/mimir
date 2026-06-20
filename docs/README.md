@@ -1,5 +1,3 @@
-<img src="assets/AppIconMark.png" alt="Mimir" width="120" align="right">
-
 # Mimir
 
 🇬🇧 [English](#english) · 🇹🇷 [Türkçe](#türkçe)
