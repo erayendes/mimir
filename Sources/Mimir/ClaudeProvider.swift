@@ -185,9 +185,33 @@ extension LiveUsageDataSource {
         }
         return (bestUtil, resetDates.sorted().first)
     }
-    private struct ClaudeToken {
+    struct ClaudeToken: Equatable {
         let accessToken: String
         let expiresAt: Date?   // nil when the source is a bare token with no expiry metadata
+    }
+
+    /// Pick which Claude token to use from the available sources, in prompt-free-first order:
+    ///   1. the on-disk credential file (`file`) — no keychain prompt;
+    ///   2. Mimir's own cached access token (`mimirCache`) — only while it still has more than
+    ///      5 minutes of validity (it carries no refresh token, so a near-dead one is useless);
+    ///   3. Claude Code's keychain item (`keychain`) — the only prompting source, read solely on a
+    ///      user action (`userInitiated`).
+    /// `mimirCache` and `keychain` are closures so a source is touched only if it's actually reached
+    /// — in particular the keychain (the prompt) is never invoked when a prompt-free source suffices.
+    /// Pure: the ordering/gating rules are testable without the filesystem, the keychain, or the clock.
+    static func selectClaudeToken(
+        file: ClaudeToken?,
+        userInitiated: Bool,
+        now: Date,
+        mimirCache: () -> ClaudeToken?,
+        keychain: () -> ClaudeToken?
+    ) -> ClaudeToken? {
+        if let file { return file }
+        if let cached = mimirCache(), let exp = cached.expiresAt, exp.timeIntervalSince(now) > 300 {
+            return cached
+        }
+        guard userInitiated else { return nil }
+        return keychain()
     }
 
     /// In-memory cache of the Claude OAuth token so the keychain is read only at launch and around
@@ -203,29 +227,21 @@ extension LiveUsageDataSource {
     }
     private static let claudeTokenCache = ClaudeTokenCache()
 
-    /// Read the Claude Code OAuth token plus its expiry, preferring prompt-free sources and
-    /// reaching Claude Code's own keychain item *last* and only on a user action. Order:
-    ///   1. `~/.claude/.credentials.json` — readable without any keychain prompt.
-    ///   2. Mimir's own keychain item — a prompt-free cache of the last access token we read
-    ///      (Mimir owns it). Used only while that access token is still comfortably valid; it
-    ///      carries no refresh token (see `cacheMimirClaudeToken`).
-    ///   3. Claude Code's `Claude Code-credentials` item — the only source that pops the macOS
-    ///      prompt. Read solely when `userInitiated`, never on a background tick.
+    /// Read the Claude Code OAuth token plus its expiry, wiring the live sources (file, Mimir's own
+    /// cache, Claude Code's keychain item) into `selectClaudeToken`, which holds the prompt-free-first
+    /// ordering and the user-action gate. The keychain — the only prompting source — is a closure, so
+    /// it's reached only when no prompt-free source has a usable token and the read is user-initiated.
     /// `expiresAt` drives whether `fetchClaude` refreshes before calling the usage API.
     private func readClaudeTokenInfo(userInitiated: Bool) -> ClaudeToken? {
-        if let info = readClaudeCredentialFileToken() {
-            return info
-        }
-        if let cached = readMimirClaudeToken(),
-           cached.expiresAt.map({ $0.timeIntervalSinceNow > 300 }) ?? false {
-            return cached
-        }
-        guard userInitiated,
-              let raw = readClaudeKeychainItem()?.value,
-              let info = parseClaudeToken(raw.trimmingCharacters(in: .whitespacesAndNewlines)) else {
-            return nil
-        }
-        return info
+        Self.selectClaudeToken(
+            file: readClaudeCredentialFileToken(),
+            userInitiated: userInitiated,
+            now: Date(),
+            mimirCache: { readMimirClaudeToken() },
+            keychain: {
+                guard let raw = readClaudeKeychainItem()?.value else { return nil }
+                return parseClaudeToken(raw.trimmingCharacters(in: .whitespacesAndNewlines))
+            })
     }
 
     /// The OAuth token from the on-disk credential file only (no keychain, so no prompt).
