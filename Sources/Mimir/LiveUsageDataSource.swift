@@ -11,7 +11,10 @@ final class UsageStore: ObservableObject {
     /// token; cleared on the next live success). Stops Mimir hammering a failing endpoint.
     private var cooldownUntil: [String: Date] = [:]
 
-    func refresh() {
+    /// `userInitiated` is forwarded to the Claude fetch so it knows whether it may read Claude
+    /// Code's own keychain item (the prompt-triggering source). The 60s background timer passes
+    /// `false`; opening the menu-bar panel passes `true`. See `fetchClaude(userInitiated:)`.
+    func refresh(userInitiated: Bool = false) {
         guard !isRefreshing else { return }
         isRefreshing = true
         let now = Date()
@@ -19,7 +22,7 @@ final class UsageStore: ObservableObject {
         let source = self.source
         Task {
             let result = await Task.detached(priority: .userInitiated) {
-                await source.fetchAll(skip: skip).sorted { $0.name < $1.name }
+                await source.fetchAll(skip: skip, userInitiated: userInitiated).sorted { $0.name < $1.name }
             }.value
             for status in result { self.applyCooldownOutcome(status) }
             self.services = result
@@ -84,12 +87,12 @@ struct LiveUsageDataSource {
     /// Fetch every service. Services named in `skip` are in a fetch cooldown (e.g. after a 429)
     /// and are served from their snapshot instead of hitting the network. A live fetch that times
     /// out also falls back to the snapshot, so a transient failure never empties a card.
-    func fetchAll(skip: Set<String> = []) async -> [ServiceStatus] {
+    func fetchAll(skip: Set<String> = [], userInitiated: Bool = false) async -> [ServiceStatus] {
         let order = ["Antigravity", "Claude", "Codex"]
         return await withTaskGroup(of: ServiceStatus.self) { group in
             group.addTask {
                 if skip.contains("Claude") { return self.snapshotOrFallback("Claude", iconName: "claude") }
-                return await withTimeout(seconds: 8) { await fetchClaude() }
+                return await withTimeout(seconds: 8) { await fetchClaude(userInitiated: userInitiated) }
                     ?? self.snapshotOrFallback("Claude", iconName: "claude")
             }
             group.addTask {

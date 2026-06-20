@@ -213,7 +213,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if panel.isVisible {
             hidePanel()
         } else {
-            store.refresh()
+            // Opening the panel is a deliberate user action, so this refresh is allowed to read
+            // Claude Code's keychain item if needed (the only path that can prompt). The 60s
+            // background timer and the launch refresh stay prompt-free (userInitiated: false).
+            store.refresh(userInitiated: true)
             refreshStatusTitle()
             showPanel()
         }

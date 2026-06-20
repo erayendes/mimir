@@ -2,7 +2,12 @@ import Foundation
 import Security
 
 extension LiveUsageDataSource {
-    func fetchClaude() async -> ServiceStatus {
+    /// `userInitiated` gates whether this fetch may read Claude Code's *own* keychain item — the
+    /// only source that pops the macOS permission prompt, because Claude Code resets the item's ACL
+    /// (wiping our "Always Allow") every time it rotates its token. A background tick passes `false`
+    /// and stays on prompt-free sources (usage cache, the on-disk credential file, Mimir's own token
+    /// cache); only a real user action — opening Mimir — passes `true` and may read that item.
+    func fetchClaude(userInitiated: Bool) async -> ServiceStatus {
         if let cached = readClaudeUsageCache(maxAge: 5 * 60) {
             return buildClaudeStatus(from: cached, note: "oauth usage cache").withCooldownHint(0)
         }
@@ -13,22 +18,32 @@ extension LiveUsageDataSource {
         let needsKeychain = tokenInfo.map { $0.expiresAt.map { $0.timeIntervalSinceNow <= 300 } ?? false } ?? true
 
         if needsKeychain {
-            guard let read = readClaudeTokenInfo() else {
-                return claudeFailure(note: "claude token missing")
+            guard let read = readClaudeTokenInfo(userInitiated: userInitiated) else {
+                // No prompt-free source had a usable token. We deliberately did NOT read Claude
+                // Code's keychain item in the background; opening Mimir (a user action) will.
+                let note = userInitiated
+                    ? String(localized: "claude token missing")
+                    : String(localized: "open Mimir to refresh Claude")
+                return claudeFailure(note: note)
             }
             tokenInfo = read
 
             // Refresh proactively when the freshly-read token is expired or within 5 min of expiry.
             // Anthropic rotates the refresh token, so `refreshClaudeToken()` writes the new pair back
-            // to the keychain — keeping Claude Code's own login valid. If refresh fails, back off.
+            // to the source it came from — keeping Claude Code's own login valid. If refresh fails,
+            // back off. Background refresh only has the file as a refresh source (the keychain is
+            // gated), so a keychain-only setup defers its refresh to the next time Mimir is opened.
             if let exp = read.expiresAt, exp.timeIntervalSinceNow <= 300 {
-                guard let fresh = await refreshClaudeToken() else {
+                guard let fresh = await refreshClaudeToken(userInitiated: userInitiated) else {
                     let note = String(localized: "token expired — open Claude Code")
                     return claudeFailure(note: note, staleNote: note).withCooldownHint(15 * 60)
                 }
                 tokenInfo = fresh
             }
             await Self.claudeTokenCache.set(tokenInfo)
+            // Mirror the access token into Mimir's own keychain item so the next background tick can
+            // reuse it without prompting (see cacheMimirClaudeToken — access token only, no refresh).
+            if let tokenInfo { cacheMimirClaudeToken(tokenInfo) }
         }
 
         guard let token = tokenInfo else {
@@ -45,10 +60,13 @@ extension LiveUsageDataSource {
                 return claudeFailure(note: "claude no http response")
             }
             guard 200 ... 299 ~= http.statusCode else {
-                // A rejected token is likely stale (rotated out by Claude Code); drop the cache so the
-                // next refresh re-reads the keychain instead of replaying the dead token.
+                // A rejected token is likely stale (rotated out by Claude Code); drop both caches so
+                // the next refresh re-reads a fresh token instead of replaying the dead one. Dropping
+                // Mimir's own cache is load-bearing in the background: the keychain that holds a fresh
+                // token is gated to user actions, so a kept-but-dead cache would 401 on every tick.
                 if http.statusCode == 401 || http.statusCode == 403 {
                     await Self.claudeTokenCache.set(nil)
+                    deleteMimirClaudeToken()
                 }
                 // Back off on rate limiting so we stop pounding a 429ing endpoint.
                 let cooldown: TimeInterval? = http.statusCode == 429 ? (retryAfterSeconds(http) ?? 15 * 60) : nil
@@ -185,15 +203,33 @@ extension LiveUsageDataSource {
     }
     private static let claudeTokenCache = ClaudeTokenCache()
 
-    /// Read the Claude Code OAuth token plus its expiry, from the keychain entry
-    /// ("Claude Code-credentials") or the `~/.claude/.credentials.json` fallback. `expiresAt`
-    /// drives whether `fetchClaude` refreshes before calling the usage API (see `refreshClaudeToken`).
-    private func readClaudeTokenInfo() -> ClaudeToken? {
-        if let raw = readClaudeKeychainItem()?.value,
-           let info = parseClaudeToken(raw.trimmingCharacters(in: .whitespacesAndNewlines)) {
+    /// Read the Claude Code OAuth token plus its expiry, preferring prompt-free sources and
+    /// reaching Claude Code's own keychain item *last* and only on a user action. Order:
+    ///   1. `~/.claude/.credentials.json` — readable without any keychain prompt.
+    ///   2. Mimir's own keychain item — a prompt-free cache of the last access token we read
+    ///      (Mimir owns it). Used only while that access token is still comfortably valid; it
+    ///      carries no refresh token (see `cacheMimirClaudeToken`).
+    ///   3. Claude Code's `Claude Code-credentials` item — the only source that pops the macOS
+    ///      prompt. Read solely when `userInitiated`, never on a background tick.
+    /// `expiresAt` drives whether `fetchClaude` refreshes before calling the usage API.
+    private func readClaudeTokenInfo(userInitiated: Bool) -> ClaudeToken? {
+        if let info = readClaudeCredentialFileToken() {
             return info
         }
+        if let cached = readMimirClaudeToken(),
+           cached.expiresAt.map({ $0.timeIntervalSinceNow > 300 }) ?? false {
+            return cached
+        }
+        guard userInitiated,
+              let raw = readClaudeKeychainItem()?.value,
+              let info = parseClaudeToken(raw.trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            return nil
+        }
+        return info
+    }
 
+    /// The OAuth token from the on-disk credential file only (no keychain, so no prompt).
+    private func readClaudeCredentialFileToken() -> ClaudeToken? {
         let credPath = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/.credentials.json")
         guard let data = try? Data(contentsOf: credPath),
               let raw = String(data: data, encoding: .utf8) else { return nil }
@@ -282,31 +318,35 @@ extension LiveUsageDataSource {
         return (value, dict[kSecAttrAccount as String] as? String)
     }
 
-    /// Read the full Claude credential JSON and remember where it came from, so a refreshed token
-    /// can be written back to the same store (preserving the rest of the blob, e.g. `mcpOAuth`).
-    private func readClaudeCredential() -> (root: [String: Any], source: ClaudeCredentialSource)? {
-        if let item = readClaudeKeychainItem(),
-           let data = item.value.trimmingCharacters(in: .whitespacesAndNewlines).data(using: .utf8),
-           let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           root["claudeAiOauth"] != nil {
-            // SecItemUpdate locates the entry to rewrite by account; fall back to the login name.
-            if let account = item.account ?? (NSUserName().isEmpty ? nil : NSUserName()) {
-                return (root, .keychain(account: account))
-            }
-        }
+    /// Read the full Claude credential JSON (which carries the refresh token) and remember where it
+    /// came from, so a refreshed token can be written back to the same store (preserving the rest of
+    /// the blob, e.g. `mcpOAuth`). The on-disk file is tried first because it never prompts; Claude
+    /// Code's keychain item is reached only on a user action (`userInitiated`), since reading it pops
+    /// the macOS permission prompt. A background refresh therefore only succeeds on a file-backed
+    /// setup — a keychain-only login defers its refresh to the next time the user opens Mimir.
+    private func readClaudeCredential(userInitiated: Bool) -> (root: [String: Any], source: ClaudeCredentialSource)? {
         let url = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/.credentials.json")
         if let data = try? Data(contentsOf: url),
            let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
             return (root, .file(url))
         }
-        return nil
+        guard userInitiated,
+              let item = readClaudeKeychainItem(),
+              let data = item.value.trimmingCharacters(in: .whitespacesAndNewlines).data(using: .utf8),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              root["claudeAiOauth"] != nil,
+              // SecItemUpdate locates the entry to rewrite by account; fall back to the login name.
+              let account = item.account ?? (NSUserName().isEmpty ? nil : NSUserName()) else {
+            return nil
+        }
+        return (root, .keychain(account: account))
     }
 
     /// Refresh Claude's access token with the stored refresh token, then write the rotated pair back
     /// to the same store so Claude Code's own login keeps working (Anthropic rotates the refresh
     /// token, so persisting it is mandatory). Returns the new access token, or nil on any failure.
-    private func refreshClaudeToken() async -> ClaudeToken? {
-        guard let credential = readClaudeCredential(),
+    private func refreshClaudeToken(userInitiated: Bool) async -> ClaudeToken? {
+        guard let credential = readClaudeCredential(userInitiated: userInitiated),
               var oauth = credential.root["claudeAiOauth"] as? [String: Any],
               let refresh = oauth["refreshToken"] as? String, !refresh.isEmpty else {
             return nil
@@ -338,7 +378,67 @@ extension LiveUsageDataSource {
         var root = credential.root
         root["claudeAiOauth"] = oauth
         writeClaudeCredential(root, to: credential.source)
-        return ClaudeToken(accessToken: newAccess, expiresAt: epochMillisToDate(oauth["expiresAt"]))
+        let token = ClaudeToken(accessToken: newAccess, expiresAt: epochMillisToDate(oauth["expiresAt"]))
+        cacheMimirClaudeToken(token)   // keep the prompt-free background cache in sync
+        return token
+    }
+
+    static let mimirClaudeKeychainService = "Mimir-claude-oauth"
+
+    /// Cache ONLY the short-lived access token (+ its expiry) in Mimir's OWN keychain item. We never
+    /// store the refresh token here: refresh tokens rotate single-use and are shared with Claude
+    /// Code, so refreshing from a private copy would silently invalidate Claude Code's own login.
+    /// This item is owned by Mimir, so reading it back never prompts — it lets a background tick
+    /// reuse a still-valid access token instead of reaching for Claude Code's keychain item.
+    private func cacheMimirClaudeToken(_ token: ClaudeToken) {
+        guard let expiresAt = token.expiresAt else { return }  // nothing to expiry-check → don't cache
+        let payload: [String: Any] = [
+            "accessToken": token.accessToken,
+            "expiresAt": Int(expiresAt.timeIntervalSince1970 * 1000)
+        ]
+        guard let data = try? JSONSerialization.data(withJSONObject: payload) else { return }
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: Self.mimirClaudeKeychainService,
+            kSecAttrAccount as String: NSUserName()
+        ]
+        if SecItemUpdate(query as CFDictionary, [kSecValueData as String: data] as CFDictionary) == errSecItemNotFound {
+            var add = query
+            add[kSecValueData as String] = data
+            // Background refreshes run while the screen may be locked, so the item must be readable
+            // after the first unlock — not only while unlocked (the SecItemAdd default).
+            add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+            SecItemAdd(add as CFDictionary, nil)
+        }
+    }
+
+    /// Drop Mimir's cached access token. Called when the server rejects it (401/403): otherwise a
+    /// background tick would keep replaying the dead token, since the keychain holding a fresh one is
+    /// read only on a user action. Safe to call when the item is absent (`SecItemDelete` no-ops).
+    private func deleteMimirClaudeToken() {
+        SecItemDelete([
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: Self.mimirClaudeKeychainService
+        ] as CFDictionary)
+    }
+
+    /// Read Mimir's own cached access token (prompt-free — Mimir owns this item). Returns nil when
+    /// the item is missing or malformed; the caller checks `expiresAt` before trusting it.
+    private func readMimirClaudeToken() -> ClaudeToken? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: Self.mimirClaudeKeychainService,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        var result: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+              let data = result as? Data,
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let access = obj["accessToken"] as? String, !access.isEmpty else {
+            return nil
+        }
+        return ClaudeToken(accessToken: access, expiresAt: epochMillisToDate(obj["expiresAt"]))
     }
 
     private func writeClaudeCredential(_ root: [String: Any], to source: ClaudeCredentialSource) {
