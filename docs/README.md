@@ -6,10 +6,6 @@
 
 ![Mimir menu bar](assets/mimir_github-social-preview-0.png)
 
-| Light | Dark |
-|:---:|:---:|
-| ![Light mode](assets/light_mimir.png) | ![Dark mode](assets/dark_mimir.png) |
-
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../LICENSE)
 [![Platform](https://img.shields.io/badge/platform-macOS%2014%2B-blue)](https://developer.apple.com/macos/)
 [![Swift](https://img.shields.io/badge/Swift-6.0-orange.svg)](https://swift.org)
