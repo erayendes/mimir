@@ -1,11 +1,6 @@
----
-id: codex
-title: Codex
-sidebar_label: Codex
-description: Mimir'in Codex (ChatGPT) kota ve kredilerini nasıl okuduğu.
----
-
 # Codex
+
+> [İçindekiler](../README.md) · Servisler: [Claude](claude.md) · **Codex** · [Antigravity →](antigravity.md)
 
 Mimir, **Codex** için seans ve haftalık kotaları gösterir. İki kaynağı sırayla dener.
 
@@ -26,9 +21,7 @@ Mimir önce **canlı ChatGPT kullanım API'sini** sorgular. Başarısız olursa,
 
 değerlerini çıkarır ve kalan yüzdeleri ile sıfırlanma zamanlarını hesaplar.
 
-:::note
-Yerel dosyada sıfırlanma zamanı bulunamazsa kart yine kalan yüzdeyi gösterir, ancak geri sayım gösterilmeyebilir (kart bunu bir notla belirtir).
-:::
+> 📝 **Not:** Yerel dosyada sıfırlanma zamanı bulunamazsa kart yine kalan yüzdeyi gösterir, ancak geri sayım gösterilmeyebilir (kart bunu bir notla belirtir).
 
 ## Gösterilen bilgiler
 
@@ -44,6 +37,4 @@ Yerel dosyada sıfırlanma zamanı bulunamazsa kart yine kalan yüzdeyi gösteri
 | Geri sayım görünmüyor | Yerel dosyada sıfırlanma zamanı bulunamadı; yüzde yine de gösterilir |
 | Veri eski | API erişilemiyor olabilir; Mimir yerel yedeği veya son snapshot'ı gösterir |
 
-:::info Gizlilik
-Tüm okuma yereldir. Bkz. [Gizlilik ve Güvenlik](../gizlilik.md).
-:::
+> 🔒 **Gizlilik:** Tüm okuma yereldir. Bkz. [Gizlilik ve Güvenlik](../gizlilik.md).

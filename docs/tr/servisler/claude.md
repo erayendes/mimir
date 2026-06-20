@@ -1,11 +1,6 @@
----
-id: claude
-title: Claude
-sidebar_label: Claude
-description: Mimir'in Claude Code kullanım limitlerini nasıl okuduğu ve gösterdiği.
----
-
 # Claude
+
+> [İçindekiler](../README.md) · Servisler: **Claude** · [Codex →](codex.md) · [Antigravity →](antigravity.md)
 
 Mimir, **Claude Code**'un kullanım limitlerini gösterir: seans (5 saatlik) ve haftalık pencereler ile yenilenme zamanları.
 
@@ -44,6 +39,4 @@ Bu durumda Claude Code'u bir kez açıp giriş yapmanız yeterlidir; Mimir bir s
 | "token süresi doldu" notu | Claude Code'u açın; token yenilenince düzelir |
 | Veri donuk / soluk | Geçici hata ya da hız sınırı; Mimir son bilinen veriyi gösterir, kısa süre sonra yeniler |
 
-:::info Gizlilik
-Token ve kullanım verisi yalnızca makinenizde işlenir; Anthropic dışındaki hiçbir sunucuya gönderilmez. Bkz. [Gizlilik ve Güvenlik](../gizlilik.md).
-:::
+> 🔒 **Gizlilik:** Token ve kullanım verisi yalnızca makinenizde işlenir; Anthropic dışındaki hiçbir sunucuya gönderilmez. Bkz. [Gizlilik ve Güvenlik](../gizlilik.md).

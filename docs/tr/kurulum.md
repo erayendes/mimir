@@ -1,11 +1,6 @@
----
-id: kurulum
-title: Kurulum
-sidebar_label: Kurulum
-description: Mimir'i indirip kurmanın veya kaynaktan derlemenin yolları.
----
-
 # Kurulum
+
+> [İçindekiler](README.md) · Sonraki: [Menü çubuğunu okuma →](menu-cubugu.md)
 
 ## Gereksinimler
 
@@ -18,9 +13,7 @@ description: Mimir'i indirip kurmanın veya kaynaktan derlemenin yolları.
 2. `.dmg`'yi açın ve **Mimir.app**'i **Uygulamalar** klasörünüze sürükleyin.
 3. Mimir'i çalıştırın — menü çubuğunda Mimir ikonu belirir.
 
-:::info Notarize edilmiştir
-Dağıtılan sürümler Apple tarafından **notarize** edilir; Gatekeeper uyarısı almazsınız. (Sürümler tamamen CI üzerinde imzalanıp notarize edilir.)
-:::
+> ℹ️ **Notarize edilmiştir** — Dağıtılan sürümler Apple tarafından notarize edilir; Gatekeeper uyarısı almazsınız. (Sürümler tamamen CI üzerinde imzalanıp notarize edilir.)
 
 ## Seçenek 2 — Kaynaktan derle
 
@@ -46,9 +39,9 @@ Mimir ilk açıldığında, **oturum açıldığında otomatik başlatma** (Laun
 
 İlk açılışta servislerin görünmesi için ilgili AI araçlarına en az bir kez giriş yapmış olmanız gerekir (Mimir o araçların oluşturduğu yerel verileri okur). Detaylar için her servisin kendi sayfasına bakın:
 
-- [Claude](./servisler/claude.md)
-- [Codex](./servisler/codex.md)
-- [Antigravity](./servisler/antigravity.md)
+- [Claude](servisler/claude.md)
+- [Codex](servisler/codex.md)
+- [Antigravity](servisler/antigravity.md)
 
 ## Güncelleme
 
@@ -56,4 +49,4 @@ Mimir, **Sparkle** ile kendi içinden güncellenir. Açılır penceredeki menüd
 
 ---
 
-Kurulum tamam → **[Menü çubuğunu okuma](./menu-cubugu.md)**.
+Takıldığınız bir nokta olursa → [Destek & SSS](../../SUPPORT.md). Kurulum tamamsa → **[Menü çubuğunu okuma](menu-cubugu.md)**.

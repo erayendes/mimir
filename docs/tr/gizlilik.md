@@ -1,11 +1,6 @@
----
-id: gizlilik
-title: Gizlilik ve Güvenlik
-sidebar_label: Gizlilik ve Güvenlik
-description: Mimir hangi verileri okur, nereye gönderir (göndermez) ve neden güvenlidir.
----
-
 # Gizlilik ve Güvenlik
+
+> [İçindekiler](README.md) · Önceki: [← Menü çubuğu](menu-cubugu.md)
 
 Mimir, **gizlilik odaklı** tasarlanmıştır. Temel ilke basittir:
 

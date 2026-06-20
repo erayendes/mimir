@@ -1,11 +1,6 @@
----
-id: antigravity
-title: Antigravity
-sidebar_label: Antigravity
-description: Mimir'in Antigravity grup kotalarını (Gemini / Claude+GPT) nasıl okuduğu.
----
-
 # Antigravity
+
+> [İçindekiler](../README.md) · Servisler: [Claude](claude.md) · [Codex](codex.md) · **Antigravity**
 
 Mimir, **Antigravity** için grup bazlı kotaları gösterir. Antigravity kotayı artık per-model değil, **paylaşılan grup havuzları** üzerinden yönetir:
 
@@ -45,6 +40,4 @@ Antigravity IDE'si veya Cockpit kapalıyken canlı veri alınamaz. Bu durumda:
 | Veri soluk görünüyor | IDE/Cockpit kapandı; son snapshot gösteriliyor |
 | Kotalar beklenenden farklı | Antigravity grup havuzu mantığı kullanır; per-model değil grup bazında okuyun |
 
-:::info Gizlilik
-Token alışverişi ve okuma yereldir/yetkili uç noktalarladır; kişisel veriniz üçüncü taraflara gönderilmez. Bkz. [Gizlilik ve Güvenlik](../gizlilik.md).
-:::
+> 🔒 **Gizlilik:** Token alışverişi ve okuma yereldir/yetkili uç noktalarladır; kişisel veriniz üçüncü taraflara gönderilmez. Bkz. [Gizlilik ve Güvenlik](../gizlilik.md).

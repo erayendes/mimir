@@ -1,13 +1,10 @@
----
-id: menu-cubugu
-title: Menü çubuğunu okuma
-sidebar_label: Menü çubuğu
-description: Menü çubuğundaki renkli noktalar, açılır pencere (popover) ve durum renkleri ne anlama gelir?
----
-
 # Menü çubuğunu okuma
 
+> [İçindekiler](README.md) · Önceki: [← Kurulum](kurulum.md) · Sonraki: [Servisler → Claude →](servisler/claude.md)
+
 Mimir'in tüm arayüzü menü çubuğunda yaşar: küçük bir **Mimir simgesi** ve onun yanında dikey bir **renkli nokta sütunu**.
+
+![Mimir popover](../assets/popover.png)
 
 ## Renkli noktalar
 
@@ -17,9 +14,7 @@ Simgenin yanındaki her nokta, **5 saatlik seans penceresine** sahip bir servisi
 2. **Codex**
 3. **Antigravity** (iki grup kotası vardır — Gemini ve Claude/GPT; nokta **en kısıtlı** olanı yansıtır)
 
-:::note
-Yalnızca o an **aktif seans okuması olan** servisler için nokta gösterilir. Kurulu olmayan veya güncel okuması bulunmayan servisler için gri yer tutucu **konmaz** — yani nokta sayısı kullandığınız LLM sayısına eşittir.
-:::
+> 📝 **Not:** Yalnızca o an **aktif seans okuması olan** servisler için nokta gösterilir. Kurulu olmayan veya güncel okuması bulunmayan servisler için gri yer tutucu **konmaz** — yani nokta sayısı kullandığınız LLM sayısına eşittir.
 
 ### Nokta renkleri
 
@@ -58,4 +53,4 @@ Canlı kaynak ortadan kalktığında (ör. Antigravity IDE'si kapandı) servis *
 
 ---
 
-Servislerin tek tek nasıl beslendiğini öğrenmek için → **[Servisler](./servisler/claude.md)**.
+Servislerin tek tek nasıl beslendiğini öğrenmek için → **[Servisler: Claude](servisler/claude.md)**.
