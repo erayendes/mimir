@@ -208,7 +208,8 @@ The same Mimir; just better in every way. 😊
 - Build and install script (`script/build_and_run.sh`)
 - Automated DMG release pipeline via GitHub Actions
 
-[Unreleased]: https://github.com/erayendes/mimir/compare/v2.0...HEAD
+[Unreleased]: https://github.com/erayendes/mimir/compare/v2.1...HEAD
+[2.1]: https://github.com/erayendes/mimir/compare/v2.0...v2.1
 [2.0]: https://github.com/erayendes/mimir/compare/v1.13...v2.0
 [1.13]: https://github.com/erayendes/mimir/compare/v1.12...v1.13
 [1.12]: https://github.com/erayendes/mimir/compare/v1.11...v1.12

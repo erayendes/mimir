@@ -46,7 +46,7 @@ This app runs entirely locally and sends no data over the network. Security conc
 
 | Sürüm | Destek durumu |
 |---|---|
-| 1.1.x | Aktif destek |
+| 1.x | Aktif destek |
 | 1.0.x | Kritik yamalar |
 | < 1.0 | Destek yok |
 

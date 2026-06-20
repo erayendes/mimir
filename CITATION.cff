@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "Mimir"
+abstract: "A lightweight macOS menu bar app that tracks AI tool usage limits (Claude, Codex, Gemini, Antigravity) in real time."
+type: software
+authors:
+  - family-names: "Endes"
+    given-names: "Eray"
+    alias: "erayendes"
+repository-code: "https://github.com/erayendes/mimir"
+url: "https://github.com/erayendes/mimir"
+license: MIT
+keywords:
+  - macOS
+  - menu-bar
+  - swift
+  - ai
+  - usage-tracking

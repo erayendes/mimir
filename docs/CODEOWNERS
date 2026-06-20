@@ -1,0 +1,9 @@
+# CODEOWNERS — automatic review requests.
+# Each line maps a path pattern to one or more owners.
+# Docs: https://docs.github.com/articles/about-code-owners
+
+# Default owner for everything in the repository
+*       @erayendes
+
+# Documentation
+/docs/  @erayendes
