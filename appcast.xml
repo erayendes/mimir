@@ -7,7 +7,37 @@
     <link>https://github.com/erayendes/mimir</link>
     <description>Mimir update feed</description>
     <language>en</language>
-                            <item>
+                                <item>
+      <title>Mimir 2.2</title>
+      <sparkle:version>2002000</sparkle:version>
+      <sparkle:shortVersionString>2.2</sparkle:shortVersionString>
+      <pubDate>Sat, 20 Jun 2026 21:42:58 +0000</pubDate>
+      <description>
+#### Fixed
+- The menu-bar dots now always match the panel. Every service you're tracking keeps its dot, and a dot turns grey while its 5-hour reading is briefly missing — for example right after the window resets — instead of disappearing. So you'll never again see three services in the panel but only two dots.
+- Mimir no longer pops the macOS keychain permission prompt in the background. It reads your Claude login from the credentials file or its own securely cached token, and only reaches for Claude Code's keychain item when you open Mimir yourself — so glancing at Codex or Antigravity never triggers a Claude prompt.
+
+#### Changed
+- The menu-bar dots are ordered to match the panel top to bottom, and the grey "no data yet" dot stays legible on both the light and dark menu bar.
+
+---
+
+
+#### Düzeltildi
+- Menü çubuğu noktaları artık panelle her zaman aynı. Takip ettiğin her servis noktasını koruyor; 5 saatlik okuması kısa süre eksikken — örneğin pencere yeni sıfırlandığında — nokta kaybolmak yerine grileşiyor. Yani panelde üç servis varken iki nokta görmeyeceksin.
+- Mimir arka planda artık macOS anahtar zinciri izin penceresini açmıyor. Claude girişini kimlik dosyasından ya da kendi güvenli önbelleğindeki token'dan okuyor ve Claude Code'un anahtar zinciri öğesine yalnızca sen Mimir'i açtığında erişiyor — böylece Codex veya Antigravity'ye göz atmak asla Claude istemi tetiklemiyor.
+
+#### Değiştirildi
+- Menü çubuğu noktaları panelle aynı sırada (üstten alta) diziliyor ve gri "henüz veri yok" noktası hem açık hem koyu menü çubuğunda okunaklı kalıyor.</description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v2.2/Mimir.zip"
+        sparkle:edSignature="BhriRD5Y/hN0cwywmbJ/EhnVMu/MEYJXI7BEuhuDG/CaQUPkUK/n94q/Mqa8A0ePS1HhWo02fwXbEw/wshS/DA=="
+        length="6048578"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 2.1</title>
       <sparkle:version>2001000</sparkle:version>
       <sparkle:shortVersionString>2.1</sparkle:shortVersionString>
