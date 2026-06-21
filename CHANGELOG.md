@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+### [2.2.1] - 2026-06-21
+
+#### Fixed
+- The menu-bar status dots are back in the same order as the panel (Claude, Codex, Antigravity, top to bottom), so a dot's colour always lines up with the right service. A 2.2 regression could show, for example, a yellow Antigravity dot at the top while its card sat at the bottom of the panel.
+
 ### [2.2] - 2026-06-21
 
 #### Fixed
@@ -247,6 +252,11 @@ Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
 
 ### [Yayımlanmadı]
+
+### [2.2.1] - 2026-06-21
+
+#### Düzeltildi
+- Menü çubuğu durum noktaları yine panelle aynı sırada (üstten alta: Claude, Codex, Antigravity), böylece bir noktanın rengi her zaman doğru servisle hizalanıyor. 2.2'deki bir hata, örneğin sarı Antigravity noktasını en üstte gösterirken kartını panelin en altında bırakabiliyordu.
 
 ### [2.2] - 2026-06-21
 
