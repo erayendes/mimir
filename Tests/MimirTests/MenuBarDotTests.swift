@@ -1,10 +1,11 @@
 import XCTest
 @testable import Mimir
 
-/// `menuBarDots` must emit exactly one dot per service the popover shows, so the menu-bar dot
-/// count can never drift below the visible card count (the "3 cards, 2 dots" regression). A dot
-/// reflects the service's 5-hour (session) reading; when that reading is missing the entry is
-/// `nil`, which the menu bar paints grey ("no data yet") rather than dropping the dot.
+/// `menuBarDots` emits one dot per **5-hour session window** the popover shows, in popover order
+/// (Claude, Codex, then each Antigravity family). A multi-family service like Antigravity expands
+/// to one dot per family instead of collapsing to the worst — so Gemini and Claude/GPT show
+/// separately. A missing 5h reading is `nil` (painted grey), never a dropped dot.
+/// `menuBarColumnCount` is the grid rule: 1 column up to 3 dots, 2 columns from 4 on.
 final class MenuBarDotTests: XCTestCase {
     private func service(
         _ name: String,
@@ -21,47 +22,49 @@ final class MenuBarDotTests: XCTestCase {
             models: models, isAvailable: isAvailable, statusNote: nil, isStale: isStale)
     }
 
-    /// The reported bug: Claude has only a weekly reading (its 5h window reset), Codex and
-    /// Antigravity have fresh sessions. All three are visible → all three get an entry; Claude's
-    /// is `nil` (grey), not dropped.
-    func testWeeklyOnlyServiceShowsAGreyDotNotDropped() {
-        let services = [
-            service("Claude", session: nil, weekly: 95),
-            service("Codex", session: 99, weekly: 99),
-            service("Antigravity", models: [
-                ModelStatus(name: "Gemini", remainingPercent: 100, resetAt: nil, window: .session),
-                ModelStatus(name: "Claude/GPT", remainingPercent: 100, resetAt: nil, window: .session)
-            ])
-        ]
-        // Three entries (count matches the popover), in the popover's order
-        // (Claude, Codex, Antigravity); Claude is grey (nil), never the weekly 95.
-        XCTAssertEqual(menuBarDots(from: services), [nil, 99, 100])
+    private func agSession(_ name: String, _ pct: Int) -> ModelStatus {
+        ModelStatus(name: name, remainingPercent: pct, resetAt: nil, window: .session)
     }
 
-    /// The dot reflects the 5-hour session, never the weekly window, even when both exist.
-    func testDotUsesSessionNotWeekly() {
+    /// THE point of this change: Antigravity's two 5h families become two separate dots
+    /// (Gemini fine, Claude/GPT exhausted), not one collapsed "worst" dot.
+    func testAntigravityExpandsToOneDotPerSessionFamily() {
+        let services = [
+            service("Claude", session: 88),
+            service("Codex", session: 99),
+            service("Antigravity", models: [agSession("Gemini", 100), agSession("Claude/GPT", 0)])
+        ]
+        // Claude, Codex, then Gemini, Claude/GPT — four dots, in popover order.
+        XCTAssertEqual(menuBarDots(from: services), [88, 99, 100, 0])
+    }
+
+    /// Family order within Antigravity is preserved (model order = popover order).
+    func testAntigravityFamilyOrderPreserved() {
+        let ag = service("Antigravity", models: [agSession("Gemini", 30), agSession("Claude/GPT", 70)])
+        XCTAssertEqual(menuBarDots(from: [ag]), [30, 70])
+    }
+
+    /// Antigravity visible but with no 5h session rows (only weekly) → a single grey placeholder.
+    func testAntigravityWithNoSessionIsOneGreyDot() {
+        let ag = service("Antigravity", models: [
+            ModelStatus(name: "Gemini", remainingPercent: 30, resetAt: nil, window: .weekly)
+        ])
+        XCTAssertEqual(menuBarDots(from: [ag]), [nil])
+    }
+
+    /// Claude/Codex carry a single account-level session → one dot each, using session not weekly.
+    func testSingleSessionServicesAreOneDotEach() {
         XCTAssertEqual(menuBarDots(from: [service("Codex", session: 40, weekly: 90)]), [40])
     }
 
-    /// Antigravity takes the most constrained 5h session row; weekly-only rows give grey (nil).
-    func testAntigravitySessionMinAndWeeklyOnlyIsGrey() {
-        let withSessions = service("Antigravity", models: [
-            ModelStatus(name: "Gemini", remainingPercent: 70, resetAt: nil, window: .session),
-            ModelStatus(name: "Claude/GPT", remainingPercent: 30, resetAt: nil, window: .session)
-        ])
-        XCTAssertEqual(menuBarDots(from: [withSessions]), [30])
-
-        let weeklyOnly = service("Antigravity", models: [
-            ModelStatus(name: "Gemini", remainingPercent: 30, resetAt: nil, window: .weekly)
-        ])
-        XCTAssertEqual(menuBarDots(from: [weeklyOnly]), [nil])
+    /// Claude with only a weekly reading (5h reset) → one grey dot, not dropped.
+    func testWeeklyOnlyServiceIsOneGreyDot() {
+        XCTAssertEqual(menuBarDots(from: [service("Claude", session: nil, weekly: 95)]), [nil])
     }
 
-    /// A service with no data at all (hidden fallback card) produces no entry, matching the
-    /// popover, which also hides it — so we don't show grey dots for tools that aren't in use.
+    /// A service with no data at all (hidden fallback card) produces no dot, matching the popover.
     func testUndetectedServiceIsOmittedEntirely() {
-        let dead = service("Claude", session: nil, weekly: nil, isAvailable: false)
-        XCTAssertEqual(menuBarDots(from: [dead]), [])
+        XCTAssertEqual(menuBarDots(from: [service("Claude", session: nil, weekly: nil, isAvailable: false)]), [])
     }
 
     /// A stale snapshot is shown (dimmed) by the popover, so it keeps its dot too.
@@ -70,14 +73,24 @@ final class MenuBarDotTests: XCTestCase {
         XCTAssertEqual(menuBarDots(from: [stale]), [50])
     }
 
-    /// Fixed top→bottom ordering matches the popover's (Claude, Codex, Antigravity)
-    /// regardless of input order, so dot N lines up with card N.
-    func testOrderingMatchesPopoverClaudeCodexAntigravity() {
+    /// Order matches the popover (Claude, Codex, Antigravity) regardless of input order.
+    func testOrderingMatchesPopover() {
         let services = [
             service("Codex", session: 30),
-            service("Antigravity", models: [ModelStatus(name: "Gemini", remainingPercent: 10, resetAt: nil, window: .session)]),
+            service("Antigravity", models: [agSession("Gemini", 10)]),
             service("Claude", session: 20)
         ]
         XCTAssertEqual(menuBarDots(from: services), [20, 30, 10])
+    }
+
+    /// The grid rule the user specified: 1·2·3 dots stay a single column, 4 becomes 2×2, and
+    /// 2 columns keep filling beyond that.
+    func testColumnCountRule() {
+        XCTAssertEqual(menuBarColumnCount(for: 1), 1)
+        XCTAssertEqual(menuBarColumnCount(for: 2), 1)
+        XCTAssertEqual(menuBarColumnCount(for: 3), 1)
+        XCTAssertEqual(menuBarColumnCount(for: 4), 2)
+        XCTAssertEqual(menuBarColumnCount(for: 5), 2)
+        XCTAssertEqual(menuBarColumnCount(for: 6), 2)
     }
 }

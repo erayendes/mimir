@@ -348,20 +348,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Menu-bar image: the Mimir glyph plus a vertical column of status dots — one per
-    /// visible service (Claude / Codex / Antigravity, top→bottom), coloured by its 5-hour
-    /// quota or grey when that reading is missing. The column sizes to the actual dot count
-    /// and is dropped entirely when there are none, so the glyph stays centred. Non-template
-    /// so the dots keep their colour; in light mode the
-    /// glyph is filled black for contrast, in dark mode the source artwork is drawn as-is.
+    /// Menu-bar image: the Mimir glyph plus a grid of status dots — one per 5-hour session window
+    /// (Claude, Codex, then each Antigravity family), coloured by its 5-hour quota or grey when the
+    /// reading is missing. The grid is `menuBarColumnCount` wide (a single column up to 3 dots, 2
+    /// columns from 4 on so four land as a 2×2), filled row-major, and is dropped entirely when there
+    /// are none so the glyph stays centred. Non-template so the dots keep their colour; in light mode
+    /// the glyph is filled black for contrast, in dark mode the source artwork is drawn as-is.
     private func buildMenuBarImage(dotColors: [NSColor]) -> NSImage {
         let iconW: CGFloat = 19
         let height: CGFloat = 19
         let gap: CGFloat = 3.5
         let dot: CGFloat = 3.5
         let dotGapV: CGFloat = 2.2
+        let dotGapH: CGFloat = 2.2
         let n = dotColors.count
-        let totalW = n > 0 ? iconW + gap + dot : iconW
+        let cols = menuBarColumnCount(for: n)
+        let rows = n > 0 ? (n + cols - 1) / cols : 0
+        let gridW = dot * CGFloat(cols) + dotGapH * CGFloat(cols - 1)
+        let totalW = n > 0 ? iconW + gap + gridW : iconW
 
         let img = NSImage(size: NSSize(width: totalW, height: height), flipped: false) { [iconSource] _ in
             guard let ctx = NSGraphicsContext.current else { return true }
@@ -384,12 +388,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
             if n > 0 {
                 let dotsX = iconW + gap
-                let stackH = dot * CGFloat(n) + dotGapV * CGFloat(n - 1)
-                var y = (height + stackH) / 2 - dot   // top dot
-                for color in dotColors {
+                let gridH = dot * CGFloat(rows) + dotGapV * CGFloat(rows - 1)
+                let topY = (height + gridH) / 2 - dot   // y of the top row
+                for (i, color) in dotColors.enumerated() {
+                    let col = i % cols
+                    let row = i / cols
+                    let x = dotsX + CGFloat(col) * (dot + dotGapH)
+                    let y = topY - CGFloat(row) * (dot + dotGapV)
                     color.setFill()
-                    NSBezierPath(ovalIn: NSRect(x: dotsX, y: y, width: dot, height: dot)).fill()
-                    y -= dot + dotGapV
+                    NSBezierPath(ovalIn: NSRect(x: x, y: y, width: dot, height: dot)).fill()
                 }
             }
             return true
