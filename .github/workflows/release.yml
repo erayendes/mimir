@@ -11,10 +11,9 @@ jobs:
     permissions:
       contents: write
     env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       SIGN_IDENTITY: "Developer ID Application: Eray Endes (926AC5V2UG)"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -25,7 +24,7 @@ jobs:
         run: echo "VERSION=${REF#v}" >> "$GITHUB_OUTPUT"
 
       - name: Cache SwiftPM
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             .build
