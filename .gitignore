@@ -4,3 +4,4 @@ dist/
 *.xcuserstate
 xcuserdata/
 DerivedData/
+.superpowers/
