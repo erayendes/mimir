@@ -67,7 +67,8 @@ struct PopoverView: View {
     /// the last-known reading when the IDE is closed, instead of the card vanishing.
     @ViewBuilder
     private func contentView(now: Date) -> some View {
-        let order = ["Claude", "Codex", "Antigravity"]
+        // Shared with the menu-bar dots so a dot can never line up with the wrong card.
+        let order = serviceDisplayOrder
         let visible = store.services
             .filter { $0.isAvailable || $0.isStale }
             .sorted { (order.firstIndex(of: $0.name) ?? 99) < (order.firstIndex(of: $1.name) ?? 99) }

@@ -34,8 +34,8 @@ final class MenuBarDotTests: XCTestCase {
             ])
         ]
         // Three entries (count matches the popover), in the popover's order
-        // (Antigravity, Claude, Codex); Claude is grey (nil), never the weekly 95.
-        XCTAssertEqual(menuBarDots(from: services), [100, nil, 99])
+        // (Claude, Codex, Antigravity); Claude is grey (nil), never the weekly 95.
+        XCTAssertEqual(menuBarDots(from: services), [nil, 99, 100])
     }
 
     /// The dot reflects the 5-hour session, never the weekly window, even when both exist.
@@ -70,14 +70,14 @@ final class MenuBarDotTests: XCTestCase {
         XCTAssertEqual(menuBarDots(from: [stale]), [50])
     }
 
-    /// Fixed top→bottom ordering matches the popover's (Antigravity, Claude, Codex)
+    /// Fixed top→bottom ordering matches the popover's (Claude, Codex, Antigravity)
     /// regardless of input order, so dot N lines up with card N.
-    func testOrderingMatchesPopoverAntigravityClaudeCodex() {
+    func testOrderingMatchesPopoverClaudeCodexAntigravity() {
         let services = [
             service("Codex", session: 30),
             service("Antigravity", models: [ModelStatus(name: "Gemini", remainingPercent: 10, resetAt: nil, window: .session)]),
             service("Claude", session: 20)
         ]
-        XCTAssertEqual(menuBarDots(from: services), [10, 20, 30])
+        XCTAssertEqual(menuBarDots(from: services), [20, 30, 10])
     }
 }

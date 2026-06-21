@@ -321,8 +321,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         checkNotifications()
     }
 
-    /// One colour per dot from `menuBarDots` (the popover-matching service set, ordered to match
-    /// the popover: Antigravity, Claude, Codex). The selection logic lives in that pure helper so it
+    /// One colour per dot from `menuBarDots` (the popover-matching service set, ordered by the shared
+    /// `serviceDisplayOrder`: Claude, Codex, Antigravity). The selection logic lives in that pure helper so it
     /// can be unit-tested; here we only colour each: a 5-hour percent → its status colour, `nil`
     /// (no 5h reading yet, or the fetch hasn't landed) → a neutral grey placeholder. It recolours on
     /// the next refresh.

@@ -99,19 +99,24 @@ enum ModelWindow {
     case session
 }
 
-/// The menu-bar status dots, one per service the popover shows, ordered top→bottom to match
-/// the popover's card order (services are name-sorted, so: Antigravity, Claude, Codex) — dot N
-/// then lines up with card N. A service is included on the *same* rule the popover uses
-/// (`isAvailable || isStale`), so the dot count always matches the visible card count —
-/// the source of the "3 cards, 2 dots" bug was the menu bar instead *dropping* a service
-/// that had no 5-hour reading. Each value is the service's **5-hour (session)** remaining
-/// percent, or `nil` when there is no current session reading (its 5h window reset, or live
-/// data couldn't be fetched yet). The menu bar renders `nil` as a neutral grey "no data" dot
-/// and recolours it once the 5h number arrives, so a visible service is never silently
-/// dotless. Pure (no AppKit) so the selection logic is unit-testable.
+/// The single top→bottom display order for the three services, read by BOTH the popover cards
+/// (`PopoverView.contentView`) and the menu-bar dots (`menuBarDots`). Keeping it in one place is
+/// load-bearing: when the two defined the order independently they drifted, and a yellow dot lined
+/// up with the wrong card. Change the order here and both move together.
+let serviceDisplayOrder = ["Claude", "Codex", "Antigravity"]
+
+/// The menu-bar status dots, one per service the popover shows, ordered top→bottom to match the
+/// popover's card order (`serviceDisplayOrder`) — so dot N lines up with card N. A service is
+/// included on the *same* rule the popover uses (`isAvailable || isStale`), so the dot count always
+/// matches the visible card count — the source of the "3 cards, 2 dots" bug was the menu bar instead
+/// *dropping* a service that had no 5-hour reading. Each value is the service's **5-hour (session)**
+/// remaining percent, or `nil` when there is no current session reading (its 5h window reset, or live
+/// data couldn't be fetched yet). The menu bar renders `nil` as a neutral grey "no data" dot and
+/// recolours it once the 5h number arrives, so a visible service is never silently dotless. Pure (no
+/// AppKit) so the selection logic is unit-testable.
 func menuBarDots(from services: [ServiceStatus]) -> [Int?] {
     var dots: [Int?] = []
-    for name in ["Antigravity", "Claude", "Codex"] {
+    for name in serviceDisplayOrder {
         guard let svc = services.first(where: { $0.name == name }),
               svc.isAvailable || svc.isStale else { continue }
         if name == "Antigravity" {
