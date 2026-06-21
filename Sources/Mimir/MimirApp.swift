@@ -355,8 +355,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// are none so the glyph stays centred. Non-template so the dots keep their colour; in light mode
     /// the glyph is filled black for contrast, in dark mode the source artwork is drawn as-is.
     private func buildMenuBarImage(dotColors: [NSColor]) -> NSImage {
-        let iconW: CGFloat = 19
-        let height: CGFloat = 19
+        let iconW: CGFloat = 22
+        let height: CGFloat = 22
         let gap: CGFloat = 3.5
         let dot: CGFloat = 3.5
         let dotGapV: CGFloat = 2.2
