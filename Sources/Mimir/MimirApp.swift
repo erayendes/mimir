@@ -141,6 +141,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.button?.target = self
         item.button?.action = #selector(togglePopover(_:))
+        item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
         statusItem = item
 
         store.refresh()
@@ -221,6 +222,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         SentrySDK.flush(timeout: 1)
     }
 
+    /// Right-click menu: opt-out toggle, update check, and quit (the app has no other quit path).
+    /// `statusItem.menu` is set only transiently so a left click still toggles the panel.
+    private func showStatusMenu() {
+        guard let item = statusItem else { return }
+        let menu = NSMenu()
+
+        let toggle = NSMenuItem(title: String(localized: "Send anonymous statistics"),
+                                action: #selector(toggleTelemetry), keyEquivalent: "")
+        toggle.target = self
+        toggle.state = Telemetry.enabled ? .on : .off
+        menu.addItem(toggle)
+        menu.addItem(.separator())
+
+        let update = NSMenuItem(title: String(localized: "Check for updates"),
+                                action: #selector(menuCheckForUpdates), keyEquivalent: "")
+        update.target = self
+        menu.addItem(update)
+
+        let quit = NSMenuItem(title: String(localized: "Quit Mimir"),
+                              action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        menu.addItem(quit)
+
+        item.menu = menu
+        item.button?.performClick(nil)
+        item.menu = nil
+    }
+
+    @objc private func toggleTelemetry() {
+        Telemetry.setEnabled(!Telemetry.enabled)
+        if Telemetry.enabled { Telemetry.signal("telemetry.enabled") }
+    }
+
+    @objc private func menuCheckForUpdates() {
+        updaterController?.checkForUpdates(nil)
+        Telemetry.signal("update.checkRequested")
+    }
+
     /// Emit the provider-usage signal once per session, on the 3rd refresh — Antigravity is only
     /// visible while its IDE runs, so sampling at launch would undercount it. ~3 min (60s × 3) in,
     /// the picture has usually settled; if not, it's caught next session.
@@ -233,6 +271,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func togglePopover(_ sender: Any?) {
+        // Right-click opens the menu instead of the panel.
+        if NSApp.currentEvent?.type == .rightMouseUp {
+            showStatusMenu()
+            return
+        }
         if panel.isVisible {
             hidePanel()
         } else {

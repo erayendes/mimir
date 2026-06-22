@@ -61,3 +61,7 @@
 
 /* Antigravity info */
 "Quota is read from Antigravity's local language server. Antigravity must be running for live data; when it's closed, the last seen values are shown." = "Quota is read from Antigravity's local language server. Antigravity must be running for live data; when it's closed, the last seen values are shown.";
+
+/* Status menu */
+"Send anonymous statistics" = "Send anonymous statistics";
+"Quit Mimir" = "Quit Mimir";

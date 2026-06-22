@@ -61,3 +61,7 @@
 
 /* Antigravity info */
 "Quota is read from Antigravity's local language server. Antigravity must be running for live data; when it's closed, the last seen values are shown." = "Kota, Antigravity'nin yerel dil sunucusundan okunur. Canlı veri için Antigravity'nin açık olması gerekir; kapalıyken son görülen değerler gösterilir.";
+
+/* Status menu */
+"Send anonymous statistics" = "Anonim istatistik gönder";
+"Quit Mimir" = "Mimir'den Çık";
