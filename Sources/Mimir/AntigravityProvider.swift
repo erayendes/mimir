@@ -342,7 +342,7 @@ extension LiveUsageDataSource {
         }).first else {
             return ModelStatus(name: name, remainingPercent: 0, resetAt: nil)
         }
-        return ModelStatus(name: name, remainingPercent: best.remainingPercent, resetAt: best.resetAt)
+        return ModelStatus(name: name, remainingPercent: best.remainingPercent, resetAt: best.resetAt, window: .session)
     }
     private func readAntigravityCockpitAccount() -> [String: Any]? {
         let path = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".antigravity_cockpit/credentials.json")
