@@ -5,9 +5,10 @@ import TelemetryDeck
 /// `shouldSend`; dev builds and opted-out users never send. Signals are categorical only —
 /// no quota percentages, reset times, credits, account ids, tokens, or any PII.
 enum Telemetry {
-    /// TelemetryDeck app id — non-secret, embedded in the client (like the Sentry DSN). Empty or
-    /// the placeholder → `start()` is a no-op, so the app builds and runs before one is provisioned.
-    static let appID = "REPLACE_WITH_TELEMETRYDECK_APP_ID"
+    /// TelemetryDeck app id — non-secret, embedded in the client (like the Sentry DSN). Empty →
+    /// `start()` is a no-op. Namespace scopes signals to our org on the ingestion side.
+    static let appID = "451C5BEF-443E-42ED-960A-513679A23DAE"
+    static let namespace = "com.milowda"
 
     static let enabledKey = "telemetry.enabled"
 
@@ -46,10 +47,9 @@ enum Telemetry {
     /// Initialise the SDK once — only for non-dev builds, with a real app id, and opt-in.
     static func start() {
         guard shouldSend(isDev: isDevBuild, enabled: enabled),
-              !appID.isEmpty, appID != "REPLACE_WITH_TELEMETRYDECK_APP_ID",
-              !started else { return }
+              !appID.isEmpty, !started else { return }
         started = true
-        TelemetryDeck.initialize(config: .init(appID: appID))
+        TelemetryDeck.initialize(config: .init(appID: appID, namespace: namespace))
     }
 
     /// Send a categorical signal. No-op unless the SDK started and the gate allows it.
