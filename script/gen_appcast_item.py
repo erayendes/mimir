@@ -9,6 +9,60 @@ import sys
 MIN_SYSTEM_VERSION = "14.0"
 
 
+def md_to_html(text):
+    """Convert the subset of markdown used in Mimir release notes to HTML."""
+    import re
+    lines = text.strip().splitlines()
+    out = []
+    in_ul = False
+    for line in lines:
+        # h4 → bold paragraph
+        if line.startswith("#### "):
+            if in_ul:
+                out.append("</ul>")
+                in_ul = False
+            out.append(f"<p><b>{line[5:].strip()}</b></p>")
+        # list item
+        elif line.startswith("- "):
+            if not in_ul:
+                out.append("<ul>")
+                in_ul = True
+            out.append(f"<li>{line[2:].strip()}</li>")
+        # horizontal rule (EN/TR separator)
+        elif line.strip() in ("---", "—"):
+            if in_ul:
+                out.append("</ul>")
+                in_ul = False
+            out.append("<hr>")
+        # blockquote
+        elif line.startswith("> "):
+            if in_ul:
+                out.append("</ul>")
+                in_ul = False
+            out.append(f"<blockquote>{line[2:].strip()}</blockquote>")
+        # bold text paragraph
+        elif line.startswith("**") and line.endswith("**"):
+            if in_ul:
+                out.append("</ul>")
+                in_ul = False
+            out.append(f"<p><b>{line[2:-2]}</b></p>")
+        # blank line → close list if open
+        elif line.strip() == "":
+            if in_ul:
+                out.append("</ul>")
+                in_ul = False
+        else:
+            if in_ul:
+                out.append("</ul>")
+                in_ul = False
+            # inline bold
+            line = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", line)
+            out.append(f"<p>{line.strip()}</p>")
+    if in_ul:
+        out.append("</ul>")
+    return "\n".join(out)
+
+
 def build_item(version, build_number, url, signature, length, notes, pub_date):
     return (
         f"    <item>\n"
@@ -16,7 +70,7 @@ def build_item(version, build_number, url, signature, length, notes, pub_date):
         f"      <sparkle:version>{build_number}</sparkle:version>\n"
         f"      <sparkle:shortVersionString>{version}</sparkle:shortVersionString>\n"
         f"      <pubDate>{pub_date}</pubDate>\n"
-        f"      <description>{notes}</description>\n"
+        f"      <description><![CDATA[\n{md_to_html(notes)}\n      ]]></description>\n"
         f"      <enclosure\n"
         f"        url=\"{url}\"\n"
         f"        sparkle:edSignature=\"{signature}\"\n"
