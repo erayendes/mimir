@@ -7,7 +7,69 @@
     <link>https://github.com/erayendes/mimir</link>
     <description>Mimir update feed</description>
     <language>en</language>
-                                        <item>
+                                            <item>
+      <title>Mimir 2.3</title>
+      <sparkle:version>2003000</sparkle:version>
+      <sparkle:shortVersionString>2.3</sparkle:shortVersionString>
+      <pubDate>Mon, 22 Jun 2026 21:08:19 +0000</pubDate>
+      <description><![CDATA[
+<p><b>Mimir, beyond the menu bar.</b></p>
+<p>Why open anything at all?</p>
+<p>Not anymore! With Mimir 2.3, your quotas live right on your desktop.</p>
+<p>Pick from two widgets — a single bold number or a tidy list of every 5-hour limit. Every percentage and bar glows with its status: green, amber, red. Tell the small one exactly which model to watch. Light mode, dark mode — flawless in both.</p>
+<p>The whole picture, without lifting a finger. 😊</p>
+<blockquote>"I put it on my desktop and now I stare at it all day. Am I working or watching quotas? Unclear."</blockquote>
+<blockquote>— <b>Kenan</b>, a very close friend of Eray's</blockquote>
+<blockquote>"Updated purely to see the widgets."</blockquote>
+<blockquote>— <b>Tayfun</b>, who still owes Eray ₺400</blockquote>
+<blockquote>"Claude was at 9% when I added the widget. I panicked — then thought, what an elegant panic."</blockquote>
+<blockquote>— <b>Selin</b>, a LinkedIn connection (they've never met)</blockquote>
+<blockquote>"Completely unbiased: the best widgets in the world."</blockquote>
+<blockquote>— anonymous, <b>Eray's mother</b></blockquote>
+<blockquote>"I get to choose which model it shows? Say no more."</blockquote>
+<blockquote>— <b>Burak</b>, who needs something from Eray</blockquote>
+<p><b>Added</b></p>
+<ul>
+<li>macOS desktop widgets, in <b>two sizes</b>: a single big number (Small) and a compact list of every 5-hour limit (Medium). Each percentage and bar is coloured by how much you have left — green at 50% or above, amber between 15–50%, red below 15%.</li>
+<li>The Small widget is configurable: long-press → Edit Widget to choose exactly which model it shows. It defaults to whichever is closest to running out.</li>
+<li>Widgets follow the system appearance, in both light and dark mode.</li>
+<li>Right-click the menu-bar icon: toggle anonymous statistics, check for updates, quit Mimir.</li>
+<li><b>Anonymous, privacy-first usage statistics</b>: only categorical info like which providers and widgets you use — your quotas, credits, account, and personal data are never sent. Turn it off anytime from the right-click menu.</li>
+</ul>
+<hr>
+<p><b>Mimir, menü çubuğunun ötesinde.</b></p>
+<p>Hiçbir şey açmana gerek var mı?</p>
+<p>Artık yok! Mimir 2.3 ile kotaların doğrudan masaüstünde.</p>
+<p>İki widget arasından seç — tek cesur bir yüzde ya da tüm 5 saatlik limitlerin derli toplu listesi. Her yüzde ve çubuk durumuna göre parlıyor: yeşil, amber, kırmızı. Küçük olanın hangi modeli izleyeceğini sen söyle. Açık mod, koyu mod — ikisinde de kusursuz.</p>
+<p>Parmağını kıpırdatmadan tüm tablo. 😊</p>
+<blockquote>"Masaüstüne koydum, gün boyu oraya bakıyorum. İş mi yapıyorum, kota mı izliyorum belli değil."</blockquote>
+<blockquote>— <b>Kenan</b>, Eray'ın çok yakın arkadaşı</blockquote>
+<blockquote>"Sırf widget'ları görmek için güncelledim."</blockquote>
+<blockquote>— <b>Tayfun</b>, Eray'a hâlâ 400 TL borcu olan biri</blockquote>
+<blockquote>"Widget'ı eklerken Claude %9 çıktı, panikledim — sonra 'ne kadar şık bir panik' dedim."</blockquote>
+<blockquote>— <b>Selin</b>, LinkedIn bağlantısı (hiç tanışmadılar)</blockquote>
+<blockquote>"Tamamen tarafsızım: dünyanın en iyi widget'ları."</blockquote>
+<blockquote>— anonim, <b>Eray'ın annesi</b></blockquote>
+<blockquote>"Hangi modeli göstereceğini ben mi seçiyorum? Başka söze gerek yok."</blockquote>
+<blockquote>— <b>Burak</b>, Eray'a işi düşmüş biri</blockquote>
+<p><b>Eklendi</b></p>
+<ul>
+<li>macOS masaüstü widget'ları, <b>iki boyutta</b>: tek büyük yüzde (Small) ve tüm 5 saatlik limitlerin derli toplu listesi (Medium). Her yüzde ve çubuk, kalanına göre renklenir — %50 ve üzeri yeşil, %15–50 arası amber, %15 altı kırmızı.</li>
+<li>Small widget yapılandırılabilir: hangi modeli göstereceğini seçmek için üzerine uzun bas → Widget'ı Düzenle. Varsayılan olarak tükenmeye en yakın olanı gösterir.</li>
+<li>Widget'lar sistem görünümünü takip eder; hem açık hem koyu temada çalışır.</li>
+<li>Menü çubuğu ikonuna <b>sağ tık</b>: anonim istatistikleri aç/kapat, güncellemeleri denetle, Mimir'den çık.</li>
+<li><b>Anonim, gizlilik-dostu kullanım istatistikleri</b>: yalnızca hangi sağlayıcıları ve widget'ları kullandığın gibi kategorik bilgi — kotan, kredilerin, hesabın veya kişisel verin asla gönderilmez. İstediğin an sağ-tık menüsünden kapatabilirsin.</li>
+</ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v2.3/Mimir.zip"
+        sparkle:edSignature="+MhIKQjiiilHT6CktUnF+r4Kdgy9DxmmAnI8JcYH3u5V4gHAe39Fd24vWJJe6dXMcXV5QzOdK6LemBIoxflcCw=="
+        length="6470905"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 2.2.2</title>
       <sparkle:version>2002002</sparkle:version>
       <sparkle:shortVersionString>2.2.2</sparkle:shortVersionString>
