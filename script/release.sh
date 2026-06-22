@@ -24,6 +24,7 @@ fi
 APP_NAME="Mimir"
 BUNDLE_ID="com.erayendes.mimir"
 MIN_SYSTEM_VERSION="14.0"
+APP_GROUP="group.com.erayendes.mimir"   # shared container between the app and its widget
 BUILD_NUMBER="$(bash "$(dirname "${BASH_SOURCE[0]}")/build_number.sh" "$VERSION")"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -68,6 +69,8 @@ cat > "$APP_CONTENTS/Info.plist" <<PLIST
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+  <key>MimirAppGroup</key>
+  <string>$APP_GROUP</string>
   <key>CFBundleExecutable</key>
   <string>$APP_NAME</string>
   <key>CFBundleDevelopmentRegion</key>
@@ -111,6 +114,24 @@ if [ -z "$SPARKLE_FW" ]; then
 fi
 ditto --norsrc "$SPARKLE_FW" "$APP_CONTENTS/Frameworks/Sparkle.framework"
 
+# ── 4b. Build + embed the WidgetKit extension (.appex), versioned to MATCH the host (mismatched
+# CFBundleVersion fails extension validation). Built UNSIGNED here; CI signs it inside-out with its
+# own sandbox + App Group entitlements (see release.yml). The provisioning profiles authorise the
+# App Group entitlement under Developer ID — the entitlement alone is not honoured without them.
+echo "── Building + embedding widget extension..."
+xcodegen generate --spec "$ROOT_DIR/WidgetExtension/project.yml" --project "$ROOT_DIR/WidgetExtension" >/dev/null
+WIDGET_BUILD="$ROOT_DIR/.build/widget"
+rm -rf "$WIDGET_BUILD"
+xcodebuild -project "$ROOT_DIR/WidgetExtension/MimirWidgetExtension.xcodeproj" \
+  -target MimirWidgetExtension -configuration Release \
+  MARKETING_VERSION="$VERSION" CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
+  CONFIGURATION_BUILD_DIR="$WIDGET_BUILD" CODE_SIGNING_ALLOWED=NO build >/dev/null
+mkdir -p "$APP_CONTENTS/PlugIns"
+rm -rf "$APP_CONTENTS/PlugIns/MimirWidgetExtension.appex"
+cp -R "$WIDGET_BUILD/MimirWidgetExtension.appex" "$APP_CONTENTS/PlugIns/"
+cp "$ROOT_DIR/signing/Mimir_App.provisionprofile"    "$APP_CONTENTS/embedded.provisionprofile"
+cp "$ROOT_DIR/signing/Mimir_Widget.provisionprofile" "$APP_CONTENTS/PlugIns/MimirWidgetExtension.appex/Contents/embedded.provisionprofile"
+
 # ── BUILD_ONLY stop: hand the unsigned bundle + dSYM to CI, which signs with the
 # Developer ID cert, notarizes, and publishes. Avoids ad-hoc signing the artifact
 # that ships to users.
@@ -137,7 +158,14 @@ codesign --force --sign - --options runtime "$SPARKLE_B_TMP/XPCServices/Installe
 codesign --force --sign - --options runtime "$SPARKLE_B_TMP/Updater.app"
 codesign --force --sign -                   "$SPARKLE_B_TMP/Autoupdate"
 codesign --force --sign - --options runtime "$TMP_BUNDLE/Contents/Frameworks/Sparkle.framework"
-codesign --force --sign - "$TMP_BUNDLE"
+# Sign the embedded appex (with its entitlements) before the host, else the host seal is invalid.
+# This local path is ad-hoc (not for distribution — see CLAUDE.md); the App Group only actually
+# resolves under the Developer ID CI build, but the appex must still be signed for a valid bundle.
+codesign --force --sign - --options runtime \
+  --entitlements "$ROOT_DIR/WidgetExtension/MimirWidget/MimirWidget.dev.entitlements" \
+  "$TMP_BUNDLE/Contents/PlugIns/MimirWidgetExtension.appex"
+codesign --force --sign - --options runtime \
+  --entitlements "$ROOT_DIR/Sources/Mimir/Mimir.dev.entitlements" "$TMP_BUNDLE"
 
 # Copy signed bundle back (without xattrs)
 rm -rf "$APP_BUNDLE"

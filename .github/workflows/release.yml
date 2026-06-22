@@ -32,6 +32,10 @@ jobs:
           key: ${{ runner.os }}-swiftpm-${{ hashFiles('**/Package.resolved') }}
           restore-keys: ${{ runner.os }}-swiftpm-
 
+      # XcodeGen generates the widget extension's .xcodeproj from project.yml (release.sh builds it).
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
       # Build + assemble the (unsigned) bundle and dSYM. CI owns signing/publishing.
       - name: Build bundle
         env:
@@ -58,13 +62,27 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
           rm /tmp/cert.p12
 
+      # Sign inside-out (deepest nested code first, host last). NOT `--deep`: it cannot apply
+      # per-nested entitlements and would strip the widget's sandbox + App Group access. The appex
+      # gets its own entitlements; the host carries the matching App Group entitlement so both
+      # processes resolve the same shared container. Entitlements files are shared with dev builds
+      # (prod-only identifiers, so the ".dev" files already hold the production values).
       - name: Sign app (Developer ID, hardened runtime)
         run: |
-          codesign --force --deep --sign "$SIGN_IDENTITY" \
-            --options runtime \
-            --timestamp \
-            dist/Mimir.app
-          codesign --verify --deep --strict --verbose=2 dist/Mimir.app
+          APP=dist/Mimir.app
+          APPEX="$APP/Contents/PlugIns/MimirWidgetExtension.appex"
+          SPARKLE_B="$APP/Contents/Frameworks/Sparkle.framework/Versions/B"
+          sign() { codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$@"; }
+          sign "$SPARKLE_B/XPCServices/Downloader.xpc"
+          sign "$SPARKLE_B/XPCServices/Installer.xpc"
+          sign "$SPARKLE_B/Updater.app"
+          sign "$SPARKLE_B/Autoupdate"
+          sign "$APP/Contents/Frameworks/Sparkle.framework"
+          sign --entitlements WidgetExtension/MimirWidget/MimirWidget.dev.entitlements "$APPEX"
+          sign --entitlements Sources/Mimir/Mimir.dev.entitlements "$APP"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          codesign -d --entitlements - "$APPEX" | grep -q application-groups \
+            && echo "✓ appex carries App Group entitlement" || { echo "✗ appex missing App Group" >&2; exit 1; }
 
       - name: Notarize
         env:
