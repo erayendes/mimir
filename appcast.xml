@@ -12,17 +12,19 @@
       <sparkle:version>2002002</sparkle:version>
       <sparkle:shortVersionString>2.2.2</sparkle:shortVersionString>
       <pubDate>Mon, 22 Jun 2026 05:10:16 +0000</pubDate>
-      <description>
-#### Changed
-- The menu-bar dots now show one dot per 5-hour limit instead of one per service, so Antigravity's Gemini and Claude/GPT each get their own dot — you can tell at a glance that one is full while the other is spent. The dots arrange into a compact grid (a 2×2 when there are four).
-- The menu-bar icon is a touch larger, filling the full height of the menu bar.
-
----
-
-
-#### Değiştirildi
-- Menü çubuğu noktaları artık servis başına değil, her 5 saatlik limit başına bir nokta gösteriyor; böylece Antigravity'nin Gemini ve Claude/GPT'si ayrı noktalar — biri doluyken diğerinin tükendiğini bir bakışta görürsün. Noktalar kompakt bir grid'e diziliyor (dört taneyse 2×2).
-- Menü çubuğu ikonu bir tık büyüdü, çubuğun tüm yüksekliğini dolduruyor.</description>
+      <description><![CDATA[
+<p><b>Changed</b></p>
+<ul>
+<li>The menu-bar dots now show one dot per 5-hour limit instead of one per service, so Antigravity's Gemini and Claude/GPT each get their own dot — you can tell at a glance that one is full while the other is spent. The dots arrange into a compact grid (a 2×2 when there are four).</li>
+<li>The menu-bar icon is a touch larger, filling the full height of the menu bar.</li>
+</ul>
+<hr>
+<p><b>Değiştirildi</b></p>
+<ul>
+<li>Menü çubuğu noktaları artık servis başına değil, her 5 saatlik limit başına bir nokta gösteriyor; böylece Antigravity'nin Gemini ve Claude/GPT'si ayrı noktalar — biri doluyken diğerinin tükendiğini bir bakışta görürsün. Noktalar kompakt bir grid'e diziliyor (dört taneyse 2×2).</li>
+<li>Menü çubuğu ikonu bir tık büyüdü, çubuğun tüm yüksekliğini dolduruyor.</li>
+</ul>
+      ]]></description>
       <enclosure
         url="https://github.com/erayendes/mimir/releases/download/v2.2.2/Mimir.zip"
         sparkle:edSignature="36YTW8wG1zgW8STAzHMraJVUgTRUzrAnFkvR97dyRldM8rtl+0vwJI8YADJcgeowDl39Ka/akGkFM1JqoYXuCA=="
@@ -36,15 +38,17 @@
       <sparkle:version>2002001</sparkle:version>
       <sparkle:shortVersionString>2.2.1</sparkle:shortVersionString>
       <pubDate>Sun, 21 Jun 2026 11:15:54 +0000</pubDate>
-      <description>
-#### Fixed
-- The menu-bar status dots are back in the same order as the panel (Claude, Codex, Antigravity, top to bottom), so a dot's colour always lines up with the right service. A 2.2 regression could show, for example, a yellow Antigravity dot at the top while its card sat at the bottom of the panel.
-
----
-
-
-#### Düzeltildi
-- Menü çubuğu durum noktaları yine panelle aynı sırada (üstten alta: Claude, Codex, Antigravity), böylece bir noktanın rengi her zaman doğru servisle hizalanıyor. 2.2'deki bir hata, örneğin sarı Antigravity noktasını en üstte gösterirken kartını panelin en altında bırakabiliyordu.</description>
+      <description><![CDATA[
+<p><b>Fixed</b></p>
+<ul>
+<li>The menu-bar status dots are back in the same order as the panel (Claude, Codex, Antigravity, top to bottom), so a dot's colour always lines up with the right service. A 2.2 regression could show, for example, a yellow Antigravity dot at the top while its card sat at the bottom of the panel.</li>
+</ul>
+<hr>
+<p><b>Düzeltildi</b></p>
+<ul>
+<li>Menü çubuğu durum noktaları yine panelle aynı sırada (üstten alta: Claude, Codex, Antigravity), böylece bir noktanın rengi her zaman doğru servisle hizalanıyor. 2.2'deki bir hata, örneğin sarı Antigravity noktasını en üstte gösterirken kartını panelin en altında bırakabiliyordu.</li>
+</ul>
+      ]]></description>
       <enclosure
         url="https://github.com/erayendes/mimir/releases/download/v2.2.1/Mimir.zip"
         sparkle:edSignature="U3uNbsoqBCdxIkl0tcE9ZfqsnMztzDY8slC/4GUmdkFKKNb+tdKPgNUOnECGVy6KT6pZY4YCBdrtdhQ+h/Z1AA=="
@@ -58,23 +62,27 @@
       <sparkle:version>2002000</sparkle:version>
       <sparkle:shortVersionString>2.2</sparkle:shortVersionString>
       <pubDate>Sat, 20 Jun 2026 21:42:58 +0000</pubDate>
-      <description>
-#### Fixed
-- The menu-bar dots now always match the panel. Every service you're tracking keeps its dot, and a dot turns grey while its 5-hour reading is briefly missing — for example right after the window resets — instead of disappearing. So you'll never again see three services in the panel but only two dots.
-- Mimir no longer pops the macOS keychain permission prompt in the background. It reads your Claude login from the credentials file or its own securely cached token, and only reaches for Claude Code's keychain item when you open Mimir yourself — so glancing at Codex or Antigravity never triggers a Claude prompt.
-
-#### Changed
-- The menu-bar dots are ordered to match the panel top to bottom, and the grey "no data yet" dot stays legible on both the light and dark menu bar.
-
----
-
-
-#### Düzeltildi
-- Menü çubuğu noktaları artık panelle her zaman aynı. Takip ettiğin her servis noktasını koruyor; 5 saatlik okuması kısa süre eksikken — örneğin pencere yeni sıfırlandığında — nokta kaybolmak yerine grileşiyor. Yani panelde üç servis varken iki nokta görmeyeceksin.
-- Mimir arka planda artık macOS anahtar zinciri izin penceresini açmıyor. Claude girişini kimlik dosyasından ya da kendi güvenli önbelleğindeki token'dan okuyor ve Claude Code'un anahtar zinciri öğesine yalnızca sen Mimir'i açtığında erişiyor — böylece Codex veya Antigravity'ye göz atmak asla Claude istemi tetiklemiyor.
-
-#### Değiştirildi
-- Menü çubuğu noktaları panelle aynı sırada (üstten alta) diziliyor ve gri "henüz veri yok" noktası hem açık hem koyu menü çubuğunda okunaklı kalıyor.</description>
+      <description><![CDATA[
+<p><b>Fixed</b></p>
+<ul>
+<li>The menu-bar dots now always match the panel. Every service you're tracking keeps its dot, and a dot turns grey while its 5-hour reading is briefly missing — for example right after the window resets — instead of disappearing. So you'll never again see three services in the panel but only two dots.</li>
+<li>Mimir no longer pops the macOS keychain permission prompt in the background. It reads your Claude login from the credentials file or its own securely cached token, and only reaches for Claude Code's keychain item when you open Mimir yourself — so glancing at Codex or Antigravity never triggers a Claude prompt.</li>
+</ul>
+<p><b>Changed</b></p>
+<ul>
+<li>The menu-bar dots are ordered to match the panel top to bottom, and the grey "no data yet" dot stays legible on both the light and dark menu bar.</li>
+</ul>
+<hr>
+<p><b>Düzeltildi</b></p>
+<ul>
+<li>Menü çubuğu noktaları artık panelle her zaman aynı. Takip ettiğin her servis noktasını koruyor; 5 saatlik okuması kısa süre eksikken — örneğin pencere yeni sıfırlandığında — nokta kaybolmak yerine grileşiyor. Yani panelde üç servis varken iki nokta görmeyeceksin.</li>
+<li>Mimir arka planda artık macOS anahtar zinciri izin penceresini açmıyor. Claude girişini kimlik dosyasından ya da kendi güvenli önbelleğindeki token'dan okuyor ve Claude Code'un anahtar zinciri öğesine yalnızca sen Mimir'i açtığında erişiyor — böylece Codex veya Antigravity'ye göz atmak asla Claude istemi tetiklemiyor.</li>
+</ul>
+<p><b>Değiştirildi</b></p>
+<ul>
+<li>Menü çubuğu noktaları panelle aynı sırada (üstten alta) diziliyor ve gri "henüz veri yok" noktası hem açık hem koyu menü çubuğunda okunaklı kalıyor.</li>
+</ul>
+      ]]></description>
       <enclosure
         url="https://github.com/erayendes/mimir/releases/download/v2.2/Mimir.zip"
         sparkle:edSignature="BhriRD5Y/hN0cwywmbJ/EhnVMu/MEYJXI7BEuhuDG/CaQUPkUK/n94q/Mqa8A0ePS1HhWo02fwXbEw/wshS/DA=="
@@ -88,17 +96,19 @@
       <sparkle:version>2001000</sparkle:version>
       <sparkle:shortVersionString>2.1</sparkle:shortVersionString>
       <pubDate>Fri, 19 Jun 2026 12:25:40 +0000</pubDate>
-      <description>
-#### Fixed
-- The macOS keychain no longer keeps asking for permission to read your Claude Code login. Mimir now keeps the token in memory and reads the keychain only at launch and around token expiry, instead of every few minutes.
-- The menu-bar icon shows one status dot per service you actually use — no more grey placeholder dots when you track only one or two of Claude, Codex, and Antigravity.
-
----
-
-
-#### Düzeltildi
-- macOS anahtar zinciri, Claude Code girişini okumak için artık sürekli izin sormuyor. Mimir token'ı bellekte tutuyor ve keychain'i her birkaç dakikada bir değil, yalnızca açılışta ve token süresi dolarken okuyor.
-- Menü çubuğu ikonu artık gerçekten kullandığın her servis için tek bir durum noktası gösteriyor — Claude, Codex ve Antigravity'den yalnızca birini ya da ikisini takip ederken gri placeholder noktalar çıkmıyor.</description>
+      <description><![CDATA[
+<p><b>Fixed</b></p>
+<ul>
+<li>The macOS keychain no longer keeps asking for permission to read your Claude Code login. Mimir now keeps the token in memory and reads the keychain only at launch and around token expiry, instead of every few minutes.</li>
+<li>The menu-bar icon shows one status dot per service you actually use — no more grey placeholder dots when you track only one or two of Claude, Codex, and Antigravity.</li>
+</ul>
+<hr>
+<p><b>Düzeltildi</b></p>
+<ul>
+<li>macOS anahtar zinciri, Claude Code girişini okumak için artık sürekli izin sormuyor. Mimir token'ı bellekte tutuyor ve keychain'i her birkaç dakikada bir değil, yalnızca açılışta ve token süresi dolarken okuyor.</li>
+<li>Menü çubuğu ikonu artık gerçekten kullandığın her servis için tek bir durum noktası gösteriyor — Claude, Codex ve Antigravity'den yalnızca birini ya da ikisini takip ederken gri placeholder noktalar çıkmıyor.</li>
+</ul>
+      ]]></description>
       <enclosure
         url="https://github.com/erayendes/mimir/releases/download/v2.1/Mimir.zip"
         sparkle:edSignature="UZ7GhoFe/RxyqXzZeOrBG1VQyh+HOwJ0O/DbcNfJFFzgDkFrBaX0fSGpnitp74pSdbvp3HL+ujqOIvNiuy0fBw=="
@@ -112,81 +122,69 @@
       <sparkle:version>2000000</sparkle:version>
       <sparkle:shortVersionString>2.0</sparkle:shortVersionString>
       <pubDate>Thu, 18 Jun 2026 21:48:02 +0000</pubDate>
-      <description>
-**The best Mimir there has ever been.**
-
-Can a menu bar app really be this beautiful? With Mimir 2.0, yes.
-
-We took everything you love and redesigned it from scratch: the session up front, colours that come alive with status, weekly limits clean and clear — all in a single frosted-glass panel. Flawless in light mode and dark.
-
-The same Mimir; just better in every way. 😊
-
-> "When I first opened it I said 'wow.' My wife heard me, looked, and said 'wow' too."
-> — **Kenan**, a very close friend of Eray's
-
-> "There's a light mode now, so I use it during the day too."
-> — **Tayfun**, who owes Eray ₺400
-
-> "My quota dropped into the red, the dot lit up, my heart broke — but the design is just so beautiful."
-> — **Selin**, a LinkedIn connection (they've never met)
-
-> "I'm completely unbiased: the best app in the world."
-> — anonymous, **Eray's mother**
-
-> "Everything in a single panel. I can't imagine anything better."
-> — **Burak**, who needs something from Eray
-
-#### Changed
-- Redesigned popover. Each service now leads with its 5-hour session as a prominent row — name, a big percentage, and a thin progress bar — with the reset countdown and reset time beneath it. Weekly limits sit below as compact rows, each with a status dot, and any purchased usage credit is shown at the bottom. Antigravity lists its Gemini and Claude/GPT sessions separately.
-- Quota level is now colour-coded everywhere (bar, percentage, and weekly dots): green at 50% or above, amber between 15–50%, red below 15%.
-- The popover grows to show everything at once — no more inner scrolling — and the whole panel is now real glass: the desktop and windows behind it read through, gently blurred.
-
-#### Added
-- Light mode: the popover now follows the system appearance (light or dark).
-- The version badge in the footer checks for updates when you click it; hovering it or the milowda link shows the pointer cursor.
-- A column of three status dots next to the menu-bar icon shows the 5-hour status of Claude, Codex, and Antigravity at a glance (top to bottom) — green, amber, or red. Built for my brother İlker Utlu ([sigortadanismani.com](https://sigortadanismani.com)).
-
-#### Fixed
-- The macOS keychain no longer keeps asking for permission to read your Claude Code login. Mimir now reads it in-process instead of through the `security` command-line tool, so "Always Allow" sticks.
-
----
-
-
-**Bugüne kadar gelmiş geçmiş en güzel Mimir.**
-
-Bir menü çubuğu uygulaması bu kadar mı güzel olur? Mimir 2.0 ile, evet.
-
-Sevdiğin her şeyi aldık ve baştan tasarladık: öne çıkan oturum, durumuna göre canlanan renkler, sade ve net haftalıklar — hepsi tek bir buzlu cam panelde. Açık modda da koyu modda da kusursuz.
-
-Aynı Mimir; sadece her şeyiyle daha iyisi. 😊
-
-> "İlk açtığımda 'vay be' dedim. Eşim duydu, o da baktı, o da 'vay be' dedi."
-> — **Kenan**, Eray'ın çok yakın arkadaşı
-
-> "Açık mod gelmiş, artık gündüz de kullanıyorum."
-> — **Tayfun**, Eray'a 400 TL borcu olan biri
-
-> "Kotam kırmızıya düştü, nokta yandı, kalbim kırıldı — ama tasarım o kadar güzel ki."
-> — **Selin**, LinkedIn bağlantısı (hiç tanışmadılar)
-
-> "Tamamen tarafsızım: dünyanın en iyi uygulaması."
-> — anonim, **Eray'ın annesi**
-
-> "Tek panelde her şey. Daha iyisini düşünemiyorum."
-> — **Burak**, Eray'a işi düşmüş biri
-
-#### Değişti
-- Popover yeniden tasarlandı. Her servis artık önce 5 saatlik oturumunu öne çıkan bir satır olarak gösteriyor — isim, büyük bir yüzde ve ince bir ilerleme çubuğu — altında geri sayım ve sıfırlanma saati. Haftalık limitler aşağıda kompakt satırlar olarak, her biri bir durum noktasıyla; satın alınan kullanım kredisi en altta. Antigravity, Gemini ve Claude/GPT oturumlarını ayrı ayrı listeliyor.
-- Kota seviyesi artık her yerde (çubuk, yüzde ve haftalık noktalar) renk kodlu: %50 ve üzeri yeşil, %15–50 arası amber, %15 altı kırmızı.
-- Popover her şeyi tek seferde gösterecek kadar büyüyor — iç kaydırma yok — ve panelin tamamı artık gerçek bir cam: arkasındaki masaüstü ve pencereler hafif bulanık şekilde camın ardından görünüyor.
-
-#### Eklendi
-- Açık mod: popover artık sistem görünümünü (açık veya koyu) takip ediyor.
-- Footer'daki sürüm rozetine tıklayınca güncelleme kontrolü yapılıyor; rozetin veya milowda bağlantısının üzerine gelince işaretçi imleci görünüyor.
-- Menü çubuğu ikonunun yanında üç dikey durum noktası: üstten Claude, Codex ve Antigravity'nin 5 saatlik durumunu tek bakışta yeşil/amber/kırmızı gösteriyor. Bu özelliği abim İlker Utlu ([sigortadanismani.com](https://sigortadanismani.com)) için yaptım.
-
-#### Düzeltildi
-- macOS anahtar zinciri, Claude Code girişini okumak için artık sürekli izin sormuyor. Mimir bunu `security` komut satırı aracı yerine uygulama içinden okuyor; böylece "Her Zaman İzin Ver" kalıcı oluyor.</description>
+      <description><![CDATA[
+<p><b>The best Mimir there has ever been.</b></p>
+<p>Can a menu bar app really be this beautiful? With Mimir 2.0, yes.</p>
+<p>We took everything you love and redesigned it from scratch: the session up front, colours that come alive with status, weekly limits clean and clear — all in a single frosted-glass panel. Flawless in light mode and dark.</p>
+<p>The same Mimir; just better in every way. 😊</p>
+<blockquote>"When I first opened it I said 'wow.' My wife heard me, looked, and said 'wow' too."</blockquote>
+<blockquote>— **Kenan**, a very close friend of Eray's</blockquote>
+<blockquote>"There's a light mode now, so I use it during the day too."</blockquote>
+<blockquote>— **Tayfun**, who owes Eray ₺400</blockquote>
+<blockquote>"My quota dropped into the red, the dot lit up, my heart broke — but the design is just so beautiful."</blockquote>
+<blockquote>— **Selin**, a LinkedIn connection (they've never met)</blockquote>
+<blockquote>"I'm completely unbiased: the best app in the world."</blockquote>
+<blockquote>— anonymous, **Eray's mother**</blockquote>
+<blockquote>"Everything in a single panel. I can't imagine anything better."</blockquote>
+<blockquote>— **Burak**, who needs something from Eray</blockquote>
+<p><b>Changed</b></p>
+<ul>
+<li>Redesigned popover. Each service now leads with its 5-hour session as a prominent row — name, a big percentage, and a thin progress bar — with the reset countdown and reset time beneath it. Weekly limits sit below as compact rows, each with a status dot, and any purchased usage credit is shown at the bottom. Antigravity lists its Gemini and Claude/GPT sessions separately.</li>
+<li>Quota level is now colour-coded everywhere (bar, percentage, and weekly dots): green at 50% or above, amber between 15–50%, red below 15%.</li>
+<li>The popover grows to show everything at once — no more inner scrolling — and the whole panel is now real glass: the desktop and windows behind it read through, gently blurred.</li>
+</ul>
+<p><b>Added</b></p>
+<ul>
+<li>Light mode: the popover now follows the system appearance (light or dark).</li>
+<li>The version badge in the footer checks for updates when you click it; hovering it or the milowda link shows the pointer cursor.</li>
+<li>A column of three status dots next to the menu-bar icon shows the 5-hour status of Claude, Codex, and Antigravity at a glance (top to bottom) — green, amber, or red. Built for my brother İlker Utlu ([sigortadanismani.com](https://sigortadanismani.com)).</li>
+</ul>
+<p><b>Fixed</b></p>
+<ul>
+<li>The macOS keychain no longer keeps asking for permission to read your Claude Code login. Mimir now reads it in-process instead of through the `security` command-line tool, so "Always Allow" sticks.</li>
+</ul>
+<hr>
+<p><b>Bugüne kadar gelmiş geçmiş en güzel Mimir.</b></p>
+<p>Bir menü çubuğu uygulaması bu kadar mı güzel olur? Mimir 2.0 ile, evet.</p>
+<p>Sevdiğin her şeyi aldık ve baştan tasarladık: öne çıkan oturum, durumuna göre canlanan renkler, sade ve net haftalıklar — hepsi tek bir buzlu cam panelde. Açık modda da koyu modda da kusursuz.</p>
+<p>Aynı Mimir; sadece her şeyiyle daha iyisi. 😊</p>
+<blockquote>"İlk açtığımda 'vay be' dedim. Eşim duydu, o da baktı, o da 'vay be' dedi."</blockquote>
+<blockquote>— **Kenan**, Eray'ın çok yakın arkadaşı</blockquote>
+<blockquote>"Açık mod gelmiş, artık gündüz de kullanıyorum."</blockquote>
+<blockquote>— **Tayfun**, Eray'a 400 TL borcu olan biri</blockquote>
+<blockquote>"Kotam kırmızıya düştü, nokta yandı, kalbim kırıldı — ama tasarım o kadar güzel ki."</blockquote>
+<blockquote>— **Selin**, LinkedIn bağlantısı (hiç tanışmadılar)</blockquote>
+<blockquote>"Tamamen tarafsızım: dünyanın en iyi uygulaması."</blockquote>
+<blockquote>— anonim, **Eray'ın annesi**</blockquote>
+<blockquote>"Tek panelde her şey. Daha iyisini düşünemiyorum."</blockquote>
+<blockquote>— **Burak**, Eray'a işi düşmüş biri</blockquote>
+<p><b>Değişti</b></p>
+<ul>
+<li>Popover yeniden tasarlandı. Her servis artık önce 5 saatlik oturumunu öne çıkan bir satır olarak gösteriyor — isim, büyük bir yüzde ve ince bir ilerleme çubuğu — altında geri sayım ve sıfırlanma saati. Haftalık limitler aşağıda kompakt satırlar olarak, her biri bir durum noktasıyla; satın alınan kullanım kredisi en altta. Antigravity, Gemini ve Claude/GPT oturumlarını ayrı ayrı listeliyor.</li>
+<li>Kota seviyesi artık her yerde (çubuk, yüzde ve haftalık noktalar) renk kodlu: %50 ve üzeri yeşil, %15–50 arası amber, %15 altı kırmızı.</li>
+<li>Popover her şeyi tek seferde gösterecek kadar büyüyor — iç kaydırma yok — ve panelin tamamı artık gerçek bir cam: arkasındaki masaüstü ve pencereler hafif bulanık şekilde camın ardından görünüyor.</li>
+</ul>
+<p><b>Eklendi</b></p>
+<ul>
+<li>Açık mod: popover artık sistem görünümünü (açık veya koyu) takip ediyor.</li>
+<li>Footer'daki sürüm rozetine tıklayınca güncelleme kontrolü yapılıyor; rozetin veya milowda bağlantısının üzerine gelince işaretçi imleci görünüyor.</li>
+<li>Menü çubuğu ikonunun yanında üç dikey durum noktası: üstten Claude, Codex ve Antigravity'nin 5 saatlik durumunu tek bakışta yeşil/amber/kırmızı gösteriyor. Bu özelliği abim İlker Utlu ([sigortadanismani.com](https://sigortadanismani.com)) için yaptım.</li>
+</ul>
+<p><b>Düzeltildi</b></p>
+<ul>
+<li>macOS anahtar zinciri, Claude Code girişini okumak için artık sürekli izin sormuyor. Mimir bunu `security` komut satırı aracı yerine uygulama içinden okuyor; böylece "Her Zaman İzin Ver" kalıcı oluyor.</li>
+</ul>
+      ]]></description>
       <enclosure
         url="https://github.com/erayendes/mimir/releases/download/v2.0/Mimir.zip"
         sparkle:edSignature="fksLZclv4NNEaCOigre2pjnvYsY4cX0gGMeRlBJtaIVv0rdR2ZdECIRtDXnyhGzBgvfEGwtUGsC4n8PWCJpRDA=="
@@ -200,21 +198,25 @@ Aynı Mimir; sadece her şeyiyle daha iyisi. 😊
       <sparkle:version>1013000</sparkle:version>
       <sparkle:shortVersionString>1.13</sparkle:shortVersionString>
       <pubDate>Wed, 17 Jun 2026 20:38:41 +0000</pubDate>
-      <description>
-#### Added
-- Turkish localization: Mimir now displays in Turkish when macOS is set to Turkish, and in English otherwise — chosen automatically from the system language.
-
-#### Changed
-- Usage rows now lead with the remaining time; the reset clock moved to a secondary spot, and weekly windows show just the countdown. Claude's Sonnet weekly window is now always shown.
-
----
-
-
-#### Eklendi
-- Türkçe dil desteği: macOS Türkçe olduğunda Mimir Türkçe, değilse İngilizce görünür — sistem dilinden otomatik seçilir.
-
-#### Değişti
-- Kullanım satırları artık önce kalan süreyi gösteriyor; sıfırlanma saati ikincil konuma alındı ve haftalık pencereler yalnızca geri sayımı gösteriyor. Claude'un Sonnet haftalık penceresi artık her zaman görünüyor.</description>
+      <description><![CDATA[
+<p><b>Added</b></p>
+<ul>
+<li>Turkish localization: Mimir now displays in Turkish when macOS is set to Turkish, and in English otherwise — chosen automatically from the system language.</li>
+</ul>
+<p><b>Changed</b></p>
+<ul>
+<li>Usage rows now lead with the remaining time; the reset clock moved to a secondary spot, and weekly windows show just the countdown. Claude's Sonnet weekly window is now always shown.</li>
+</ul>
+<hr>
+<p><b>Eklendi</b></p>
+<ul>
+<li>Türkçe dil desteği: macOS Türkçe olduğunda Mimir Türkçe, değilse İngilizce görünür — sistem dilinden otomatik seçilir.</li>
+</ul>
+<p><b>Değişti</b></p>
+<ul>
+<li>Kullanım satırları artık önce kalan süreyi gösteriyor; sıfırlanma saati ikincil konuma alındı ve haftalık pencereler yalnızca geri sayımı gösteriyor. Claude'un Sonnet haftalık penceresi artık her zaman görünüyor.</li>
+</ul>
+      ]]></description>
       <enclosure
         url="https://github.com/erayendes/mimir/releases/download/v1.13/Mimir.zip"
         sparkle:edSignature="tkfHhY2DIZMMz97ckup3W1PumEBsJ/WxqZoHXcyiE0ILAUYb0PXu19K5mHz9Z5ig7pUyKagOn9fe1ubTj6S0CA=="
@@ -228,15 +230,17 @@ Aynı Mimir; sadece her şeyiyle daha iyisi. 😊
       <sparkle:version>1012000</sparkle:version>
       <sparkle:shortVersionString>1.12</sparkle:shortVersionString>
       <pubDate>Tue, 16 Jun 2026 05:38:25 +0000</pubDate>
-      <description>
-#### Changed
-- Crash reporting no longer flags normal dialogs (the update sheet or the login prompt) as "app not responding".
-
----
-
-
-#### Değişti
-- Hata raporlama, normal dialog'ları (güncelleme penceresi veya giriş sorusu) artık "uygulama yanıt vermiyor" olarak işaretlemiyor.</description>
+      <description><![CDATA[
+<p><b>Changed</b></p>
+<ul>
+<li>Crash reporting no longer flags normal dialogs (the update sheet or the login prompt) as "app not responding".</li>
+</ul>
+<hr>
+<p><b>Değişti</b></p>
+<ul>
+<li>Hata raporlama, normal dialog'ları (güncelleme penceresi veya giriş sorusu) artık "uygulama yanıt vermiyor" olarak işaretlemiyor.</li>
+</ul>
+      ]]></description>
       <enclosure
         url="https://github.com/erayendes/mimir/releases/download/v1.12/Mimir.zip"
         sparkle:edSignature="SuKAYPMuicQ8JlnMhTmrB5CEksxoSMw3FbCymH7FP/fw9CRUYR9pFMp28YVB2PIASlNGrPZ6gZqumY4Z3pfGCA=="
@@ -250,23 +254,27 @@ Aynı Mimir; sadece her şeyiyle daha iyisi. 😊
       <sparkle:version>1011000</sparkle:version>
       <sparkle:shortVersionString>1.11</sparkle:shortVersionString>
       <pubDate>Mon, 15 Jun 2026 20:56:38 +0000</pubDate>
-      <description>
-#### Added
-- First launch now offers to open Mimir automatically at login (toggleable later in System Settings › Login Items).
-
-#### Fixed
-- Security: OAuth credentials and the Antigravity language-server token are no longer passed as command-line arguments, so other local processes can't read them from the process table.
-- The Antigravity info text and status labels are now in English, matching the rest of the app.
-
----
-
-
-#### Eklendi
-- İlk açılışta Mimir'i girişte otomatik başlatma seçeneği sunuluyor (sonradan System Settings › Login Items'tan değiştirilebilir).
-
-#### Düzeltildi
-- Güvenlik: OAuth kimlik bilgileri ve Antigravity dil-sunucusu token'ı artık komut satırı argümanı olarak geçirilmiyor; böylece sistemdeki başka süreçler bunları process table'dan okuyamıyor.
-- Antigravity bilgi metni ve durum etiketleri artık İngilizce (uygulamanın geri kalanıyla uyumlu).</description>
+      <description><![CDATA[
+<p><b>Added</b></p>
+<ul>
+<li>First launch now offers to open Mimir automatically at login (toggleable later in System Settings › Login Items).</li>
+</ul>
+<p><b>Fixed</b></p>
+<ul>
+<li>Security: OAuth credentials and the Antigravity language-server token are no longer passed as command-line arguments, so other local processes can't read them from the process table.</li>
+<li>The Antigravity info text and status labels are now in English, matching the rest of the app.</li>
+</ul>
+<hr>
+<p><b>Eklendi</b></p>
+<ul>
+<li>İlk açılışta Mimir'i girişte otomatik başlatma seçeneği sunuluyor (sonradan System Settings › Login Items'tan değiştirilebilir).</li>
+</ul>
+<p><b>Düzeltildi</b></p>
+<ul>
+<li>Güvenlik: OAuth kimlik bilgileri ve Antigravity dil-sunucusu token'ı artık komut satırı argümanı olarak geçirilmiyor; böylece sistemdeki başka süreçler bunları process table'dan okuyamıyor.</li>
+<li>Antigravity bilgi metni ve durum etiketleri artık İngilizce (uygulamanın geri kalanıyla uyumlu).</li>
+</ul>
+      ]]></description>
       <enclosure
         url="https://github.com/erayendes/mimir/releases/download/v1.11/Mimir.zip"
         sparkle:edSignature="r4+z3YO4oIUq73ayZJgSqG79rfKozcpjAe5AIJfkvq3yntCa1lKbcryiC0tfpgEP+APo17Bb3LHbS++wvXTGDQ=="
@@ -280,15 +288,17 @@ Aynı Mimir; sadece her şeyiyle daha iyisi. 😊
       <sparkle:version>110</sparkle:version>
       <sparkle:shortVersionString>1.10</sparkle:shortVersionString>
       <pubDate>Mon, 15 Jun 2026 20:04:30 +0000</pubDate>
-      <description>
-#### Fixed
-- Release builds are now Developer ID-signed and notarized by Apple, so macOS opens them without Gatekeeper warnings and Sparkle auto-updates install cleanly.
-
----
-
-
-#### Düzeltildi
-- Release derlemeleri artık Developer ID ile imzalanıp Apple tarafından notarize ediliyor; macOS Gatekeeper uyarısı vermeden açıyor ve Sparkle otomatik güncellemeleri sorunsuz kuruluyor.</description>
+      <description><![CDATA[
+<p><b>Fixed</b></p>
+<ul>
+<li>Release builds are now Developer ID-signed and notarized by Apple, so macOS opens them without Gatekeeper warnings and Sparkle auto-updates install cleanly.</li>
+</ul>
+<hr>
+<p><b>Düzeltildi</b></p>
+<ul>
+<li>Release derlemeleri artık Developer ID ile imzalanıp Apple tarafından notarize ediliyor; macOS Gatekeeper uyarısı vermeden açıyor ve Sparkle otomatik güncellemeleri sorunsuz kuruluyor.</li>
+</ul>
+      ]]></description>
       <enclosure
         url="https://github.com/erayendes/mimir/releases/download/v1.10/Mimir.zip"
         sparkle:edSignature="1VYszBIukoOUUEbjISeF48ys5OmXWfQj76RMmekxil7og6o5aQ6FZGNvY6csYvTM/JyYG5//lWndOBoRxOP+Bw=="
@@ -302,19 +312,25 @@ Aynı Mimir; sadece her şeyiyle daha iyisi. 😊
       <sparkle:version>19</sparkle:version>
       <sparkle:shortVersionString>1.9</sparkle:shortVersionString>
       <pubDate>Mon, 15 Jun 2026 18:36:53 +0000</pubDate>
-      <description>### Added
-- Sparkle auto-update integration: "Check for updates" now uses the native Sparkle sheet instead of a browser redirect. The button moved to an inline refresh icon next to the version number in the branding footer.
-
-### Changed
-- Branding footer: the "milowda" byline is now a clickable link to milowda.com/apps/mimir.
-
----
-
-### Eklendi
-- Sparkle otomatik güncelleme entegrasyonu: "Check for updates" artık tarayıcıya yönlendirmek yerine native Sparkle sheet'ini açıyor. Buton, branding footer'da versiyon numarasının yanındaki inline yenile ikonuna taşındı.
-
-### Değişti
-- Branding footer: "milowda" yazısı milowda.com/apps/mimir'e tıklanabilir link oldu.</description>
+      <description><![CDATA[
+<p>### Added</p>
+<ul>
+<li>Sparkle auto-update integration: "Check for updates" now uses the native Sparkle sheet instead of a browser redirect. The button moved to an inline refresh icon next to the version number in the branding footer.</li>
+</ul>
+<p>### Changed</p>
+<ul>
+<li>Branding footer: the "milowda" byline is now a clickable link to milowda.com/apps/mimir.</li>
+</ul>
+<hr>
+<p>### Eklendi</p>
+<ul>
+<li>Sparkle otomatik güncelleme entegrasyonu: "Check for updates" artık tarayıcıya yönlendirmek yerine native Sparkle sheet'ini açıyor. Buton, branding footer'da versiyon numarasının yanındaki inline yenile ikonuna taşındı.</li>
+</ul>
+<p>### Değişti</p>
+<ul>
+<li>Branding footer: "milowda" yazısı milowda.com/apps/mimir'e tıklanabilir link oldu.</li>
+</ul>
+      ]]></description>
       <enclosure
         url="https://github.com/erayendes/mimir/releases/download/v1.9/Mimir.zip"
         sparkle:edSignature="WBWeDPuVThhJThY2MmU7SkRIyGRpAMFkJfTbMe5K9kM2E/GX20yitBQBiR/rEs8Gx4sw0Y80LWibqts7Eg28AQ=="
@@ -328,7 +344,9 @@ Aynı Mimir; sadece her şeyiyle daha iyisi. 😊
       <sparkle:version>17</sparkle:version>
       <sparkle:shortVersionString>1.7</sparkle:shortVersionString>
       <pubDate>Sun, 15 Jun 2025 00:00:00 +0000</pubDate>
-      <description>Credit and billing tracking for Antigravity, Codex, and Claude.</description>
+      <description><![CDATA[
+<p>Credit and billing tracking for Antigravity, Codex, and Claude.</p>
+      ]]></description>
       <enclosure
         url="https://github.com/erayendes/mimir/releases/download/v1.7/Mimir.zip"
         sparkle:edSignature="qcP9v4IM+pbmxNv36TGwnbZDuzZzfhjqXIbzyG0506UXIfhd8sPFnlmZ1FJOBAVjnfqYl68pj2wb/HsycbRVCQ=="
