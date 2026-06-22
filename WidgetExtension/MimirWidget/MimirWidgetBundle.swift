@@ -38,7 +38,7 @@ struct MimirWidget: Widget {
         }
         .configurationDisplayName("Mimir")
         .description(String(localized: "widget.detailed.description"))
-        .supportedFamilies([.systemSmall, .systemMedium, .systemLarge, .systemExtraLarge])
+        .supportedFamilies([.systemSmall, .systemMedium])
         .contentMarginsDisabled()
     }
 }
