@@ -351,7 +351,7 @@ struct ServiceCard: View {
             switch model.window {
             case .session: sessions[model.name] = (model.remainingPercent, model.resetAt)
             case .weekly:  weeklies[model.name] = (model.remainingPercent, model.resetAt)
-            case .none:    break
+            case .none:    sessions[model.name] = (model.remainingPercent, model.resetAt)
             }
         }
         return order.map { name in
