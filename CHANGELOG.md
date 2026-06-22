@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+### [2.2.2] - 2026-06-22
+
+#### Changed
+- The menu-bar dots now show one dot per 5-hour limit instead of one per service, so Antigravity's Gemini and Claude/GPT each get their own dot — you can tell at a glance that one is full while the other is spent. The dots arrange into a compact grid (a 2×2 when there are four).
+- The menu-bar icon is a touch larger, filling the full height of the menu bar.
+
 ### [2.2.1] - 2026-06-21
 
 #### Fixed
@@ -252,6 +258,12 @@ Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
 
 ### [Yayımlanmadı]
+
+### [2.2.2] - 2026-06-22
+
+#### Değiştirildi
+- Menü çubuğu noktaları artık servis başına değil, her 5 saatlik limit başına bir nokta gösteriyor; böylece Antigravity'nin Gemini ve Claude/GPT'si ayrı noktalar — biri doluyken diğerinin tükendiğini bir bakışta görürsün. Noktalar kompakt bir grid'e diziliyor (dört taneyse 2×2).
+- Menü çubuğu ikonu bir tık büyüdü, çubuğun tüm yüksekliğini dolduruyor.
 
 ### [2.2.1] - 2026-06-21
 
