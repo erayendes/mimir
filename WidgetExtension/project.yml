@@ -25,6 +25,12 @@ targets:
     sources:
       - path: MimirWidget
       - path: ../Sources/MimirShared
+      # Reuse the app's localised strings so the widget's duration units (d/h/m · g/s/d) and
+      # window/credit labels resolve — one copy on disk, shared with the app target.
+      - path: ../Sources/Mimir/Resources/en.lproj
+        buildPhase: resources
+      - path: ../Sources/Mimir/Resources/tr.lproj
+        buildPhase: resources
     settings:
       base:
         PRODUCT_NAME: MimirWidgetExtension

@@ -1,4 +1,5 @@
 import AppKit
+import MimirShared
 import SwiftUI
 
 struct PopoverView: View {
@@ -372,17 +373,7 @@ struct ServiceCard: View {
     }
 }
 
-extension Color {
-    init(hex: UInt32) {
-        self.init(
-            .sRGB,
-            red: Double((hex >> 16) & 0xFF) / 255,
-            green: Double((hex >> 8) & 0xFF) / 255,
-            blue: Double(hex & 0xFF) / 255,
-            opacity: 1
-        )
-    }
-}
+// Color(hex:) now lives in MimirShared (shared with the widget); imported via `import MimirShared`.
 
 func clampPct(_ percent: Int) -> Int { max(0, min(100, percent)) }
 

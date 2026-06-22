@@ -61,12 +61,16 @@ cp "$ROOT_DIR/Sources/Mimir/Resources/MenuIcon.png" "$APP_RESOURCES/" 2>/dev/nul
 
 # When embedding a widget, give the host a version so it matches the extension (avoids the
 # "extension version must match host" validation); normal dev builds omit it (footer shows "dev").
+# CFBundleVersion is a fresh epoch each build: chronod (the widget gallery daemon) caches extension
+# metadata keyed by version, so a constant build number leaves the gallery showing a STALE widget
+# after code changes. A monotonically increasing build number forces it to re-read every time.
+WIDGET_BUILD_NUM="$(date +%s)"
 EXTRA_PLIST=""
 if [ "$WIDGET" = "1" ]; then
   EXTRA_PLIST="  <key>CFBundleShortVersionString</key>
   <string>1.0</string>
   <key>CFBundleVersion</key>
-  <string>1</string>"
+  <string>$WIDGET_BUILD_NUM</string>"
 fi
 
 cat >"$INFO_PLIST" <<PLIST
@@ -122,6 +126,7 @@ if [ "$WIDGET" = "1" ]; then
   rm -rf "$WIDGET_BUILD"
   xcodebuild -project "$ROOT_DIR/WidgetExtension/MimirWidgetExtension.xcodeproj" \
     -target MimirWidgetExtension -configuration Release \
+    MARKETING_VERSION=1.0 CURRENT_PROJECT_VERSION="$WIDGET_BUILD_NUM" \
     CONFIGURATION_BUILD_DIR="$WIDGET_BUILD" CODE_SIGNING_ALLOWED=NO build >/dev/null
   mkdir -p "$APP_CONTENTS/PlugIns"
   rm -rf "$APP_CONTENTS/PlugIns/MimirWidgetExtension.appex"

@@ -61,3 +61,14 @@
 
 /* Antigravity info */
 "Quota is read from Antigravity's local language server. Antigravity must be running for live data; when it's closed, the last seen values are shown." = "Kota, Antigravity'nin yerel dil sunucusundan okunur. Canlı veri için Antigravity'nin açık olması gerekir; kapalıyken son görülen değerler gösterilir.";
+
+/* Widgets */
+"widget.detailed.description" = "Bakışta yapay zekâ kotası.";
+"widget.rings.name" = "Mimir Halkalar";
+"widget.rings.description" = "Kota durum halkaları.";
+"widget.window.fiveHour" = "5s";
+"widget.window.sevenDay" = "7g";
+"widget.label.credits" = "kredi";
+"widget.empty" = "Kotayı yüklemek için Mimir'i aç.";
+"widget.config.model" = "Model";
+"widget.config.description" = "Small widget'ın hangi modeli göstereceğini seç.";

@@ -61,3 +61,14 @@
 
 /* Antigravity info */
 "Quota is read from Antigravity's local language server. Antigravity must be running for live data; when it's closed, the last seen values are shown." = "Quota is read from Antigravity's local language server. Antigravity must be running for live data; when it's closed, the last seen values are shown.";
+
+/* Widgets */
+"widget.detailed.description" = "AI quota at a glance.";
+"widget.rings.name" = "Mimir Rings";
+"widget.rings.description" = "Quota status rings.";
+"widget.window.fiveHour" = "5h";
+"widget.window.sevenDay" = "7d";
+"widget.label.credits" = "credits";
+"widget.empty" = "Open Mimir to load quota.";
+"widget.config.model" = "Model";
+"widget.config.description" = "Choose which model the small widget shows.";

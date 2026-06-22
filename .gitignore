@@ -10,3 +10,4 @@ DerivedData/
 WidgetExtension/*.xcodeproj
 .build/widget/
 .build/widget-dd/
+WidgetExtension/build/
