@@ -7,7 +7,31 @@
     <link>https://github.com/erayendes/mimir</link>
     <description>Mimir update feed</description>
     <language>en</language>
-                                    <item>
+                                        <item>
+      <title>Mimir 2.2.2</title>
+      <sparkle:version>2002002</sparkle:version>
+      <sparkle:shortVersionString>2.2.2</sparkle:shortVersionString>
+      <pubDate>Mon, 22 Jun 2026 05:10:16 +0000</pubDate>
+      <description>
+#### Changed
+- The menu-bar dots now show one dot per 5-hour limit instead of one per service, so Antigravity's Gemini and Claude/GPT each get their own dot — you can tell at a glance that one is full while the other is spent. The dots arrange into a compact grid (a 2×2 when there are four).
+- The menu-bar icon is a touch larger, filling the full height of the menu bar.
+
+---
+
+
+#### Değiştirildi
+- Menü çubuğu noktaları artık servis başına değil, her 5 saatlik limit başına bir nokta gösteriyor; böylece Antigravity'nin Gemini ve Claude/GPT'si ayrı noktalar — biri doluyken diğerinin tükendiğini bir bakışta görürsün. Noktalar kompakt bir grid'e diziliyor (dört taneyse 2×2).
+- Menü çubuğu ikonu bir tık büyüdü, çubuğun tüm yüksekliğini dolduruyor.</description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v2.2.2/Mimir.zip"
+        sparkle:edSignature="36YTW8wG1zgW8STAzHMraJVUgTRUzrAnFkvR97dyRldM8rtl+0vwJI8YADJcgeowDl39Ka/akGkFM1JqoYXuCA=="
+        length="6050484"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 2.2.1</title>
       <sparkle:version>2002001</sparkle:version>
       <sparkle:shortVersionString>2.2.1</sparkle:shortVersionString>
