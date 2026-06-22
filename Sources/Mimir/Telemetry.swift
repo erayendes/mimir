@@ -21,4 +21,20 @@ enum Telemetry {
 
     /// The single gate every transmission passes through. Pure → unit-tested.
     static func shouldSend(isDev: Bool, enabled: Bool) -> Bool { !isDev && enabled }
+
+    /// Which providers are in use (available or showing stale data) — boolean only, never a value.
+    static func providerParameters(from services: [ServiceStatus]) -> [String: String] {
+        func active(_ name: String) -> String {
+            (services.first { $0.name == name }.map { $0.isAvailable || $0.isStale } ?? false)
+                ? "true" : "false"
+        }
+        return ["claude": active("Claude"), "codex": active("Codex"), "antigravity": active("Antigravity")]
+    }
+
+    /// Count of placed widgets per family (from WidgetCenter family raw names).
+    static func widgetParameters(families: [String]) -> [String: String] {
+        func count(_ raw: String) -> String { String(families.filter { $0 == raw }.count) }
+        return ["small": count("systemSmall"), "medium": count("systemMedium"),
+                "large": count("systemLarge"), "extraLarge": count("systemExtraLarge")]
+    }
 }
