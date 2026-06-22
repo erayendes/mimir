@@ -32,10 +32,11 @@ final class TelemetryTests: XCTestCase {
     }
 
     func testWidgetParametersCountFamilies() {
-        let p = Telemetry.widgetParameters(families: ["systemSmall", "systemSmall", "systemLarge"])
+        // Only the supported families (small, medium) are reported; others are ignored.
+        let p = Telemetry.widgetParameters(families: ["systemSmall", "systemSmall", "systemMedium", "systemLarge"])
         XCTAssertEqual(p["small"], "2")
-        XCTAssertEqual(p["large"], "1")
-        XCTAssertEqual(p["medium"], "0")
-        XCTAssertEqual(p["extraLarge"], "0")
+        XCTAssertEqual(p["medium"], "1")
+        XCTAssertNil(p["large"])
+        XCTAssertNil(p["extraLarge"])
     }
 }

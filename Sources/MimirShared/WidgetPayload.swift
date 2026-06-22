@@ -21,18 +21,13 @@ public struct ProviderPayload: Codable, Equatable {
     public var name: String          // "Claude" / "Codex" / "Antigravity"
     public var iconName: String      // brand asset stem: "claude" / "codex" / "antigravity"
     public var isAvailable: Bool
-    public var credits: String?      // remaining credit balance, e.g. "920" (XL only)
     public var fiveHour: [WindowMetric]   // the prominent 5h windows (1 for Claude/Codex, 2 for AG)
-    public var sevenDay: [WindowMetric]   // 7-day sub-metrics (XL only)
 
-    public init(name: String, iconName: String, isAvailable: Bool, credits: String?,
-                fiveHour: [WindowMetric], sevenDay: [WindowMetric]) {
+    public init(name: String, iconName: String, isAvailable: Bool, fiveHour: [WindowMetric]) {
         self.name = name
         self.iconName = iconName
         self.isAvailable = isAvailable
-        self.credits = credits
         self.fiveHour = fiveHour
-        self.sevenDay = sevenDay
     }
 }
 

@@ -57,18 +57,13 @@ extension WidgetPayload {
         let now = Date()
         func at(_ mins: Double) -> Date { now.addingTimeInterval(mins * 60) }
         return WidgetPayload(generatedAt: now, providers: [
-            ProviderPayload(name: "Claude", iconName: "claude", isAvailable: true, credits: "4.500",
-                            fiveHour: [WindowMetric(label: "Claude", percent: 9, resetAt: at(18))],
-                            sevenDay: [WindowMetric(label: "Claude", percent: 11, resetAt: at(8_460)),
-                                       WindowMetric(label: "Sonnet", percent: 82, resetAt: at(8_460))]),
-            ProviderPayload(name: "Codex", iconName: "codex", isAvailable: true, credits: "1.180",
-                            fiveHour: [WindowMetric(label: "Codex", percent: 99, resetAt: at(283))],
-                            sevenDay: [WindowMetric(label: "Codex", percent: 71, resetAt: at(3_124))]),
-            ProviderPayload(name: "Antigravity", iconName: "antigravity", isAvailable: true, credits: "920",
+            ProviderPayload(name: "Claude", iconName: "claude", isAvailable: true,
+                            fiveHour: [WindowMetric(label: "Claude", percent: 9, resetAt: at(18))]),
+            ProviderPayload(name: "Codex", iconName: "codex", isAvailable: true,
+                            fiveHour: [WindowMetric(label: "Codex", percent: 99, resetAt: at(283))]),
+            ProviderPayload(name: "Antigravity", iconName: "antigravity", isAvailable: true,
                             fiveHour: [WindowMetric(label: "Gemini", percent: 100, resetAt: at(178)),
-                                       WindowMetric(label: "Claude/GPT", percent: 44, resetAt: at(132))],
-                            sevenDay: [WindowMetric(label: "Gemini", percent: 88, resetAt: at(3_978)),
-                                       WindowMetric(label: "Claude/GPT", percent: 41, resetAt: at(9_983))]),
+                                       WindowMetric(label: "Claude/GPT", percent: 44, resetAt: at(132))]),
         ])
     }
 }

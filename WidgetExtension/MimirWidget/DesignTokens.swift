@@ -11,16 +11,8 @@ enum Tok {
     static var secondary: Color { .primary.opacity(0.62) }
     static var brand:     Color { .primary.opacity(0.48) }   // "mimir", labels
     static var tertiary:  Color { .primary.opacity(0.42) }   // remaining time
-    static var faint:     Color { .primary.opacity(0.34) }
     static var track:     Color { .primary.opacity(0.09) }   // bar track
-    static var divider:   Color { .primary.opacity(0.08) }
-    static var badgeBg:   Color { .primary.opacity(0.06) }   // 5s/7g/kredi pill
-    static var innerCard: Color { .primary.opacity(0.04) }   // XL column card
-
-    // Corner radii.
-    static let cardSM: CGFloat = 20   // Small / Medium
-    static let cardLG: CGFloat = 24   // Large / Extra Large
-    static let inner:  CGFloat = 14   // XL column cards
+    static var badgeBg:   Color { .primary.opacity(0.06) }   // 5s pill
 }
 
 /// The layered background: dark base with purple/orange glows, or a light tinted base.

@@ -33,11 +33,10 @@ enum Telemetry {
         return ["claude": active("Claude"), "codex": active("Codex"), "antigravity": active("Antigravity")]
     }
 
-    /// Count of placed widgets per family (from WidgetCenter family raw names).
+    /// Count of placed widgets per supported family (from WidgetCenter family raw names).
     static func widgetParameters(families: [String]) -> [String: String] {
         func count(_ raw: String) -> String { String(families.filter { $0 == raw }.count) }
-        return ["small": count("systemSmall"), "medium": count("systemMedium"),
-                "large": count("systemLarge"), "extraLarge": count("systemExtraLarge")]
+        return ["small": count("systemSmall"), "medium": count("systemMedium")]
     }
 
     // Touched only from the main thread (launch, the services sink, menu actions). The worst a

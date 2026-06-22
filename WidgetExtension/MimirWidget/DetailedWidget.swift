@@ -10,12 +10,11 @@ private struct FlatMetric: Identifiable {
 }
 
 private extension WidgetPayload {
-    var available: [ProviderPayload] { providers.filter(\.isAvailable) }
-
     /// All 5-hour metrics across available providers, in display order (Claude, Codex, then
     /// Antigravity's Gemini + Claude/GPT). Drives Small and Medium.
     var fiveHourFlat: [FlatMetric] {
-        available.flatMap { p in p.fiveHour.map { FlatMetric(iconName: p.iconName, metric: $0) } }
+        providers.filter(\.isAvailable)
+            .flatMap { p in p.fiveHour.map { FlatMetric(iconName: p.iconName, metric: $0) } }
     }
 }
 
@@ -73,19 +72,18 @@ private struct Pill: View {
     }
 }
 
-/// gauge + remaining (left) ·· clock + reset (right). Spec footer for S/L/XL.
+/// gauge + remaining (left) ·· clock + reset (right). Spec footer for Small.
 private struct ResetFooter: View {
     let resetAt: Date?
     let now: Date
     var size: CGFloat = 10
-    var color: Color = Tok.tertiary
     var body: some View {
         HStack(spacing: 0) {
             IconText(symbol: "gauge.with.needle", text: Reset.remaining(resetAt, now: now), size: size)
             Spacer(minLength: 6)
             IconText(symbol: "clock", text: Reset.clock(resetAt), size: size)
         }
-        .foregroundStyle(color)
+        .foregroundStyle(Tok.tertiary)
     }
 }
 

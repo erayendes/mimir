@@ -31,9 +31,7 @@ enum WidgetBridge {
                 name: svc.name,
                 iconName: svc.iconName,
                 isAvailable: svc.isAvailable || svc.isStale,
-                credits: svc.models.first(where: { $0.valueText != nil })?.valueText,
-                fiveHour: fiveHourMetrics(svc),
-                sevenDay: sevenDayMetrics(svc)
+                fiveHour: fiveHourMetrics(svc)
             )
         }
         return WidgetPayload(generatedAt: generatedAt, providers: providers)
@@ -50,23 +48,5 @@ enum WidgetBridge {
             return [WindowMetric(label: svc.name, percent: pct, resetAt: svc.sessionResetAt)]
         }
         return []
-    }
-
-    /// The 7-day sub-metrics (XL only). Antigravity uses `.weekly` model rows; Claude/Codex use the
-    /// account weekly percent, plus any extra weekly-window percentage rows (Claude's "Sonnet",
-    /// which carries no `window` tag and isn't a credit/`valueText` row).
-    private static func sevenDayMetrics(_ svc: ServiceStatus) -> [WindowMetric] {
-        let weeklyModels = svc.models.filter { $0.window == .weekly }
-        if !weeklyModels.isEmpty {
-            return weeklyModels.map { WindowMetric(label: $0.name, percent: $0.remainingPercent, resetAt: $0.resetAt) }
-        }
-        var out: [WindowMetric] = []
-        if let pct = svc.weeklyRemainingPercent {
-            out.append(WindowMetric(label: svc.name, percent: pct, resetAt: svc.weeklyResetAt))
-        }
-        for m in svc.models where m.window == nil && m.valueText == nil {
-            out.append(WindowMetric(label: m.name, percent: m.remainingPercent, resetAt: m.resetAt))
-        }
-        return out
     }
 }

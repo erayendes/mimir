@@ -64,11 +64,7 @@
 
 /* Widgets */
 "widget.detailed.description" = "AI quota at a glance.";
-"widget.rings.name" = "Mimir Rings";
-"widget.rings.description" = "Quota status rings.";
 "widget.window.fiveHour" = "5h";
-"widget.window.sevenDay" = "7d";
-"widget.label.credits" = "credits";
 "widget.empty" = "Open Mimir to load quota.";
 "widget.config.model" = "Model";
 "widget.config.description" = "Choose which model the small widget shows.";

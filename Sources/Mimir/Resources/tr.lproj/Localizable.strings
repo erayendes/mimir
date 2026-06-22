@@ -64,11 +64,7 @@
 
 /* Widgets */
 "widget.detailed.description" = "Bakışta yapay zekâ kotası.";
-"widget.rings.name" = "Mimir Halkalar";
-"widget.rings.description" = "Kota durum halkaları.";
 "widget.window.fiveHour" = "5s";
-"widget.window.sevenDay" = "7g";
-"widget.label.credits" = "kredi";
 "widget.empty" = "Kotayı yüklemek için Mimir'i aç.";
 "widget.config.model" = "Model";
 "widget.config.description" = "Small widget'ın hangi modeli göstereceğini seç.";
