@@ -12,6 +12,9 @@ MIN_SYSTEM_VERSION = "14.0"
 def md_to_html(text):
     """Convert the subset of markdown used in Mimir release notes to HTML."""
     import re
+    def inline(s):
+        # **bold** → <b>bold</b>, applied inside paragraphs, list items, and blockquotes.
+        return re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", s)
     lines = text.strip().splitlines()
     out = []
     in_ul = False
@@ -27,7 +30,7 @@ def md_to_html(text):
             if not in_ul:
                 out.append("<ul>")
                 in_ul = True
-            out.append(f"<li>{line[2:].strip()}</li>")
+            out.append(f"<li>{inline(line[2:].strip())}</li>")
         # horizontal rule (EN/TR separator)
         elif line.strip() in ("---", "—"):
             if in_ul:
@@ -39,7 +42,7 @@ def md_to_html(text):
             if in_ul:
                 out.append("</ul>")
                 in_ul = False
-            out.append(f"<blockquote>{line[2:].strip()}</blockquote>")
+            out.append(f"<blockquote>{inline(line[2:].strip())}</blockquote>")
         # bold text paragraph
         elif line.startswith("**") and line.endswith("**"):
             if in_ul:

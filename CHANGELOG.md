@@ -15,16 +15,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 **Mimir, beyond the menu bar.**
 
-Why open anything at all? With Mimir 2.3, your quotas live right on your desktop.
+Why open anything at all?
+Not anymore! With Mimir 2.3, your quotas live right on your desktop.
 
-Pick from five widgets — a single bold number, a tidy list, roomy per-model blocks, or the full three-column spread with credits and weekly limits. Every percentage and bar glows with its status: green, amber, red. Tell the small one exactly which model to watch. Light mode, dark mode — flawless in both.
+Pick from two widgets — a single bold number or a tidy list of every 5-hour limit. Every percentage and bar glows with its status: green, amber, red. Tell the small one exactly which model to watch. Light mode, dark mode — flawless in both.
 
 The whole picture, without lifting a finger. 😊
 
 > "I put it on my desktop and now I stare at it all day. Am I working or watching quotas? Unclear."
 > — **Kenan**, a very close friend of Eray's
 
-> "Updated purely to see the Extra Large."
+> "Updated purely to see the widgets."
 > — **Tayfun**, who still owes Eray ₺400
 
 > "Claude was at 9% when I added the widget. I panicked — then thought, what an elegant panic."
@@ -37,9 +38,13 @@ The whole picture, without lifting a finger. 😊
 > — **Burak**, who needs something from Eray
 
 #### Added
-- macOS desktop widgets, in five sizes: a single big number (Small), a compact list of every 5-hour limit (Medium), roomy per-model blocks (Large), and a full three-column view with credits and weekly limits (Extra Large). Each percentage and bar is coloured by how much you have left — green at 50% or above, amber between 15–50%, red below 15%.
+- macOS desktop widgets, in **two sizes**: a single big number (Small) and a compact list of every 5-hour limit (Medium). Each percentage and bar is coloured by how much you have left — green at 50% or above, amber between 15–50%, red below 15%.
 - The Small widget is configurable: long-press → Edit Widget to choose exactly which model it shows. It defaults to whichever is closest to running out.
 - Widgets follow the system appearance, in both light and dark mode.
+- Right-click the menu-bar icon: toggle anonymous statistics, check for updates, quit Mimir.
+- **Anonymous, privacy-first usage statistics**: only categorical info like which providers and widgets you use — your quotas, credits, account, and personal data are never sent. Turn it off anytime from the right-click menu.
+
+### [2.2.2] - 2026-06-22
 
 #### Changed
 - The menu-bar dots now show one dot per 5-hour limit instead of one per service, so Antigravity's Gemini and Claude/GPT each get their own dot — you can tell at a glance that one is full while the other is spent. The dots arrange into a compact grid (a 2×2 when there are four).
@@ -291,16 +296,17 @@ sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) k
 
 **Mimir, menü çubuğunun ötesinde.**
 
-Hiçbir şey açmana gerek var mı? Mimir 2.3 ile kotaların doğrudan masaüstünde.
+Hiçbir şey açmana gerek var mı?
+Artık yok! Mimir 2.3 ile kotaların doğrudan masaüstünde.
 
-Beş widget arasından seç — tek cesur bir yüzde, derli toplu bir liste, model başına ferah bloklar veya kredi ve haftalıklarla tam üç sütunlu görünüm. Her yüzde ve çubuk durumuna göre parlıyor: yeşil, amber, kırmızı. Küçük olanın hangi modeli izleyeceğini sen söyle. Açık mod, koyu mod — ikisinde de kusursuz.
+İki widget arasından seç — tek cesur bir yüzde ya da tüm 5 saatlik limitlerin derli toplu listesi. Her yüzde ve çubuk durumuna göre parlıyor: yeşil, amber, kırmızı. Küçük olanın hangi modeli izleyeceğini sen söyle. Açık mod, koyu mod — ikisinde de kusursuz.
 
 Parmağını kıpırdatmadan tüm tablo. 😊
 
 > "Masaüstüne koydum, gün boyu oraya bakıyorum. İş mi yapıyorum, kota mı izliyorum belli değil."
 > — **Kenan**, Eray'ın çok yakın arkadaşı
 
-> "Sırf Extra Large'ı görmek için güncelledim."
+> "Sırf widget'ları görmek için güncelledim."
 > — **Tayfun**, Eray'a hâlâ 400 TL borcu olan biri
 
 > "Widget'ı eklerken Claude %9 çıktı, panikledim — sonra 'ne kadar şık bir panik' dedim."
@@ -313,9 +319,13 @@ Parmağını kıpırdatmadan tüm tablo. 😊
 > — **Burak**, Eray'a işi düşmüş biri
 
 #### Eklendi
-- macOS masaüstü widget'ları, beş boyutta: tek büyük yüzde (Small), tüm 5 saatlik limitlerin derli toplu listesi (Medium), model başına ferah bloklar (Large) ve kredi + haftalık limitlerle tam üç sütunlu görünüm (Extra Large). Her yüzde ve çubuk, kalanına göre renklenir — %50 ve üzeri yeşil, %15–50 arası amber, %15 altı kırmızı.
+- macOS masaüstü widget'ları, **iki boyutta**: tek büyük yüzde (Small) ve tüm 5 saatlik limitlerin derli toplu listesi (Medium). Her yüzde ve çubuk, kalanına göre renklenir — %50 ve üzeri yeşil, %15–50 arası amber, %15 altı kırmızı.
 - Small widget yapılandırılabilir: hangi modeli göstereceğini seçmek için üzerine uzun bas → Widget'ı Düzenle. Varsayılan olarak tükenmeye en yakın olanı gösterir.
 - Widget'lar sistem görünümünü takip eder; hem açık hem koyu temada çalışır.
+- Menü çubuğu ikonuna **sağ tık**: anonim istatistikleri aç/kapat, güncellemeleri denetle, Mimir'den çık.
+- **Anonim, gizlilik-dostu kullanım istatistikleri**: yalnızca hangi sağlayıcıları ve widget'ları kullandığın gibi kategorik bilgi — kotan, kredilerin, hesabın veya kişisel verin asla gönderilmez. İstediğin an sağ-tık menüsünden kapatabilirsin.
+
+### [2.2.2] - 2026-06-22
 
 #### Değiştirildi
 - Menü çubuğu noktaları artık servis başına değil, her 5 saatlik limit başına bir nokta gösteriyor; böylece Antigravity'nin Gemini ve Claude/GPT'si ayrı noktalar — biri doluyken diğerinin tükendiğini bir bakışta görürsün. Noktalar kompakt bir grid'e diziliyor (dört taneyse 2×2).
