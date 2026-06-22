@@ -11,6 +11,20 @@ APP_NAME="Mimir Dev"       # bundle + display name
 BUNDLE_ID="com.erayendes.mimir.dev"
 MIN_SYSTEM_VERSION="14.0"
 
+# WIDGET=1 builds + embeds the WidgetKit extension and signs the bundle with Developer ID so the
+# App Group shared container resolves (ad-hoc signing has no Team ID → no container). Default off,
+# so the everyday `./script/build_and_run.sh` stays fast and ad-hoc as before.
+WIDGET="${WIDGET:-0}"
+APP_GROUP="group.com.erayendes.mimir"
+if [ "$WIDGET" = "1" ]; then
+  SIGN_ID="${SIGN_ID:-Developer ID Application: Eray Endes (926AC5V2UG)}"
+  # App Groups for a widget extension need a provisioning profile, which is tied to the prod
+  # app-id. So a widget build uses the prod bundle id (quit the shipped Mimir while testing).
+  BUNDLE_ID="com.erayendes.mimir"
+else
+  SIGN_ID="${SIGN_ID:--}"   # ad-hoc
+fi
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
 APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
@@ -45,11 +59,24 @@ cp -R "$ROOT_DIR/Sources/Mimir/Resources/tr.lproj" "$APP_RESOURCES/" 2>/dev/null
 cp "$ROOT_DIR/Sources/Mimir/Resources/AppIcon.png" "$APP_RESOURCES/" 2>/dev/null || true
 cp "$ROOT_DIR/Sources/Mimir/Resources/MenuIcon.png" "$APP_RESOURCES/" 2>/dev/null || true
 
+# When embedding a widget, give the host a version so it matches the extension (avoids the
+# "extension version must match host" validation); normal dev builds omit it (footer shows "dev").
+EXTRA_PLIST=""
+if [ "$WIDGET" = "1" ]; then
+  EXTRA_PLIST="  <key>CFBundleShortVersionString</key>
+  <string>1.0</string>
+  <key>CFBundleVersion</key>
+  <string>1</string>"
+fi
+
 cat >"$INFO_PLIST" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+$EXTRA_PLIST
+  <key>MimirAppGroup</key>
+  <string>$APP_GROUP</string>
   <key>CFBundleExecutable</key>
   <string>$PRODUCT</string>
   <key>CFBundleDevelopmentRegion</key>
@@ -85,6 +112,25 @@ if [ -n "$SPARKLE_FW" ]; then
   ditto --norsrc "$SPARKLE_FW" "$FRAMEWORKS_DIR/Sparkle.framework"
 fi
 
+# Build + embed the WidgetKit extension (.appex) into Contents/PlugIns (WIDGET=1 only). The Xcode
+# project is generated from WidgetExtension/project.yml; the appex is built UNSIGNED here and signed
+# below (inside-out, with its own entitlements).
+if [ "$WIDGET" = "1" ]; then
+  echo "▶ Building widget extension..."
+  xcodegen generate --spec "$ROOT_DIR/WidgetExtension/project.yml" --project "$ROOT_DIR/WidgetExtension" >/dev/null
+  WIDGET_BUILD="$ROOT_DIR/.build/widget"
+  rm -rf "$WIDGET_BUILD"
+  xcodebuild -project "$ROOT_DIR/WidgetExtension/MimirWidgetExtension.xcodeproj" \
+    -target MimirWidgetExtension -configuration Release \
+    CONFIGURATION_BUILD_DIR="$WIDGET_BUILD" CODE_SIGNING_ALLOWED=NO build >/dev/null
+  mkdir -p "$APP_CONTENTS/PlugIns"
+  rm -rf "$APP_CONTENTS/PlugIns/MimirWidgetExtension.appex"
+  cp -R "$WIDGET_BUILD/MimirWidgetExtension.appex" "$APP_CONTENTS/PlugIns/"
+  # Embed provisioning profiles (these authorise the App Group entitlement for Developer ID).
+  cp "$ROOT_DIR/signing/Mimir_App.provisionprofile" "$APP_CONTENTS/embedded.provisionprofile"
+  cp "$ROOT_DIR/signing/Mimir_Widget.provisionprofile" "$APP_CONTENTS/PlugIns/MimirWidgetExtension.appex/Contents/embedded.provisionprofile"
+fi
+
 # Sign from /tmp — iCloud Drive (bird daemon) keeps re-adding extended attributes
 # to bundles under ~/Documents, which codesign rejects ("resource fork ... not
 # allowed"). Sign a clean copy outside the synced tree, then ditto it back.
@@ -97,15 +143,30 @@ xattr -cr "$TMP_BUNDLE" 2>/dev/null || true
 # --options runtime preserves Hardened Runtime so Updater.app and XPC services launch correctly.
 SPARKLE_B="$TMP_BUNDLE/Contents/Frameworks/Sparkle.framework/Versions/B"
 if [ -d "$SPARKLE_B" ]; then
-  codesign --force --sign - --options runtime "$SPARKLE_B/XPCServices/Downloader.xpc"
-  codesign --force --sign - --options runtime "$SPARKLE_B/XPCServices/Installer.xpc"
-  codesign --force --sign - --options runtime "$SPARKLE_B/Updater.app"
-  codesign --force --sign -                   "$SPARKLE_B/Autoupdate"
-  codesign --force --sign - --options runtime "$TMP_BUNDLE/Contents/Frameworks/Sparkle.framework"
+  codesign --force --sign "$SIGN_ID" --options runtime "$SPARKLE_B/XPCServices/Downloader.xpc"
+  codesign --force --sign "$SIGN_ID" --options runtime "$SPARKLE_B/XPCServices/Installer.xpc"
+  codesign --force --sign "$SIGN_ID" --options runtime "$SPARKLE_B/Updater.app"
+  codesign --force --sign "$SIGN_ID"                   "$SPARKLE_B/Autoupdate"
+  codesign --force --sign "$SIGN_ID" --options runtime "$TMP_BUNDLE/Contents/Frameworks/Sparkle.framework"
 fi
 
-# Seal the whole app bundle last, then copy the signed bundle back over the original.
-codesign --force --sign - "$TMP_BUNDLE"
+# Sign the widget extension with its OWN sandbox + App Group entitlements, inside-out (before the
+# host app). Not via `codesign --deep` — that cannot apply per-nested entitlements and would strip
+# the appex's App Group access.
+if [ "$WIDGET" = "1" ]; then
+  codesign --force --sign "$SIGN_ID" --options runtime \
+    --entitlements "$ROOT_DIR/WidgetExtension/MimirWidget/MimirWidget.dev.entitlements" \
+    "$TMP_BUNDLE/Contents/PlugIns/MimirWidgetExtension.appex"
+fi
+
+# Seal the whole app bundle last. With a widget, the host carries the App Group entitlement so both
+# processes resolve the same shared container; otherwise sign ad-hoc as before.
+if [ "$WIDGET" = "1" ]; then
+  codesign --force --sign "$SIGN_ID" --options runtime \
+    --entitlements "$ROOT_DIR/Sources/Mimir/Mimir.dev.entitlements" "$TMP_BUNDLE"
+else
+  codesign --force --sign "$SIGN_ID" "$TMP_BUNDLE"
+fi
 rm -rf "$APP_BUNDLE"
 ditto --norsrc "$TMP_BUNDLE" "$APP_BUNDLE"
 rm -rf "$TMP_BUNDLE"

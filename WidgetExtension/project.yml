@@ -1,0 +1,34 @@
+name: MimirWidgetExtension
+options:
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    # The script builds the .appex UNSIGNED and signs it afterward (with the right identity +
+    # entitlements), mirroring how release.sh builds the app unsigned for CI to sign.
+    CODE_SIGNING_ALLOWED: "NO"
+    CODE_SIGN_IDENTITY: ""
+    # Dev defaults; release build overrides PRODUCT_BUNDLE_IDENTIFIER / MIMIR_APP_GROUP /
+    # CODE_SIGN_ENTITLEMENTS / versions via xcodebuild args.
+    MIMIR_APP_GROUP: group.com.erayendes.mimir
+
+targets:
+  MimirWidgetExtension:
+    type: app-extension
+    platform: macOS
+    sources:
+      - path: MimirWidget
+      - path: ../Sources/MimirShared
+    settings:
+      base:
+        PRODUCT_NAME: MimirWidgetExtension
+        PRODUCT_BUNDLE_IDENTIFIER: com.erayendes.mimir.widget
+        INFOPLIST_FILE: MimirWidget/Info.plist
+        CODE_SIGN_ENTITLEMENTS: MimirWidget/MimirWidget.dev.entitlements
+        SKIP_INSTALL: "YES"

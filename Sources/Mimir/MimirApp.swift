@@ -1,10 +1,12 @@
 import AppKit
 import Combine
+import MimirShared
 import Sentry
 import ServiceManagement
 import Sparkle
 import SwiftUI
 import UserNotifications
+import WidgetKit
 
 @main
 struct MimirApp: App {
@@ -53,6 +55,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var iconSource: NSImage?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // P0 widget spike: write a value into the App Group container so the widget can read it,
+        // then reload so the placed widget picks it up. Removed in P1.
+        WidgetSpike.write(42)
+        WidgetCenter.shared.reloadAllTimelines()
+
         // Dev builds (com.erayendes.mimir.dev) must not report to the production
         // Sentry project — their crashes/hangs are just local development noise (MIMIR-7).
         let isDevBuild = Bundle.main.bundleIdentifier?.hasSuffix(".dev") ?? false
