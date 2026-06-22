@@ -58,4 +58,19 @@ final class WidgetBridgeTests: XCTestCase {
         XCTAssertEqual(providers.map(\.name), ["Claude", "Codex"])
         XCTAssertTrue(providers[0].isAvailable)   // stale still surfaces (matches popover/menu-bar rule)
     }
+
+    /// The reload guard skips work when nothing moved: identical services yield Equatable-equal
+    /// `providers` (despite a different generatedAt), and a percent change breaks that equality.
+    func testProvidersEqualityDrivesReloadGuard() {
+        let svc = { (pct: Int) in
+            ServiceStatus(name: "Claude", iconName: "claude", sessionResetAt: self.now, weeklyResetAt: self.now,
+                          sessionRemainingPercent: pct, weeklyRemainingPercent: 50, models: [],
+                          isAvailable: true, statusNote: nil)
+        }
+        let a = WidgetBridge.makePayload([svc(40)], generatedAt: now).providers
+        let b = WidgetBridge.makePayload([svc(40)], generatedAt: now.addingTimeInterval(60)).providers
+        let c = WidgetBridge.makePayload([svc(41)], generatedAt: now).providers
+        XCTAssertEqual(a, b)      // same data, later timestamp → no reload
+        XCTAssertNotEqual(a, c)   // percent moved → reload
+    }
 }

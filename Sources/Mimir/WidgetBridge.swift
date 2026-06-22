@@ -6,8 +6,19 @@ import WidgetKit
 /// Group container, and nudges WidgetKit to reload. Called from the `store.$services` sink so the
 /// widget tracks every refresh. Pure mapping (no AppKit) → unit-testable.
 enum WidgetBridge {
+    /// Last providers we wrote, to skip no-op refreshes. ponytail: only ever touched from the
+    /// main-thread `store.$services` sink (single writer), so `nonisolated(unsafe)` is accurate
+    /// and avoids forcing `update` onto @MainActor (which the Combine sink call site isn't).
+    nonisolated(unsafe) private static var lastProviders: [ProviderPayload]?
+
     static func update(_ services: [ServiceStatus]) {
         let payload = makePayload(services, generatedAt: Date())
+        // Only write + reload when the data actually changed. WidgetKit budgets timeline reloads;
+        // firing one on every 60s refresh (even when nothing moved) burns that budget and leaves
+        // the widget showing stale data. The provider data — not the generatedAt stamp — is what
+        // matters; the widget's own ~15-min timeline policy keeps the countdown text live.
+        guard payload.providers != lastProviders else { return }
+        lastProviders = payload.providers
         WidgetStore.write(payload)
         WidgetCenter.shared.reloadAllTimelines()
     }

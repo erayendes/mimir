@@ -17,7 +17,7 @@ public struct WidgetPayload: Codable {
     }
 }
 
-public struct ProviderPayload: Codable {
+public struct ProviderPayload: Codable, Equatable {
     public var name: String          // "Claude" / "Codex" / "Antigravity"
     public var iconName: String      // brand asset stem: "claude" / "codex" / "antigravity"
     public var isAvailable: Bool
@@ -36,7 +36,7 @@ public struct ProviderPayload: Codable {
     }
 }
 
-public struct WindowMetric: Codable {
+public struct WindowMetric: Codable, Equatable {
     public var label: String         // row label: "Claude" / "Gemini" / "Claude/GPT" / "Sonnet" …
     public var percent: Int          // remaining %, drives bar width + status colour
     public var resetAt: Date?        // when the window refills — countdown + HH:mm computed per entry
