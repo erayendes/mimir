@@ -53,6 +53,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var depleted5h: Set<String> = []      // service's 5h window hit 0% since its last refill
     private var lastWindowPercent: [String: Int] = [:]  // previous reading, for refill edge detection
     private var iconSource: NSImage?
+    private var refreshCount = 0              // refreshes seen this session (for the provider signal)
+    private var sentProviderSignal = false   // provider.active is emitted once per session
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Dev builds (com.erayendes.mimir.dev) must not report to the production
@@ -77,6 +79,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 // so it fires false positives whenever a modal is open (MIMIR-4/5/6/7).
                 // Crash and error reporting stay on.
                 options.enableAppHangTracking = false
+            }
+        }
+
+        // Anonymous, opt-out usage telemetry (no-op for dev builds / opted-out users). The
+        // widget-usage snapshot is read here since WidgetCenter is local and immediate.
+        Telemetry.start()
+        WidgetCenter.shared.getCurrentConfigurations { result in
+            let families = (try? result.get())?.map { "\($0.family)" } ?? []
+            // getCurrentConfigurations' completion runs on an arbitrary queue; hop to main so the
+            // telemetry state (started flag) is only ever touched there.
+            DispatchQueue.main.async {
+                Telemetry.signal("widget.installed", parameters: Telemetry.widgetParameters(families: families))
             }
         }
 
@@ -132,6 +146,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         item.button?.target = self
         item.button?.action = #selector(togglePopover(_:))
+        item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
         statusItem = item
 
         store.refresh()
@@ -148,6 +163,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 SentrySDK.addBreadcrumb(crumb)
                 self?.refreshStatusTitle()
                 WidgetBridge.update(services)
+                self?.noteRefreshForTelemetry(services)
             }
             .store(in: &cancellables)
         timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
@@ -212,7 +228,60 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         SentrySDK.flush(timeout: 1)
     }
 
+    /// Right-click menu: opt-out toggle, update check, and quit (the app has no other quit path).
+    /// `statusItem.menu` is set only transiently so a left click still toggles the panel.
+    private func showStatusMenu() {
+        guard let item = statusItem else { return }
+        let menu = NSMenu()
+
+        let toggle = NSMenuItem(title: String(localized: "Send anonymous statistics"),
+                                action: #selector(toggleTelemetry), keyEquivalent: "")
+        toggle.target = self
+        toggle.state = Telemetry.enabled ? .on : .off
+        menu.addItem(toggle)
+        menu.addItem(.separator())
+
+        let update = NSMenuItem(title: String(localized: "Check for updates"),
+                                action: #selector(menuCheckForUpdates), keyEquivalent: "")
+        update.target = self
+        menu.addItem(update)
+
+        let quit = NSMenuItem(title: String(localized: "Quit Mimir"),
+                              action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        menu.addItem(quit)
+
+        item.menu = menu
+        item.button?.performClick(nil)
+        item.menu = nil
+    }
+
+    @objc private func toggleTelemetry() {
+        Telemetry.setEnabled(!Telemetry.enabled)
+        if Telemetry.enabled { Telemetry.signal("telemetry.enabled") }
+    }
+
+    @objc private func menuCheckForUpdates() {
+        updaterController?.checkForUpdates(nil)
+        Telemetry.signal("update.checkRequested")
+    }
+
+    /// Emit the provider-usage signal once per session, on the 3rd refresh — Antigravity is only
+    /// visible while its IDE runs, so sampling at launch would undercount it. ~3 min (60s × 3) in,
+    /// the picture has usually settled; if not, it's caught next session.
+    private func noteRefreshForTelemetry(_ services: [ServiceStatus]) {
+        guard !sentProviderSignal else { return }
+        refreshCount += 1
+        guard refreshCount >= 3 else { return }
+        sentProviderSignal = true
+        Telemetry.signal("provider.active", parameters: Telemetry.providerParameters(from: services))
+    }
+
     @objc private func togglePopover(_ sender: Any?) {
+        // Right-click opens the menu instead of the panel.
+        if NSApp.currentEvent?.type == .rightMouseUp {
+            showStatusMenu()
+            return
+        }
         if panel.isVisible {
             hidePanel()
         } else {

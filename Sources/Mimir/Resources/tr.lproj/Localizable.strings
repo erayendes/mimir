@@ -72,3 +72,7 @@
 "widget.empty" = "Kotayı yüklemek için Mimir'i aç.";
 "widget.config.model" = "Model";
 "widget.config.description" = "Small widget'ın hangi modeli göstereceğini seç.";
+
+/* Status menu */
+"Send anonymous statistics" = "Anonim istatistik gönder";
+"Quit Mimir" = "Mimir'den Çık";

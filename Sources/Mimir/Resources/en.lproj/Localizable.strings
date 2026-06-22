@@ -72,3 +72,7 @@
 "widget.empty" = "Open Mimir to load quota.";
 "widget.config.model" = "Model";
 "widget.config.description" = "Choose which model the small widget shows.";
+
+/* Status menu */
+"Send anonymous statistics" = "Send anonymous statistics";
+"Quit Mimir" = "Quit Mimir";

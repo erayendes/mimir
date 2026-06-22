@@ -13,6 +13,7 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/getsentry/sentry-cocoa", from: "9.17.0"),
         .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.7.0"),
+        .package(url: "https://github.com/TelemetryDeck/SwiftSDK", from: "2.0.0"),
     ],
     targets: [
         // Pure (Foundation/SwiftUI only) code shared verbatim with the widget extension — the
@@ -25,6 +26,7 @@ let package = Package(
                 "MimirShared",
                 .product(name: "Sentry", package: "sentry-cocoa"),
                 .product(name: "Sparkle", package: "Sparkle"),
+                .product(name: "TelemetryDeck", package: "SwiftSDK"),
             ],
             exclude: [
                 // Code-signing entitlements consumed by the build scripts / CI, not SwiftPM.
