@@ -86,7 +86,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Telemetry.start()
         WidgetCenter.shared.getCurrentConfigurations { result in
             let families = (try? result.get())?.map { "\($0.family)" } ?? []
-            Telemetry.signal("widget.installed", parameters: Telemetry.widgetParameters(families: families))
+            // getCurrentConfigurations' completion runs on an arbitrary queue; hop to main so the
+            // telemetry state (started flag) is only ever touched there.
+            DispatchQueue.main.async {
+                Telemetry.signal("widget.installed", parameters: Telemetry.widgetParameters(families: families))
+            }
         }
 
         updaterController = SPUStandardUpdaterController(
