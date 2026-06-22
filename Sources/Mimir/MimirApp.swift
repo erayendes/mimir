@@ -5,6 +5,7 @@ import ServiceManagement
 import Sparkle
 import SwiftUI
 import UserNotifications
+import WidgetKit
 
 @main
 struct MimirApp: App {
@@ -51,6 +52,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var depleted5h: Set<String> = []      // service's 5h window hit 0% since its last refill
     private var lastWindowPercent: [String: Int] = [:]  // previous reading, for refill edge detection
     private var iconSource: NSImage?
+    private var refreshCount = 0              // refreshes seen this session (for the provider signal)
+    private var sentProviderSignal = false   // provider.active is emitted once per session
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Dev builds (com.erayendes.mimir.dev) must not report to the production
@@ -76,6 +79,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 // Crash and error reporting stay on.
                 options.enableAppHangTracking = false
             }
+        }
+
+        // Anonymous, opt-out usage telemetry (no-op for dev builds / opted-out users). The
+        // widget-usage snapshot is read here since WidgetCenter is local and immediate.
+        Telemetry.start()
+        WidgetCenter.shared.getCurrentConfigurations { result in
+            let families = (try? result.get())?.map { "\($0.family)" } ?? []
+            Telemetry.signal("widget.installed", parameters: Telemetry.widgetParameters(families: families))
         }
 
         updaterController = SPUStandardUpdaterController(
@@ -145,6 +156,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 crumb.level = services.contains(where: { !$0.isAvailable }) ? .warning : .info
                 SentrySDK.addBreadcrumb(crumb)
                 self?.refreshStatusTitle()
+                self?.noteRefreshForTelemetry(services)
             }
             .store(in: &cancellables)
         timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
@@ -207,6 +219,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Keep this strictly below Sentry's 2000 ms app-hang threshold: flushing on the
         // main thread at quit otherwise trips its own AppHang detector (MIMIR-4).
         SentrySDK.flush(timeout: 1)
+    }
+
+    /// Emit the provider-usage signal once per session, on the 3rd refresh — Antigravity is only
+    /// visible while its IDE runs, so sampling at launch would undercount it. ~3 min (60s × 3) in,
+    /// the picture has usually settled; if not, it's caught next session.
+    private func noteRefreshForTelemetry(_ services: [ServiceStatus]) {
+        guard !sentProviderSignal else { return }
+        refreshCount += 1
+        guard refreshCount >= 3 else { return }
+        sentProviderSignal = true
+        Telemetry.signal("provider.active", parameters: Telemetry.providerParameters(from: services))
     }
 
     @objc private func togglePopover(_ sender: Any?) {
