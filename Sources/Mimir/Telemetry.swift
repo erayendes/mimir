@@ -1,4 +1,5 @@
 import Foundation
+import TelemetryDeck
 
 /// Anonymous, privacy-first usage telemetry (TelemetryDeck). Every send passes through
 /// `shouldSend`; dev builds and opted-out users never send. Signals are categorical only —
@@ -36,5 +37,30 @@ enum Telemetry {
         func count(_ raw: String) -> String { String(families.filter { $0 == raw }.count) }
         return ["small": count("systemSmall"), "medium": count("systemMedium"),
                 "large": count("systemLarge"), "extraLarge": count("systemExtraLarge")]
+    }
+
+    // Touched only from the main thread (launch, the services sink, menu actions). The worst a
+    // race could do is a benign double-initialise, so unsafe is fine here.
+    private nonisolated(unsafe) static var started = false
+
+    /// Initialise the SDK once — only for non-dev builds, with a real app id, and opt-in.
+    static func start() {
+        guard shouldSend(isDev: isDevBuild, enabled: enabled),
+              !appID.isEmpty, appID != "REPLACE_WITH_TELEMETRYDECK_APP_ID",
+              !started else { return }
+        started = true
+        TelemetryDeck.initialize(config: .init(appID: appID))
+    }
+
+    /// Send a categorical signal. No-op unless the SDK started and the gate allows it.
+    static func signal(_ name: String, parameters: [String: String] = [:]) {
+        guard started, shouldSend(isDev: isDevBuild, enabled: enabled) else { return }
+        TelemetryDeck.signal(name, parameters: parameters)
+    }
+
+    /// Flip the opt-out flag; start the SDK if newly enabled (future sends are suppressed when off).
+    static func setEnabled(_ on: Bool) {
+        UserDefaults.standard.set(on, forKey: enabledKey)
+        if on { start() }
     }
 }
