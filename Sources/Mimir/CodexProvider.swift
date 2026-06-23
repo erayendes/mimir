@@ -302,8 +302,7 @@ extension LiveUsageDataSource {
               let data = try? JSONSerialization.data(withJSONObject: auth, options: [.prettyPrinted, .sortedKeys]) else {
             return
         }
-        try? data.write(to: state.path, options: .atomic)
-        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: state.path.path)
+        try? LiveUsageDataSource.secureAtomicWrite(data: data, to: state.path, permissions: 0o600)
     }
 }
 

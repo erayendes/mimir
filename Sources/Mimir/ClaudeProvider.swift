@@ -280,7 +280,7 @@ extension LiveUsageDataSource {
                 at: url.deletingLastPathComponent(),
                 withIntermediateDirectories: true
             )
-            try data.write(to: url, options: .atomic)
+            try LiveUsageDataSource.secureAtomicWrite(data: data, to: url)
         } catch {
             // Cache is an optimization; the live result is still usable.
         }
@@ -478,7 +478,7 @@ extension LiveUsageDataSource {
                 SecItemAdd(newItem as CFDictionary, nil)
             }
         case .file(let url):
-            try? data.write(to: url, options: .atomic)
+            try? LiveUsageDataSource.secureAtomicWrite(data: data, to: url)
         }
     }
 }

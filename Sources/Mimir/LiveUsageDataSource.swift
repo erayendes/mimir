@@ -163,7 +163,7 @@ struct LiveUsageDataSource {
         let url = snapshotURL(for: status.name)
         try? FileManager.default.createDirectory(
             at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try? data.write(to: url, options: .atomic)
+        try? LiveUsageDataSource.secureAtomicWrite(data: data, to: url)
     }
 
     /// Load a service's snapshot, classifying each window by reset time: a window whose reset is
@@ -254,6 +254,33 @@ struct LiveUsageDataSource {
             ?? Self.fallbackServices().first { $0.name == name }!
     }
 
+    /// Safely writes data to a file by creating a temporary file with explicit permissions,
+    /// then atomically replacing the target file. This prevents TOCTOU permission vulnerabilities
+    /// compared to `Data.write(options: .atomic)` followed by `setAttributes`.
+    static func secureAtomicWrite(data: Data, to targetURL: URL, permissions: Int = 0o600) throws {
+        let tempURL = targetURL.deletingLastPathComponent().appendingPathComponent(UUID().uuidString)
+        let fm = FileManager.default
+
+        if !fm.fileExists(atPath: targetURL.deletingLastPathComponent().path) {
+            try fm.createDirectory(at: targetURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        }
+
+        let created = fm.createFile(
+            atPath: tempURL.path,
+            contents: data,
+            attributes: [.posixPermissions: permissions]
+        )
+        guard created else {
+            throw NSError(domain: NSPOSIXErrorDomain, code: Int(EIO), userInfo: [NSLocalizedDescriptionKey: "Failed to create temp file"])
+        }
+
+        do {
+            _ = try fm.replaceItemAt(targetURL, withItemAt: tempURL)
+        } catch {
+            try? fm.removeItem(at: tempURL)
+            throw error
+        }
+    }
 
 
     func unavailableService(name: String, iconName: String, models: [String], note: String? = nil) -> ServiceStatus {

@@ -56,7 +56,18 @@ public enum WidgetStore {
         // The non-sandboxed app may be the first to touch the container; create it if absent.
         try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
                                                  withIntermediateDirectories: true)
-        try? data.write(to: url, options: .atomic)
+        // Note: Using secure atomic write logic to avoid TOCTOU file vulnerabilities.
+        // It's recreated here since LiveUsageDataSource is not in MimirShared.
+        let tempURL = url.deletingLastPathComponent().appendingPathComponent(UUID().uuidString)
+        let fm = FileManager.default
+        let created = fm.createFile(atPath: tempURL.path, contents: data, attributes: [.posixPermissions: 0o600])
+        if created {
+            do {
+                _ = try fm.replaceItemAt(url, withItemAt: tempURL)
+            } catch {
+                try? fm.removeItem(at: tempURL)
+            }
+        }
     }
 
     public static func read() -> WidgetPayload? {
