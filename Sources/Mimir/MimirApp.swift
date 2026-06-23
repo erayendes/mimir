@@ -501,6 +501,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private static let agyResetTargetKey = "agyWeeklyResetTarget"      // armed reset we're waiting on
     private static let agyResetNotifiedKey = "agyWeeklyResetNotified"  // reset we've already announced
 
+    /// HH:mm for the 5-hour low notification's reset clock.
+    private static let clockFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm"
+        return f
+    }()
+
     /// Antigravity's one reliable notification: the weekly quota refill. Its weekly reset time is
     /// deterministic and known in advance, and the quota can't be spent while the IDE is closed —
     /// so once we've seen the reset time, we can fire "refilled" exactly when it passes, with no
@@ -515,8 +522,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if defaults.double(forKey: Self.agyResetNotifiedKey) != armed {
                 sendNotification(
                     identifier: "Antigravity-weekly-refilled",
-                    title: String(format: String(localized: "🚀 %@ weekly quota refilled"), "Antigravity"),
-                    body: String(localized: "Back to 100%% for the week.")
+                    title: String(format: String(localized: "🚀 %@ weekly quota refilled."), "Antigravity"),
+                    body: String(localized: "Your weekly quota is back to 100%. Pick up where you left off.")
                 )
                 defaults.set(armed, forKey: Self.agyResetNotifiedKey)
             }
@@ -559,16 +566,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 if depleted5h.contains(service.name) {
                     sendNotification(
                         identifier: "\(key)-refilled",
-                        title: String(format: String(localized: "🔋 %@ 5-hour quota refilled"), service.name),
-                        body: String(localized: "You're back to 100%% — pick up where you left off.")
+                        title: String(format: String(localized: "🔋 %@ ready for a new sprint."), service.name),
+                        body: String(localized: "Your 5-hour session is back to 100%. Pick up where you left off.")
                     )
                 }
                 depleted5h.remove(service.name)
             case .weekly:
                 sendNotification(
                     identifier: "\(key)-refilled",
-                    title: String(format: String(localized: "🚀 %@ weekly quota refilled"), service.name),
-                    body: String(localized: "Back to 100%% for the week.")
+                    title: String(format: String(localized: "🚀 %@ weekly quota refilled."), service.name),
+                    body: String(localized: "Your weekly quota is back to 100%. Pick up where you left off.")
                 )
             }
             lowNotified.remove(key)
@@ -577,19 +584,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Low: crossed below the threshold. Warn once, then stay quiet until the window resets.
         if percent < window.lowThreshold, !lowNotified.contains(key) {
-            let resets = resetAt.map { String(format: String(localized: "Resets in ~%@."), TimeFormatter.duration(from: $0.timeIntervalSinceNow)) }
+            let duration = resetAt.map { TimeFormatter.duration(from: $0.timeIntervalSinceNow) }
             switch window {
             case .fiveHour:
+                // 5h includes the reset clock (it's today) plus the countdown.
+                let body: String
+                if let resetAt, let duration {
+                    body = String(format: String(localized: "Resets at %@. ~%@ to go."),
+                                  Self.clockFormatter.string(from: resetAt), duration)
+                } else {
+                    body = String(localized: "Your 5-hour limit is running out.")
+                }
                 sendNotification(
                     identifier: key,
-                    title: String(format: String(localized: "🪫 %@ 5-hour quota low — %d%%"), service.name, percent),
-                    body: resets ?? String(localized: "Your 5-hour limit is running out.")
+                    title: String(format: String(localized: "🪫 %@ 5-hour quota running out — %d%%"), service.name, percent),
+                    body: body
                 )
             case .weekly:
+                // Weekly is days out, so just the countdown (no clock).
+                let body = duration.map { String(format: String(localized: "Renews in ~%@."), $0) }
+                    ?? String(localized: "Your weekly limit is running out.")
                 sendNotification(
                     identifier: key,
-                    title: String(format: String(localized: "🚨 %@ weekly quota low — %d%%"), service.name, percent),
-                    body: resets ?? String(localized: "Your weekly limit is running out.")
+                    title: String(format: String(localized: "🚨 %@ weekly quota running out — %d%%"), service.name, percent),
+                    body: body
                 )
             }
             lowNotified.insert(key)
