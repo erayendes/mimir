@@ -132,11 +132,13 @@ private struct SmallView: View {
             // Big percent at weather-widget scale: large digits with a smaller "%" sign for a cleaner
             // figure. Greys to passive when the weekly quota is spent.
             HStack(alignment: .firstTextBaseline, spacing: 1) {
-                Text("\(pct)").font(.system(size: 54, weight: .light)).tracking(-0.5).monospacedDigit()
-                Text("%").font(.system(size: 30, weight: .light))
+                Text("\(pct)").font(.system(size: 48, weight: .light)).tracking(-0.5).monospacedDigit()
+                Text("%").font(.system(size: 26, weight: .light))
             }
             .foregroundStyle(weeklyExhausted ? Tok.passive : statusColor(pct))
-            ProgressBar(percent: pct, height: 6, color: weeklyExhausted ? Tok.passive : nil).padding(.top, 10)
+            // Symmetric gaps: the number's font carries ~descender(48pt)≈10pt of slack below the
+            // digits, so a +2 here visually matches the footer's `.padding(.top, 10)` below the bar.
+            ProgressBar(percent: pct, height: 6, color: weeklyExhausted ? Tok.passive : nil).padding(.top, 2)
             ResetFooter(resetAt: metric.metric.resetAt, now: now, size: 11).padding(.top, 10)
         }
         .padding(16)

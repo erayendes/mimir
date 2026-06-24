@@ -399,13 +399,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// (no 5h reading yet, or the fetch hasn't landed) → a neutral grey placeholder. It recolours on
     /// the next refresh.
     private func menuBarDotColors() -> [NSColor] {
-        menuBarDots(from: store.services).map { $0.map(statusNSColor) ?? Self.noDataDotColor }
+        menuBarDots(from: store.services).map { dot in
+            // 7g (weekly) spent → grey lockout, matching the widget/popover; else the 5h status
+            // colour, or the neutral grey when there's no 5h reading yet.
+            if dot.weeklyExhausted { return Self.noDataDotColor }
+            return dot.sessionPercent.map(statusNSColor) ?? Self.noDataDotColor
+        }
     }
 
-    /// Grey "no data yet" dot for a visible service whose 5-hour reading is missing. Appearance-
-    /// aware (resolved at `setFill` time inside the menu-bar draw pass): a darker grey on the light
-    /// menu bar, a lighter grey on the dark one, so it stays legible either way — unlike the
-    /// saturated status colours, a single fixed grey washes out against one of the two backgrounds.
+    /// Neutral grey dot, reused for two inactive states: a visible service whose 5-hour reading is
+    /// missing ("no data yet"), and a model whose weekly (7g) quota is spent (the lockout grey, see
+    /// `menuBarDotColors`). Appearance-aware (resolved at `setFill` time inside the menu-bar draw
+    /// pass): a darker grey on the light menu bar, a lighter grey on the dark one, so it stays legible
+    /// either way — unlike the saturated status colours, a single fixed grey washes out against one
+    /// of the two backgrounds.
     private static let noDataDotColor = NSColor(name: "mimirNoData") { appearance in
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
             ? NSColor(hex: 0x9A9AA0)   // lighter grey for the dark menu bar

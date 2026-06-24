@@ -105,30 +105,56 @@ enum ModelWindow {
 /// up with the wrong card. Change the order here and both move together.
 let serviceDisplayOrder = ["Claude", "Codex", "Antigravity"]
 
-/// The menu-bar status dots — one per **5-hour session window** the popover shows, ordered to match
-/// the popover (`serviceDisplayOrder`, then each service's families in row order). A service is
-/// included on the *same* rule the popover uses (`isAvailable || isStale`), so a visible service is
-/// never silently dotless. Claude and Codex carry one account-level session → one dot each.
-/// Antigravity expands to one dot per 5h family (Gemini, Claude/GPT…) instead of collapsing to the
-/// worst, so a healthy family and an exhausted one show side by side; if it's visible with no 5h
-/// rows at all it still gets one placeholder. Each value is a 5h remaining percent, or `nil` when
-/// there is no current session reading — the menu bar paints `nil` a neutral grey and recolours it
-/// once the number arrives. Pure (no AppKit) so the selection logic is unit-testable.
-func menuBarDots(from services: [ServiceStatus]) -> [Int?] {
-    var dots: [Int?] = []
+/// One 5-hour session window a service exposes, paired with the weekly (7g) quota that gates it.
+/// Antigravity expands to one window per `.session` model (its weekly matched by name); Claude/Codex
+/// carry a single account-level session. This is the one source of truth for "what gates a 5h window"
+/// — shared by the menu-bar dots and the widget bridge so they can never drift apart.
+struct SessionWindow: Equatable {
+    let label: String
+    let sessionPercent: Int?      // nil = no current reading
+    let sessionResetAt: Date?
+    let weeklyPercent: Int?
+    let weeklyResetAt: Date?
+}
+
+extension ServiceStatus {
+    var sessionWindows: [SessionWindow] {
+        let sessionModels = models.filter { $0.window == .session }
+        if !sessionModels.isEmpty {
+            return sessionModels.map { m in
+                let weekly = models.first { $0.window == .weekly && $0.name == m.name }
+                return SessionWindow(label: m.name, sessionPercent: m.remainingPercent, sessionResetAt: m.resetAt,
+                                     weeklyPercent: weekly?.remainingPercent, weeklyResetAt: weekly?.resetAt)
+            }
+        }
+        // No per-model sessions → the account-level session (Claude/Codex). `sessionPercent` may be
+        // nil (a service visible only on its weekly reading): kept as one window so the menu bar still
+        // shows a placeholder dot, while the widget drops it (no 5h number to render).
+        return [SessionWindow(label: name, sessionPercent: sessionRemainingPercent, sessionResetAt: sessionResetAt,
+                              weeklyPercent: weeklyRemainingPercent, weeklyResetAt: weeklyResetAt)]
+    }
+}
+
+/// One menu-bar status dot per 5-hour session window: its remaining percent (nil = no reading yet →
+/// grey placeholder) and whether the weekly (7g) quota is spent (→ grey lockout, matching the widget/
+/// popover, since a full session can't be used while the week is gone).
+struct MenuBarDot: Equatable {
+    let sessionPercent: Int?
+    var weeklyExhausted: Bool = false
+}
+
+/// The menu-bar dots, ordered to match the popover: `serviceDisplayOrder`, then each service's
+/// families in row order (Antigravity shows one dot per family, not a collapsed worst). A service is
+/// included on the popover's own rule (`isAvailable || isStale`), so a visible one is never silently
+/// dotless. Pure (no AppKit) → unit-testable.
+func menuBarDots(from services: [ServiceStatus]) -> [MenuBarDot] {
+    var dots: [MenuBarDot] = []
     for name in serviceDisplayOrder {
         guard let svc = services.first(where: { $0.name == name }),
               svc.isAvailable || svc.isStale else { continue }
-        if name == "Antigravity" {
-            let sessions = svc.models.filter { $0.window == .session }
-            if sessions.isEmpty {
-                dots.append(nil)   // visible but no 5h reading → one grey placeholder
-            } else {
-                dots.append(contentsOf: sessions.map { Optional($0.remainingPercent) })
-            }
-        } else {
-            dots.append(svc.sessionRemainingPercent)
-        }
+        dots.append(contentsOf: svc.sessionWindows.map {
+            MenuBarDot(sessionPercent: $0.sessionPercent, weeklyExhausted: $0.weeklyPercent == 0)
+        })
     }
     return dots
 }
