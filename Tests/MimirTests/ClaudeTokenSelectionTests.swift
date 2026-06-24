@@ -87,25 +87,4 @@ final class ClaudeTokenSelectionTests: XCTestCase {
             keychain: { self.token("kc", expiresInSeconds: 9_999) })
         XCTAssertEqual(result?.accessToken, "kc")
     }
-
-    // MARK: isTokenUsable — read-only mode never refreshes, so a token is used only while valid.
-
-    /// A bare token with no expiry metadata is assumed usable (we have nothing to invalidate it).
-    func testTokenWithNoExpiryIsUsable() {
-        XCTAssertTrue(LiveUsageDataSource.isTokenUsable(token("k", expiresInSeconds: nil), now: now))
-    }
-
-    func testFutureExpiryIsUsable() {
-        XCTAssertTrue(LiveUsageDataSource.isTokenUsable(token("k", expiresInSeconds: 1), now: now))
-    }
-
-    /// Expired → not usable: Mimir won't refresh it, so it falls back to last-known data instead.
-    func testExpiredTokenIsNotUsable() {
-        XCTAssertFalse(LiveUsageDataSource.isTokenUsable(token("k", expiresInSeconds: -1), now: now))
-    }
-
-    /// Expiry exactly at `now` is already gone (the rule is strictly in the future).
-    func testExpiryExactlyNowIsNotUsable() {
-        XCTAssertFalse(LiveUsageDataSource.isTokenUsable(token("k", expiresInSeconds: 0), now: now))
-    }
 }
