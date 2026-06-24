@@ -7,7 +7,55 @@
     <link>https://github.com/erayendes/mimir</link>
     <description>Mimir update feed</description>
     <language>en</language>
-                                            <item>
+                                                <item>
+      <title>Mimir 2.4</title>
+      <sparkle:version>2004000</sparkle:version>
+      <sparkle:shortVersionString>2.4</sparkle:shortVersionString>
+      <pubDate>Wed, 24 Jun 2026 11:40:02 +0000</pubDate>
+      <description><![CDATA[
+<p><b>Added</b></p>
+<ul>
+<li>A model whose weekly (7g) quota is spent now reads as greyed-out/passive (widget and panel), so a full 5-hour limit can't masquerade as usable while the week is locked.</li>
+<li>Dedicated colour band for the weekly (7g) quota: green ≥50%, amber 10–50%, red below 10% (the 5-hour window keeps its 15% threshold).</li>
+</ul>
+<p><b>Changed</b></p>
+<ul>
+<li>Small widget refresh: larger percentage, slimmer % sign, and the "5s" badge moved back into the header.</li>
+<li>Claude's 5-hour reset now also shows in the widget (falling back to the 5-hour window length when the provider omits it).</li>
+<li>Quota low/refill notifications reworded; messages now include the reset time and remaining duration.</li>
+</ul>
+<p><b>Fixed</b></p>
+<ul>
+<li>Fixed Claude Code login being knocked out. To read Claude usage, Mimir was refreshing Claude Code's OAuth token; that token is single-use and shared with Claude Code, so Mimir's refresh could invalidate Claude Code's copy and drop its session. Mimir now accesses the Claude token read-only — it never refreshes it or writes to the keychain or file. When the token expires it shows the last-known values, and updates automatically once Claude Code refreshes its own token.</li>
+<li>Fixed the percent sign rendering incorrectly in notification text (e.g. "%%100").</li>
+</ul>
+<hr>
+<p><b>Eklendi</b></p>
+<ul>
+<li>Haftalık (7g) kotası tükenen model artık gri/pasif gösteriliyor (widget ve panel). Böylece 5 saatlik limit dolu görünse bile o modeli kullanamayacağın belli olur.</li>
+<li>Haftalık (7g) kotasına özel renk eşiği: %50 ve üzeri yeşil, %10–50 arası amber, %10 altı kırmızı (5 saatlik pencere %15 eşiğinde kalmaya devam eder).</li>
+</ul>
+<p><b>Değiştirildi</b></p>
+<ul>
+<li>Small widget tazelendi: yüzde rakamı büyütüldü, % işareti inceltildi, "5s" rozeti başlığa taşındı.</li>
+<li>Claude'un 5 saatlik yenilenme bilgisi artık widget'ta da görünüyor (sağlayıcı süre vermediğinde 5 saatlik pencereye düşülerek).</li>
+<li>Kota uyarı ve yenilenme bildirimleri yeniden yazıldı; mesajlara yenilenme saati ve kalan süre eklendi.</li>
+</ul>
+<p><b>Düzeltildi</b></p>
+<ul>
+<li><b>Claude Code oturumunun bozulması giderildi.</b> Mimir, Claude kotasını okumak için Claude Code'un OAuth erişim anahtarını (token) yeniliyordu. Bu anahtar tek kullanımlık ve Claude Code ile ortak olduğundan, Mimir'in yenilemesi Claude Code'un elindeki kopyayı geçersiz kılıp oturumunu düşürebiliyordu. Mimir artık Claude anahtarına <b>yalnızca salt-okur</b> erişiyor; onu asla yenilemez, keychain'e ya da dosyaya yazmaz. Anahtarın süresi dolduğunda son bilinen değerleri gösterir; Claude Code kendi anahtarını tazeleyince Mimir otomatik olarak güncellenir.</li>
+<li>Bildirim metinlerinde yüzde işaretinin yanlış görünmesi (ör. "%%100") düzeltildi.</li>
+</ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v2.4/Mimir.zip"
+        sparkle:edSignature="3eXHMKZ9ZcYzjEt/hhdZAObXoRTI0EsePSjnDvGU8Zcd0s0XNVya/2nRZzIFH/RnlKMXXbzr1qsAxQkd7LoRDQ=="
+        length="6476242"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 2.3</title>
       <sparkle:version>2003000</sparkle:version>
       <sparkle:shortVersionString>2.3</sparkle:shortVersionString>
