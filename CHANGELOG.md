@@ -11,6 +11,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+### [2.4] - 2026-06-24
+
+#### Added
+- A model whose weekly (7g) quota is spent now reads as greyed-out/passive (widget and panel), so a full 5-hour limit can't masquerade as usable while the week is locked.
+- Dedicated colour band for the weekly (7g) quota: green ≥50%, amber 10–50%, red below 10% (the 5-hour window keeps its 15% threshold).
+
+#### Changed
+- Small widget refresh: larger percentage, slimmer % sign, and the "5s" badge moved back into the header.
+- Claude's 5-hour reset now also shows in the widget (falling back to the 5-hour window length when the provider omits it).
+- Quota low/refill notifications reworded; messages now include the reset time and remaining duration.
+
+#### Fixed
+- Fixed Claude Code login being knocked out. To read Claude usage, Mimir was refreshing Claude Code's OAuth token; that token is single-use and shared with Claude Code, so Mimir's refresh could invalidate Claude Code's copy and drop its session. Mimir now accesses the Claude token read-only — it never refreshes it or writes to the keychain or file. When the token expires it shows the last-known values, and updates automatically once Claude Code refreshes its own token.
+- Fixed the percent sign rendering incorrectly in notification text (e.g. "%%100").
+
 ### [2.3] - 2026-06-22
 
 **Mimir, beyond the menu bar.**
@@ -291,6 +306,21 @@ Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
 
 ### [Yayımlanmadı]
+
+### [2.4] - 2026-06-24
+
+#### Eklendi
+- Haftalık (7g) kotası tükenen model artık gri/pasif gösteriliyor (widget ve panel). Böylece 5 saatlik limit dolu görünse bile o modeli kullanamayacağın belli olur.
+- Haftalık (7g) kotasına özel renk eşiği: %50 ve üzeri yeşil, %10–50 arası amber, %10 altı kırmızı (5 saatlik pencere %15 eşiğinde kalmaya devam eder).
+
+#### Değiştirildi
+- Small widget tazelendi: yüzde rakamı büyütüldü, % işareti inceltildi, "5s" rozeti başlığa taşındı.
+- Claude'un 5 saatlik yenilenme bilgisi artık widget'ta da görünüyor (sağlayıcı süre vermediğinde 5 saatlik pencereye düşülerek).
+- Kota uyarı ve yenilenme bildirimleri yeniden yazıldı; mesajlara yenilenme saati ve kalan süre eklendi.
+
+#### Düzeltildi
+- **Claude Code oturumunun bozulması giderildi.** Mimir, Claude kotasını okumak için Claude Code'un OAuth erişim anahtarını (token) yeniliyordu. Bu anahtar tek kullanımlık ve Claude Code ile ortak olduğundan, Mimir'in yenilemesi Claude Code'un elindeki kopyayı geçersiz kılıp oturumunu düşürebiliyordu. Mimir artık Claude anahtarına **yalnızca salt-okur** erişiyor; onu asla yenilemez, keychain'e ya da dosyaya yazmaz. Anahtarın süresi dolduğunda son bilinen değerleri gösterir; Claude Code kendi anahtarını tazeleyince Mimir otomatik olarak güncellenir.
+- Bildirim metinlerinde yüzde işaretinin yanlış görünmesi (ör. "%%100") düzeltildi.
 
 ### [2.3] - 2026-06-22
 
