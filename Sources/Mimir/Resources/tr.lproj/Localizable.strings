@@ -36,15 +36,16 @@
 "Not Now" = "Şimdi Değil";
 
 /* Notifications */
-"🚀 %@ weekly quota refilled" = "🚀 %@ haftalık kota yenilendi";
-"Back to 100%% for the week." = "Hafta için %%100'e döndü.";
-"🔋 %@ 5-hour quota refilled" = "🔋 %@ 5 saatlik kota yenilendi";
-"You're back to 100%% — pick up where you left off." = "%%100'e döndün — kaldığın yerden devam et.";
-"🪫 %@ 5-hour quota low — %d%%" = "🪫 %@ 5 saatlik kota düşük — %%%d";
+"🚀 %@ weekly quota refilled." = "🚀 %@ haftalık kota yenilendi.";
+"Your weekly quota is back to 100%. Pick up where you left off." = "Haftalık kotanız %100 oldu. Kaldığınız yerden devam edebilirsiniz.";
+"🔋 %@ ready for a new sprint." = "🔋 %@ yeni sprint için hazır.";
+"Your 5-hour session is back to 100%. Pick up where you left off." = "5 saatlik oturum %100 oldu. Kaldığınız yerden devam edebilirsiniz.";
+"🪫 %@ 5-hour quota running out — %d%%" = "🪫 %@ 5 saatlik kota tükeniyor. — %%%d";
+"Resets at %@. ~%@ to go." = "Yenilenme saati %@. ~%@ içinde yenilenecek.";
 "Your 5-hour limit is running out." = "5 saatlik limitin tükeniyor.";
-"🚨 %@ weekly quota low — %d%%" = "🚨 %@ haftalık kota düşük — %%%d";
+"🚨 %@ weekly quota running out — %d%%" = "🚨 %@ haftalık kota tükeniyor. — %%%d";
+"Renews in ~%@." = "~%@ sonra yenilenecek.";
 "Your weekly limit is running out." = "Haftalık limitin tükeniyor.";
-"Resets in ~%@." = "~%@ içinde sıfırlanır.";
 
 /* Status notes */
 "out of date" = "güncel değil";

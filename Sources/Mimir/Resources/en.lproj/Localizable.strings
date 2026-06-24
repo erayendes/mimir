@@ -36,15 +36,16 @@
 "Not Now" = "Not Now";
 
 /* Notifications */
-"🚀 %@ weekly quota refilled" = "🚀 %@ weekly quota refilled";
-"Back to 100%% for the week." = "Back to 100%% for the week.";
-"🔋 %@ 5-hour quota refilled" = "🔋 %@ 5-hour quota refilled";
-"You're back to 100%% — pick up where you left off." = "You're back to 100%% — pick up where you left off.";
-"🪫 %@ 5-hour quota low — %d%%" = "🪫 %@ 5-hour quota low — %d%%";
+"🚀 %@ weekly quota refilled." = "🚀 %@ weekly quota refilled.";
+"Your weekly quota is back to 100%. Pick up where you left off." = "Your weekly quota is back to 100%. Pick up where you left off.";
+"🔋 %@ ready for a new sprint." = "🔋 %@ ready for a new sprint.";
+"Your 5-hour session is back to 100%. Pick up where you left off." = "Your 5-hour session is back to 100%. Pick up where you left off.";
+"🪫 %@ 5-hour quota running out — %d%%" = "🪫 %@ 5-hour quota running out — %d%%";
+"Resets at %@. ~%@ to go." = "Resets at %@. ~%@ to go.";
 "Your 5-hour limit is running out." = "Your 5-hour limit is running out.";
-"🚨 %@ weekly quota low — %d%%" = "🚨 %@ weekly quota low — %d%%";
+"🚨 %@ weekly quota running out — %d%%" = "🚨 %@ weekly quota running out — %d%%";
+"Renews in ~%@." = "Renews in ~%@.";
 "Your weekly limit is running out." = "Your weekly limit is running out.";
-"Resets in ~%@." = "Resets in ~%@.";
 
 /* Status notes */
 "out of date" = "out of date";
