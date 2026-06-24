@@ -1,6 +1,10 @@
 import WidgetKit
 import SwiftUI
 
+/// The 5-hour session window length — the reset fallback shown when a provider reports no `resetAt`
+/// (Claude does this while its 5h window is inactive/full), so the row reads "5h" instead of blank.
+private let fiveHourWindow: TimeInterval = 5 * 3600
+
 // A 5-hour metric paired with its provider's logo, flattened across providers for the Small
 // (single metric) and Medium (one row per metric) layouts.
 private struct FlatMetric: Identifiable {
@@ -72,14 +76,17 @@ private struct Pill: View {
     }
 }
 
-/// gauge + remaining (left) ·· clock + reset (right). Spec footer for Small.
+/// gauge + remaining (left) ·· clock + reset (right). Spec footer for Small. When the provider gives
+/// no reset (Claude's idle 5h window), the remaining falls back to the 5h window length and the clock
+/// is simply omitted — there's no real time to show.
 private struct ResetFooter: View {
     let resetAt: Date?
     let now: Date
     var size: CGFloat = 10
     var body: some View {
         HStack(spacing: 0) {
-            IconText(symbol: "gauge.with.needle", text: Reset.remaining(resetAt, now: now), size: size)
+            IconText(symbol: "gauge.with.needle",
+                     text: Reset.remaining(resetAt, now: now, fallbackWindow: fiveHourWindow), size: size)
             Spacer(minLength: 6)
             IconText(symbol: "clock", text: Reset.clock(resetAt), size: size)
         }
@@ -108,22 +115,29 @@ private struct IconText: View {
 private struct SmallView: View {
     let metric: FlatMetric
     let now: Date
+    // A spent weekly quota locks the model: grey the number + bar so a full session can't read as
+    // "usable" when the week is gone.
+    private var weeklyExhausted: Bool { metric.metric.weeklyPercent == 0 }
+    private var pct: Int { metric.metric.percent }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Model + 5s label at the top (the "mimir" wordmark is dropped on Small for a cleaner
-            // face); the freed space becomes the gap above the number.
+            // Model + 5s badge at the top (the clean original face; the "mimir" wordmark is dropped).
             HStack(spacing: 6) {
                 BrandMark(iconName: metric.iconName, size: 14)
                 Text(metric.metric.label).font(.system(size: 13)).foregroundStyle(Tok.secondary).lineLimit(1)
                 Pill(String(localized: "widget.window.fiveHour"))
             }
             Spacer(minLength: 0)
-            Text("\(metric.metric.percent)%")
-                .font(.system(size: 48, weight: .light)).tracking(-0.5)
-                .foregroundStyle(statusColor(metric.metric.percent))
-                .monospacedDigit()
-            ProgressBar(percent: metric.metric.percent, height: 6).padding(.top, 9)
-            ResetFooter(resetAt: metric.metric.resetAt, now: now, size: 11).padding(.top, 11)
+            // Big percent at weather-widget scale: large digits with a smaller "%" sign for a cleaner
+            // figure. Greys to passive when the weekly quota is spent.
+            HStack(alignment: .firstTextBaseline, spacing: 1) {
+                Text("\(pct)").font(.system(size: 54, weight: .light)).tracking(-0.5).monospacedDigit()
+                Text("%").font(.system(size: 30, weight: .light))
+            }
+            .foregroundStyle(weeklyExhausted ? Tok.passive : statusColor(pct))
+            ProgressBar(percent: pct, height: 6, color: weeklyExhausted ? Tok.passive : nil).padding(.top, 10)
+            ResetFooter(resetAt: metric.metric.resetAt, now: now, size: 11).padding(.top, 10)
         }
         .padding(16)
     }
@@ -150,6 +164,8 @@ private struct MediumView: View {
 private struct MediumRow: View {
     let item: FlatMetric
     let now: Date
+    // Grey the row when its weekly quota is spent — same lockout rule as Small/the popover.
+    private var exhausted: Bool { item.metric.weeklyPercent == 0 }
     var body: some View {
         HStack(spacing: 8) {
             HStack(spacing: 6) {
@@ -157,10 +173,10 @@ private struct MediumRow: View {
                 Text(item.metric.label).font(.system(size: 12)).foregroundStyle(Tok.secondary).lineLimit(1)
             }
             .frame(width: 84, alignment: .leading)
-            ProgressBar(percent: item.metric.percent, height: 5)
+            ProgressBar(percent: item.metric.percent, height: 5, color: exhausted ? Tok.passive : nil)
             Text("\(item.metric.percent)%")
                 .font(.system(size: 15, weight: .semibold)).monospacedDigit()
-                .foregroundStyle(statusColor(item.metric.percent))
+                .foregroundStyle(exhausted ? Tok.passive : statusColor(item.metric.percent))
                 .frame(minWidth: 32, alignment: .trailing)
             Text(resetLine)
                 .font(.system(size: 9)).monospacedDigit().foregroundStyle(Tok.tertiary)
@@ -168,7 +184,7 @@ private struct MediumRow: View {
         }
     }
     private var resetLine: String {
-        [Reset.remaining(item.metric.resetAt, now: now), Reset.clock(item.metric.resetAt)]
+        [Reset.remaining(item.metric.resetAt, now: now, fallbackWindow: fiveHourWindow), Reset.clock(item.metric.resetAt)]
             .compactMap { $0 }.joined(separator: " · ")
     }
 }

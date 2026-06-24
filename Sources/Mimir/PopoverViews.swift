@@ -248,7 +248,8 @@ struct ServiceCard: View {
             if hasServiceQuotas {
                 // Claude / Codex: a single session block, then the weekly rows.
                 ForEach(Array(sessionHeroes.enumerated()), id: \.offset) { index, hero in
-                    SessionRow(label: hero.label, percent: hero.percent, resetAt: hero.resetAt, now: now)
+                    SessionRow(label: hero.label, percent: hero.percent, resetAt: hero.resetAt, now: now,
+                               gated: service.weeklyRemainingPercent == 0)
                         .padding(.top, index == 0 ? 11 : 13)
                 }
                 if !weeklyEntries.isEmpty {
@@ -265,7 +266,8 @@ struct ServiceCard: View {
                 ForEach(Array(antigravityFamilies.enumerated()), id: \.offset) { index, family in
                     VStack(alignment: .leading, spacing: 0) {
                         if let session = family.session {
-                            SessionRow(label: family.name, percent: session.percent, resetAt: session.resetAt, now: now)
+                            SessionRow(label: family.name, percent: session.percent, resetAt: session.resetAt, now: now,
+                                       gated: family.weekly?.percent == 0)
                         }
                         if let weekly = family.weekly {
                             weeklyRow((label: family.name, percent: weekly.percent, resetAt: weekly.resetAt))
@@ -295,9 +297,11 @@ struct ServiceCard: View {
     }
 
     private func weeklyRow(_ entry: (label: String, percent: Int, resetAt: Date?)) -> some View {
+        // The 7g dot uses the weekly bands (amber ≥10%, red below) — at 0% it stays red here; it's the
+        // 5s session that greys out to flag the lockout (see SessionRow `gated`).
         HStack(spacing: 8) {
             Circle()
-                .fill(quotaStatusColor(entry.percent))
+                .fill(quotaStatusColor(entry.percent, redBelow: 10))
                 .frame(width: 7, height: 7)
             Text(entry.label)
                 .font(.system(size: 11, weight: .regular))
@@ -377,6 +381,11 @@ struct ServiceCard: View {
 
 func clampPct(_ percent: Int) -> Int { max(0, min(100, percent)) }
 
+/// A model whose weekly (7g) quota is spent is unusable until it resets — its session number, bar,
+/// and 7g dot drop to this muted grey so a fresh 5h window can't read as "available" when the week
+/// is gone (the "green even though I can't use it" case).
+let lockedQuotaColor = Color.primary.opacity(0.4)
+
 func relDuration(_ resetAt: Date?, _ now: Date) -> String? {
     guard let resetAt, resetAt.timeIntervalSince(now) > 0 else { return nil }
     return TimeFormatter.duration(from: resetAt.timeIntervalSince(now))
@@ -407,6 +416,9 @@ struct SessionRow: View {
     let percent: Int
     let resetAt: Date?
     let now: Date
+    /// True when this model's weekly quota is spent — grey the figure + bar so a full 5h window
+    /// can't masquerade as usable while the week is locked.
+    var gated: Bool = false
 
     private static let clockFormatter: DateFormatter = {
         let f = DateFormatter(); f.dateFormat = "HH:mm"; return f
@@ -423,10 +435,10 @@ struct SessionRow: View {
                 Spacer(minLength: 6)
                 Text("%\(clampPct(percent))")
                     .font(.system(size: 18, weight: .semibold).monospacedDigit())
-                    .foregroundStyle(quotaStatusColor(percent))
+                    .foregroundStyle(gated ? lockedQuotaColor : quotaStatusColor(percent))
             }
 
-            QuotaBar(percent: percent)
+            QuotaBar(percent: percent, colorOverride: gated ? lockedQuotaColor : nil)
                 .padding(.top, 9)
 
             HStack(spacing: 8) {
@@ -461,9 +473,10 @@ struct SessionRow: View {
 
 struct QuotaBar: View {
     let percent: Int
+    var colorOverride: Color? = nil   // grey for a weekly-locked model; else the status colour
 
     var body: some View {
-        let color = quotaStatusColor(percent)
+        let color = colorOverride ?? quotaStatusColor(percent)
         GeometryReader { proxy in
             let ratio = CGFloat(clampPct(percent)) / 100
             ZStack(alignment: .leading) {
@@ -477,15 +490,16 @@ struct QuotaBar: View {
     }
 }
 
-/// Single status colour for a quota level (applies to every model, its percentage, and
-/// its weekly dot): green ≥50%, amber 15–50%, red <15%. Returns a dynamic colour that
-/// darkens in light mode so it stays legible on the light panel.
-func quotaStatusColor(_ percent: Int) -> Color {
+/// Status colour for a remaining-quota level: green ≥50%, amber down to `redBelow`, red under it.
+/// The amber→red boundary differs by window — 15% for the 5-hour session, 10% for the weekly (7g)
+/// window (its lower band is intentionally looser). Returns a dynamic colour that darkens in light
+/// mode so it stays legible on the light panel.
+func quotaStatusColor(_ percent: Int, redBelow: Int = 15) -> Color {
     let darkHex: UInt32, lightHex: UInt32
     switch clampPct(percent) {
-    case 50...100: darkHex = 0x3FB984; lightHex = 0x1F9E63  // green
-    case 15..<50:  darkHex = 0xE0A93C; lightHex = 0xB07E1C  // amber
-    default:       darkHex = 0xE5564E; lightHex = 0xCF3A33  // red
+    case 50...100:                  darkHex = 0x3FB984; lightHex = 0x1F9E63  // green
+    case let p where p >= redBelow: darkHex = 0xE0A93C; lightHex = 0xB07E1C  // amber
+    default:                        darkHex = 0xE5564E; lightHex = 0xCF3A33  // red
     }
     return Color(nsColor: NSColor(name: nil) { appearance in
         let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua

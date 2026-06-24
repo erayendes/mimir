@@ -20,6 +20,9 @@ final class WidgetBridgeTests: XCTestCase {
         // 5h is the account session percent; non-session models (Sonnet) don't pollute it.
         XCTAssertEqual(p.fiveHour.map(\.label), ["Claude"])
         XCTAssertEqual(p.fiveHour.first?.percent, 9)
+        // The account weekly is carried alongside the session, gating the lockout/7g line.
+        XCTAssertEqual(p.fiveHour.first?.weeklyPercent, 11)
+        XCTAssertEqual(p.fiveHour.first?.weeklyResetAt, now.addingTimeInterval(86_400))
     }
 
     func testAntigravityFiveHourFromSessionModels() {
@@ -36,6 +39,8 @@ final class WidgetBridgeTests: XCTestCase {
         // Only `.session` rows become 5h windows; `.weekly` rows are excluded.
         XCTAssertEqual(p.fiveHour.map(\.label), ["Gemini", "Claude/GPT"])
         XCTAssertEqual(p.fiveHour.map(\.percent), [100, 44])
+        // Each session is paired to its own weekly by name: Gemini → 88; Claude/GPT has no weekly → nil.
+        XCTAssertEqual(p.fiveHour.map(\.weeklyPercent), [88, nil])
     }
 
     func testOrderFollowsServiceDisplayOrderAndStaleCounts() {

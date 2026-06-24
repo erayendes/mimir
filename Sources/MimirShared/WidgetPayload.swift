@@ -35,11 +35,18 @@ public struct WindowMetric: Codable, Equatable {
     public var label: String         // row label: "Claude" / "Gemini" / "Claude/GPT" / "Sonnet" …
     public var percent: Int          // remaining %, drives bar width + status colour
     public var resetAt: Date?        // when the window refills — countdown + HH:mm computed per entry
+    // The weekly (7-day) quota that gates this same model/account, when known. Lets the widget show
+    // the 7g line and grey a model out when its week is spent — a fresh 5h window isn't usable then.
+    public var weeklyPercent: Int?
+    public var weeklyResetAt: Date?
 
-    public init(label: String, percent: Int, resetAt: Date?) {
+    public init(label: String, percent: Int, resetAt: Date?,
+                weeklyPercent: Int? = nil, weeklyResetAt: Date? = nil) {
         self.label = label
         self.percent = percent
         self.resetAt = resetAt
+        self.weeklyPercent = weeklyPercent
+        self.weeklyResetAt = weeklyResetAt
     }
 }
 

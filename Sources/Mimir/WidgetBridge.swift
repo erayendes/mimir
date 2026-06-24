@@ -37,15 +37,21 @@ enum WidgetBridge {
         return WidgetPayload(generatedAt: generatedAt, providers: providers)
     }
 
-    /// The prominent 5-hour windows. Antigravity exposes them as `.session` model rows (Gemini,
-    /// Claude/GPT); Claude/Codex carry a single account-level session percent instead.
+    /// The prominent 5-hour windows, each paired with the weekly (7g) quota that gates it. Antigravity
+    /// exposes sessions as `.session` model rows (Gemini, Claude/GPT), each matched to its own `.weekly`
+    /// row by name; Claude/Codex carry a single account-level session gated by the account weekly.
     private static func fiveHourMetrics(_ svc: ServiceStatus) -> [WindowMetric] {
         let sessionModels = svc.models.filter { $0.window == .session }
         if !sessionModels.isEmpty {
-            return sessionModels.map { WindowMetric(label: $0.name, percent: $0.remainingPercent, resetAt: $0.resetAt) }
+            return sessionModels.map { m in
+                let weekly = svc.models.first { $0.window == .weekly && $0.name == m.name }
+                return WindowMetric(label: m.name, percent: m.remainingPercent, resetAt: m.resetAt,
+                                    weeklyPercent: weekly?.remainingPercent, weeklyResetAt: weekly?.resetAt)
+            }
         }
         if let pct = svc.sessionRemainingPercent {
-            return [WindowMetric(label: svc.name, percent: pct, resetAt: svc.sessionResetAt)]
+            return [WindowMetric(label: svc.name, percent: pct, resetAt: svc.sessionResetAt,
+                                 weeklyPercent: svc.weeklyRemainingPercent, weeklyResetAt: svc.weeklyResetAt)]
         }
         return []
     }

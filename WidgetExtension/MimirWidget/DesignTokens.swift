@@ -13,6 +13,7 @@ enum Tok {
     static var tertiary:  Color { .primary.opacity(0.42) }   // remaining time
     static var track:     Color { .primary.opacity(0.09) }   // bar track
     static var badgeBg:   Color { .primary.opacity(0.06) }   // 5s pill
+    static var passive:   Color { .primary.opacity(0.40) }   // model locked by a spent weekly quota
 }
 
 /// The layered background: dark base with purple/orange glows, or a light tinted base.
@@ -43,11 +44,12 @@ struct WidgetBackground: View {
 struct ProgressBar: View {
     let percent: Int
     var height: CGFloat = 5
+    var color: Color? = nil   // override the status colour (e.g. grey for a weekly-locked model)
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
                 Capsule().fill(Tok.track)
-                Capsule().fill(statusColor(percent))
+                Capsule().fill(color ?? statusColor(percent))
                     .frame(width: max(height, geo.size.width * CGFloat(clampPct(percent)) / 100))
             }
         }
@@ -76,9 +78,15 @@ func clampPct(_ p: Int) -> Int { max(0, min(100, p)) }
 // countdown stays live between timeline reloads. Unit suffixes resolve against the widget bundle's
 // Localizable.strings (en: d/h/m · tr: g/s/d), shared with the app.
 enum Reset {
-    static func remaining(_ resetAt: Date?, now: Date) -> String? {
-        guard let resetAt else { return nil }
-        return shortDuration(resetAt.timeIntervalSince(now),
+    /// Remaining time to the window's reset. When a provider reports no `resetAt` (Claude does this
+    /// while the 5h window is inactive/full), fall back to `fallbackWindow` — the window's own length —
+    /// so the row shows "5h" rather than going blank, mirroring the popover's SessionRow.
+    static func remaining(_ resetAt: Date?, now: Date, fallbackWindow: TimeInterval? = nil) -> String? {
+        let interval: TimeInterval
+        if let resetAt { interval = resetAt.timeIntervalSince(now) }
+        else if let fallbackWindow { interval = fallbackWindow }
+        else { return nil }
+        return shortDuration(interval,
                              day: String(localized: "duration.unit.day"),
                              hour: String(localized: "duration.unit.hour"),
                              minute: String(localized: "duration.unit.minute"))
