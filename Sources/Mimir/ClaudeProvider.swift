@@ -89,8 +89,10 @@ extension LiveUsageDataSource {
     /// the hidden unavailable card (only when nothing was ever cached).
     private func claudeFailure(note: String, staleNote: String = String(localized: "out of date")) -> ServiceStatus {
         // Recent cache → normal card (seed a snapshot so the cooldown/skip path can serve it too).
+        // This is a failure fallback, so reset-classify it (`live: false`): a window that refilled
+        // since this cache was written shouldn't show a phantom percent.
         if let cached = readClaudeUsageCache(maxAge: 24 * 60 * 60) {
-            let status = buildClaudeStatus(from: cached, note: note)
+            let status = buildClaudeStatus(from: cached, note: note, live: false)
             saveSnapshot(status)
             return status
         }
@@ -130,7 +132,10 @@ extension LiveUsageDataSource {
         return fmt.date(from: raw).map { max(0, $0.timeIntervalSinceNow) }
     }
 
-    private func buildClaudeStatus(from root: [String: Any], note: String) -> ServiceStatus {
+    /// Build a Claude card from the usage JSON. `live` (the API success path and the <5 min cache)
+    /// trusts the percents as-is; the stale fallbacks (24h cache / snapshot) pass `live: false` to
+    /// reset-classify — there a window whose reset has passed is blanked because it really refilled.
+    func buildClaudeStatus(from root: [String: Any], note: String, live: Bool = true) -> ServiceStatus {
         let fiveHour = mergeClaudeWindows(root: root, baseKey: "five_hour")
         let sevenDay = mergeClaudeWindows(root: root, baseKey: "seven_day")
         let sonnet = mergeClaudeWindows(root: root, baseKey: "seven_day_sonnet")
@@ -149,13 +154,27 @@ extension LiveUsageDataSource {
             models.append(billing)
         }
 
-        // Classify by reset time so a window that has already reset (e.g. a 5h reading from an old
-        // cache used as a fallback) is blanked rather than shown as if current. Live readings have
-        // future resets, so this is a no-op on the happy path.
+        let sessionPct = remainingPercent(fromUsed: fiveHour.utilization)
+        let weeklyPct = remainingPercent(fromUsed: sevenDay.utilization)
+
+        // Live data is authoritative: trust the percents even if a window's reset has *just* lapsed.
+        // Right after a 5-hour boundary the API briefly returns the old window's `resets_at` (already
+        // past) before rolling to the next; reset-classifying that — as we do for genuinely stale
+        // cache — would blank the whole session, so Claude's card and widget vanish for a few minutes.
+        if live {
+            return ServiceStatus(
+                name: "Claude", iconName: "claude",
+                sessionResetAt: fiveHour.resetAt, weeklyResetAt: sevenDay.resetAt,
+                sessionRemainingPercent: sessionPct, weeklyRemainingPercent: weeklyPct,
+                models: models, isAvailable: true, statusNote: note)
+        }
+
+        // Stale fallback: a window whose reset has already passed is blanked (it refilled) rather than
+        // shown as if current.
         return staleClassifiedCard(
             name: "Claude", iconName: "claude",
-            sessionPct: remainingPercent(fromUsed: fiveHour.utilization), sessionReset: fiveHour.resetAt,
-            weeklyPct: remainingPercent(fromUsed: sevenDay.utilization), weeklyReset: sevenDay.resetAt,
+            sessionPct: sessionPct, sessionReset: fiveHour.resetAt,
+            weeklyPct: weeklyPct, weeklyReset: sevenDay.resetAt,
             models: models, freshNote: note, staleNote: note)
             ?? unavailableService(name: "Claude", iconName: "claude", models: [], note: note)
     }

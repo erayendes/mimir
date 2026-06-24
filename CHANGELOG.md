@@ -20,6 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Small widget: the percentage is a touch smaller and sits closer to its bar.
 - Claude usage refreshes on its own again, so it stays current between opens (the previous read-only mode could leave Claude data stale on some setups).
 
+#### Fixed
+- Claude's 5-hour usage no longer briefly disappears right after its window resets — the live reading is trusted even while the API still reports the just-passed reset time.
+
 ### [2.4] - 2026-06-24
 
 #### Added
@@ -324,6 +327,9 @@ sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) k
 #### Değiştirildi
 - Small widget: yüzde biraz küçüldü ve barına yaklaştı.
 - Claude kullanımı tekrar kendi kendine yenileniyor, böylece açışlar arası güncel kalıyor (önceki salt-okur mod bazı kurulumlarda Claude verisini bayat bırakabiliyordu).
+
+#### Düzeltildi
+- Claude'un 5 saatlik kullanımı, penceresi sıfırlandıktan hemen sonra kısa süreliğine kaybolmuyor — canlı okuma, API hâlâ geçmiş reset zamanını döndürse bile artık doğru kabul ediliyor.
 
 ### [2.4] - 2026-06-24
 
