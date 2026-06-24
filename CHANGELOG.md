@@ -11,6 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+### [2.5] - 2026-06-24
+
+#### Added
+- Menu-bar dots now grey out when a model's weekly (7g) quota is spent — matching the widgets and panel, so a full 5-hour session can't read as usable while the week is locked.
+
+#### Changed
+- Small widget: the percentage is a touch smaller and sits closer to its bar.
+- Claude usage refreshes on its own again, so it stays current between opens (the previous read-only mode could leave Claude data stale on some setups).
+
 ### [2.4] - 2026-06-24
 
 #### Added
@@ -306,6 +315,15 @@ Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
 
 ### [Yayımlanmadı]
+
+### [2.5] - 2026-06-24
+
+#### Eklendi
+- Menü çubuğu noktaları, bir modelin haftalık (7g) kotası bitince griye dönüyor — widget ve panelle aynı; haftalık kilitliyken dolu bir 5 saatlik seans "kullanılabilir" görünmüyor.
+
+#### Değiştirildi
+- Small widget: yüzde biraz küçüldü ve barına yaklaştı.
+- Claude kullanımı tekrar kendi kendine yenileniyor, böylece açışlar arası güncel kalıyor (önceki salt-okur mod bazı kurulumlarda Claude verisini bayat bırakabiliyordu).
 
 ### [2.4] - 2026-06-24
 
