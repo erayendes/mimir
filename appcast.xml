@@ -7,7 +7,49 @@
     <link>https://github.com/erayendes/mimir</link>
     <description>Mimir update feed</description>
     <language>en</language>
-                                                <item>
+                                                    <item>
+      <title>Mimir 2.5</title>
+      <sparkle:version>2005000</sparkle:version>
+      <sparkle:shortVersionString>2.5</sparkle:shortVersionString>
+      <pubDate>Wed, 24 Jun 2026 20:50:40 +0000</pubDate>
+      <description><![CDATA[
+<p><b>Added</b></p>
+<ul>
+<li>Menu-bar dots now grey out when a model's weekly (7g) quota is spent — matching the widgets and panel, so a full 5-hour session can't read as usable while the week is locked.</li>
+</ul>
+<p><b>Changed</b></p>
+<ul>
+<li>Small widget: the percentage is a touch smaller and sits closer to its bar.</li>
+<li>Claude usage refreshes on its own again, so it stays current between opens (the previous read-only mode could leave Claude data stale on some setups).</li>
+</ul>
+<p><b>Fixed</b></p>
+<ul>
+<li>Claude's 5-hour usage no longer briefly disappears right after its window resets — the live reading is trusted even while the API still reports the just-passed reset time.</li>
+</ul>
+<hr>
+<p><b>Eklendi</b></p>
+<ul>
+<li>Menü çubuğu noktaları, bir modelin haftalık (7g) kotası bitince griye dönüyor — widget ve panelle aynı; haftalık kilitliyken dolu bir 5 saatlik seans "kullanılabilir" görünmüyor.</li>
+</ul>
+<p><b>Değiştirildi</b></p>
+<ul>
+<li>Small widget: yüzde biraz küçüldü ve barına yaklaştı.</li>
+<li>Claude kullanımı tekrar kendi kendine yenileniyor, böylece açışlar arası güncel kalıyor (önceki salt-okur mod bazı kurulumlarda Claude verisini bayat bırakabiliyordu).</li>
+</ul>
+<p><b>Düzeltildi</b></p>
+<ul>
+<li>Claude'un 5 saatlik kullanımı, penceresi sıfırlandıktan hemen sonra kısa süreliğine kaybolmuyor — canlı okuma, API hâlâ geçmiş reset zamanını döndürse bile artık doğru kabul ediliyor.</li>
+</ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v2.5/Mimir.zip"
+        sparkle:edSignature="EErqJ0IT4DXYord1Celboxv89f1R46mQi+OZ6RdvVMMp0ec4LQvnOY8XSOZQmKqGGcZMUJkktSZrIP1/mVIFDQ=="
+        length="6486001"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 2.4</title>
       <sparkle:version>2004000</sparkle:version>
       <sparkle:shortVersionString>2.4</sparkle:shortVersionString>
