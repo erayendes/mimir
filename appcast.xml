@@ -7,7 +7,31 @@
     <link>https://github.com/erayendes/mimir</link>
     <description>Mimir update feed</description>
     <language>en</language>
-                                                        <item>
+                                                            <item>
+      <title>Mimir 2.5.2</title>
+      <sparkle:version>2005002</sparkle:version>
+      <sparkle:shortVersionString>2.5.2</sparkle:shortVersionString>
+      <pubDate>Thu, 25 Jun 2026 14:41:45 +0000</pubDate>
+      <description><![CDATA[
+<p><b>Changed</b></p>
+<ul>
+<li>The "data unavailable" notice now waits much longer before appearing — about 4.5 hours without fresh data instead of 15 minutes — so briefly closing the app no longer triggers it.</li>
+</ul>
+<hr>
+<p><b>Değiştirildi</b></p>
+<ul>
+<li>"Veri alınamadı" uyarısı artık görünmeden önce çok daha uzun bekliyor — 15 dakika yerine yaklaşık 4,5 saat taze veri olmadan — böylece uygulamayı kısa süreliğine kapatmak onu tetiklemiyor.</li>
+</ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v2.5.2/Mimir.zip"
+        sparkle:edSignature="+fvZmVnBGyCLzixRT3EosKtJXSCfEB6YYQlS/u6l30uYK4/EgYqm+VLpotw6ejxUjFetex8npsfa94nGcH4KDw=="
+        length="6516540"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 2.5.1</title>
       <sparkle:version>2005001</sparkle:version>
       <sparkle:shortVersionString>2.5.1</sparkle:shortVersionString>
