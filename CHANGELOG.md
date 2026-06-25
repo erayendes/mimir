@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+### [2.5.1] - 2026-06-25
+
+#### Added
+- New "data unavailable" cue: when a provider's live source can't be reached — for example Antigravity is closed — the widgets, panel, and menu-bar dots now say so clearly and offer to open the app (tap the widget, or the notice in the panel), instead of showing stale numbers or a vanished card. It only appears for apps you actually have installed.
+
 ### [2.5] - 2026-06-24
 
 #### Added
@@ -318,6 +323,11 @@ Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
 
 ### [Yayımlanmadı]
+
+### [2.5.1] - 2026-06-25
+
+#### Eklendi
+- Yeni "veri alınamadı" durumu: bir sağlayıcının canlı kaynağına ulaşılamadığında — örneğin Antigravity kapalıyken — widget'lar, panel ve menü çubuğu noktaları artık bunu net gösteriyor ve uygulamayı açmayı öneriyor (widget'a ya da paneldeki uyarıya dokun); eski sayıları veya kaybolan kartı göstermek yerine. Yalnızca kurulu uygulamalar için görünür.
 
 ### [2.5] - 2026-06-24
 

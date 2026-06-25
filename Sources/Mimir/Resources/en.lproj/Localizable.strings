@@ -66,6 +66,10 @@
 /* Widgets */
 "widget.detailed.description" = "AI quota at a glance.";
 "widget.window.fiveHour" = "5h";
+"widget.unavailable.title" = "Data unavailable";
+"widget.unavailable.app" = "%@ appears to be closed";
+"widget.unavailable.action" = "Tap to open";
+"popover.unavailable" = "%@ data unavailable — tap to open";
 "widget.empty" = "Open Mimir to load quota.";
 "widget.config.model" = "Model";
 "widget.config.description" = "Choose which model the small widget shows.";

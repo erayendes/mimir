@@ -66,6 +66,10 @@
 /* Widgets */
 "widget.detailed.description" = "Bakışta yapay zekâ kotası.";
 "widget.window.fiveHour" = "5s";
+"widget.unavailable.title" = "Veri alınamadı";
+"widget.unavailable.app" = "%@ kapalı görünüyor";
+"widget.unavailable.action" = "Açmak için dokun";
+"popover.unavailable" = "%@ verisi alınamadı — açmak için dokun";
 "widget.empty" = "Kotayı yüklemek için Mimir'i aç.";
 "widget.config.model" = "Model";
 "widget.config.description" = "Small widget'ın hangi modeli göstereceğini seç.";

@@ -22,6 +22,11 @@ struct ServiceStatus: Identifiable {
     /// fetch cooldown: `nil` = leave cooldown unchanged, `0` = clear it (live success),
     /// `> 0` = back off for that many seconds (e.g. an HTTP 429 `Retry-After`).
     let cooldownHint: TimeInterval?
+    /// True when the live source has been unreachable long enough (>15 min) that the last-known data
+    /// is no longer trustworthy — the UI shows an actionable "couldn't fetch" state (small widget
+    /// message / medium "—" / popover banner) instead of stale numbers. The model labels are kept so
+    /// those surfaces still know which rows to render.
+    let dataUnavailable: Bool
 
     init(
         name: String,
@@ -35,7 +40,8 @@ struct ServiceStatus: Identifiable {
         statusNote: String?,
         isStale: Bool = false,
         infoText: String? = nil,
-        cooldownHint: TimeInterval? = nil
+        cooldownHint: TimeInterval? = nil,
+        dataUnavailable: Bool = false
     ) {
         self.name = name
         self.iconName = iconName
@@ -49,6 +55,7 @@ struct ServiceStatus: Identifiable {
         self.isStale = isStale
         self.infoText = infoText
         self.cooldownHint = cooldownHint
+        self.dataUnavailable = dataUnavailable
     }
 
     /// Return a copy with `infoText` attached. Lets the data layer set the explainer once
@@ -87,7 +94,8 @@ struct ServiceStatus: Identifiable {
             statusNote: statusNote ?? self.statusNote,
             isStale: isStale,
             infoText: infoText ?? self.infoText,
-            cooldownHint: cooldownHint ?? self.cooldownHint
+            cooldownHint: cooldownHint ?? self.cooldownHint,
+            dataUnavailable: dataUnavailable
         )
     }
 }
@@ -104,6 +112,14 @@ enum ModelWindow {
 /// load-bearing: when the two defined the order independently they drifted, and a yellow dot lined
 /// up with the wrong card. Change the order here and both move together.
 let serviceDisplayOrder = ["Claude", "Codex", "Antigravity"]
+
+extension Array where Element == ServiceStatus {
+    /// Sorted into the canonical display order (Claude, Codex, Antigravity); unknown names last.
+    /// Shared by the popover's cards and its notification banner so a service can't reorder between them.
+    func sortedByDisplayOrder() -> [ServiceStatus] {
+        sorted { (serviceDisplayOrder.firstIndex(of: $0.name) ?? 99) < (serviceDisplayOrder.firstIndex(of: $1.name) ?? 99) }
+    }
+}
 
 /// One 5-hour session window a service exposes, paired with the weekly (7g) quota that gates it.
 /// Antigravity expands to one window per `.session` model (its weekly matched by name); Claude/Codex
@@ -141,6 +157,9 @@ extension ServiceStatus {
 struct MenuBarDot: Equatable {
     let sessionPercent: Int?
     var weeklyExhausted: Bool = false
+    /// Live source unreachable too long → the dot greys out (same as no-data) instead of showing a
+    /// last-known colour that would read as "usable".
+    var unavailable: Bool = false
 }
 
 /// The menu-bar dots, ordered to match the popover: `serviceDisplayOrder`, then each service's
@@ -153,7 +172,8 @@ func menuBarDots(from services: [ServiceStatus]) -> [MenuBarDot] {
         guard let svc = services.first(where: { $0.name == name }),
               svc.isAvailable || svc.isStale else { continue }
         dots.append(contentsOf: svc.sessionWindows.map {
-            MenuBarDot(sessionPercent: $0.sessionPercent, weeklyExhausted: $0.weeklyPercent == 0)
+            MenuBarDot(sessionPercent: $0.sessionPercent, weeklyExhausted: $0.weeklyPercent == 0,
+                       unavailable: svc.dataUnavailable)
         })
     }
     return dots

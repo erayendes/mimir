@@ -10,6 +10,8 @@ private let fiveHourWindow: TimeInterval = 5 * 3600
 private struct FlatMetric: Identifiable {
     let id = UUID()
     let iconName: String
+    let providerName: String   // for the "{app} kapalı görünüyor" message
+    let unavailable: Bool      // live source unreachable too long → render the empty state
     let metric: WindowMetric
 }
 
@@ -18,8 +20,16 @@ private extension WidgetPayload {
     /// Antigravity's Gemini + Claude/GPT). Drives Small and Medium.
     var fiveHourFlat: [FlatMetric] {
         providers.filter(\.isAvailable)
-            .flatMap { p in p.fiveHour.map { FlatMetric(iconName: p.iconName, metric: $0) } }
+            .flatMap { p in p.fiveHour.map { FlatMetric(iconName: p.iconName, providerName: p.name, unavailable: p.unavailable, metric: $0) } }
     }
+}
+
+/// Deep link the unavailable empty state taps into: `mimir://open?app=<provider>`. The host app
+/// (MimirApp) handles the scheme and launches that provider's app via AppTarget — the widget
+/// extension is sandboxed and can't launch another app itself.
+private func widgetOpenURL(_ provider: String) -> URL? {
+    let q = provider.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? provider
+    return URL(string: "mimir://open?app=\(q)")
 }
 
 struct DetailedWidgetView: View {
@@ -128,20 +138,36 @@ private struct SmallView: View {
                 Text(metric.metric.label).font(.system(size: 13)).foregroundStyle(Tok.secondary).lineLimit(1)
                 Pill(String(localized: "widget.window.fiveHour"))
             }
-            Spacer(minLength: 0)
-            // Big percent at weather-widget scale: large digits with a smaller "%" sign for a cleaner
-            // figure. Greys to passive when the weekly quota is spent.
-            HStack(alignment: .firstTextBaseline, spacing: 1) {
-                Text("\(pct)").font(.system(size: 48, weight: .light)).tracking(-0.5).monospacedDigit()
-                Text("%").font(.system(size: 26, weight: .light))
+            if metric.unavailable {
+                // Live source unreachable too long → an actionable "couldn't fetch" state (no number).
+                Spacer(minLength: 0)
+                Text(String(localized: "widget.unavailable.title"))
+                    .font(.system(size: 15, weight: .medium)).foregroundStyle(Tok.secondary).lineLimit(1)
+                Text(String(format: String(localized: "widget.unavailable.app"), metric.providerName))
+                    .font(.system(size: 12)).foregroundStyle(Tok.tertiary)
+                    .lineLimit(2).fixedSize(horizontal: false, vertical: true).padding(.top, 3)
+                Spacer(minLength: 0)
+                Rectangle().fill(Tok.track).frame(height: 0.5)
+                Text(String(localized: "widget.unavailable.action"))
+                    .font(.system(size: 12, weight: .medium)).foregroundStyle(Tok.primary).padding(.top, 8)
+            } else {
+                Spacer(minLength: 0)
+                // Big percent at weather-widget scale: large digits with a smaller "%" sign for a
+                // cleaner figure. Greys to passive when the weekly quota is spent.
+                HStack(alignment: .firstTextBaseline, spacing: 1) {
+                    Text("\(pct)").font(.system(size: 48, weight: .light)).tracking(-0.5).monospacedDigit()
+                    Text("%").font(.system(size: 26, weight: .light))
+                }
+                .foregroundStyle(weeklyExhausted ? Tok.passive : statusColor(pct))
+                // Symmetric gaps: the number's font carries ~descender(48pt)≈10pt of slack below the
+                // digits, so a +2 here visually matches the footer's `.padding(.top, 10)` below the bar.
+                ProgressBar(percent: pct, height: 6, color: weeklyExhausted ? Tok.passive : nil).padding(.top, 2)
+                ResetFooter(resetAt: metric.metric.resetAt, now: now, size: 11).padding(.top, 10)
             }
-            .foregroundStyle(weeklyExhausted ? Tok.passive : statusColor(pct))
-            // Symmetric gaps: the number's font carries ~descender(48pt)≈10pt of slack below the
-            // digits, so a +2 here visually matches the footer's `.padding(.top, 10)` below the bar.
-            ProgressBar(percent: pct, height: 6, color: weeklyExhausted ? Tok.passive : nil).padding(.top, 2)
-            ResetFooter(resetAt: metric.metric.resetAt, now: now, size: 11).padding(.top, 10)
         }
         .padding(16)
+        // Unavailable → the whole face opens the provider's app (host handles the scheme).
+        .widgetURL(metric.unavailable ? widgetOpenURL(metric.providerName) : nil)
     }
 }
 
@@ -169,20 +195,39 @@ private struct MediumRow: View {
     // Grey the row when its weekly quota is spent — same lockout rule as Small/the popover.
     private var exhausted: Bool { item.metric.weeklyPercent == 0 }
     var body: some View {
+        // Unavailable rows deep-link to the provider's app; available rows aren't tappable (the row
+        // alone has no useful destination — the whole widget already opens the host on tap).
+        if item.unavailable, let url = widgetOpenURL(item.providerName) {
+            Link(destination: url) { row }
+        } else {
+            row
+        }
+    }
+
+    private var row: some View {
         HStack(spacing: 8) {
             HStack(spacing: 6) {
                 BrandMark(iconName: item.iconName, size: 14)
                 Text(item.metric.label).font(.system(size: 12)).foregroundStyle(Tok.secondary).lineLimit(1)
             }
             .frame(width: 84, alignment: .leading)
-            ProgressBar(percent: item.metric.percent, height: 5, color: exhausted ? Tok.passive : nil)
-            Text("\(item.metric.percent)%")
-                .font(.system(size: 15, weight: .semibold)).monospacedDigit()
-                .foregroundStyle(exhausted ? Tok.passive : statusColor(item.metric.percent))
-                .frame(minWidth: 32, alignment: .trailing)
-            Text(resetLine)
-                .font(.system(size: 9)).monospacedDigit().foregroundStyle(Tok.tertiary)
-                .frame(minWidth: 62, alignment: .trailing).lineLimit(1)
+            if item.unavailable {
+                // Live source unreachable too long → empty track + "—" (Stocks "no data" language).
+                Capsule().fill(Tok.track).frame(height: 5)
+                Text("—").font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Tok.tertiary).frame(minWidth: 32, alignment: .trailing)
+                Text("—").font(.system(size: 9)).foregroundStyle(Tok.tertiary)
+                    .frame(minWidth: 62, alignment: .trailing)
+            } else {
+                ProgressBar(percent: item.metric.percent, height: 5, color: exhausted ? Tok.passive : nil)
+                Text("\(item.metric.percent)%")
+                    .font(.system(size: 15, weight: .semibold)).monospacedDigit()
+                    .foregroundStyle(exhausted ? Tok.passive : statusColor(item.metric.percent))
+                    .frame(minWidth: 32, alignment: .trailing)
+                Text(resetLine)
+                    .font(.system(size: 9)).monospacedDigit().foregroundStyle(Tok.tertiary)
+                    .frame(minWidth: 62, alignment: .trailing).lineLimit(1)
+            }
         }
     }
     private var resetLine: String {

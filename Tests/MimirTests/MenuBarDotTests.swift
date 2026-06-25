@@ -14,13 +14,15 @@ final class MenuBarDotTests: XCTestCase {
         weekly: Int? = nil,
         models: [ModelStatus] = [],
         isAvailable: Bool = true,
-        isStale: Bool = false
+        isStale: Bool = false,
+        dataUnavailable: Bool = false
     ) -> ServiceStatus {
         ServiceStatus(
             name: name, iconName: name.lowercased(),
             sessionResetAt: nil, weeklyResetAt: nil,
             sessionRemainingPercent: session, weeklyRemainingPercent: weekly,
-            models: models, isAvailable: isAvailable, statusNote: nil, isStale: isStale)
+            models: models, isAvailable: isAvailable, statusNote: nil, isStale: isStale,
+            dataUnavailable: dataUnavailable)
     }
 
     private func agSession(_ name: String, _ pct: Int) -> ModelStatus {
@@ -105,6 +107,17 @@ final class MenuBarDotTests: XCTestCase {
         let dots = menuBarDots(from: [ag])
         XCTAssertEqual(dots.map(\.sessionPercent), [100, 50])
         XCTAssertEqual(dots.map(\.weeklyExhausted), [true, false])
+    }
+
+    /// Live source down too long (`dataUnavailable`) → every dot for that service is flagged
+    /// `unavailable` (painted grey) regardless of last-known %, so a stale green never reads as usable.
+    func testUnavailableServiceDotsAreFlagged() {
+        let ag = service("Antigravity",
+                         models: [agSession("Gemini", 100), agSession("Claude/GPT", 80)],
+                         isAvailable: false, isStale: true, dataUnavailable: true)
+        let dots = menuBarDots(from: [ag])
+        XCTAssertEqual(dots.map(\.sessionPercent), [100, 80])      // labels kept for layout…
+        XCTAssertEqual(dots.map(\.unavailable), [true, true])      // …but flagged → grey
     }
 
     /// The grid rule the user specified: 1·2·3 dots stay a single column, 4 becomes 2×2, and

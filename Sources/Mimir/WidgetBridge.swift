@@ -31,7 +31,8 @@ enum WidgetBridge {
                 name: svc.name,
                 iconName: svc.iconName,
                 isAvailable: svc.isAvailable || svc.isStale,
-                fiveHour: fiveHourMetrics(svc)
+                fiveHour: fiveHourMetrics(svc),
+                unavailable: svc.dataUnavailable
             )
         }
         return WidgetPayload(generatedAt: generatedAt, providers: providers)

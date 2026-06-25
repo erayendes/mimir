@@ -22,12 +22,18 @@ public struct ProviderPayload: Codable, Equatable {
     public var iconName: String      // brand asset stem: "claude" / "codex" / "antigravity"
     public var isAvailable: Bool
     public var fiveHour: [WindowMetric]   // the prominent 5h windows (1 for Claude/Codex, 2 for AG)
+    // The live source has been unreachable too long to trust the last reading: the widget renders an
+    // actionable "couldn't fetch" state (small message / medium "—") instead of stale numbers. The
+    // `fiveHour` labels are still carried so the rows know what to render.
+    public var unavailable: Bool
 
-    public init(name: String, iconName: String, isAvailable: Bool, fiveHour: [WindowMetric]) {
+    public init(name: String, iconName: String, isAvailable: Bool, fiveHour: [WindowMetric],
+                unavailable: Bool = false) {
         self.name = name
         self.iconName = iconName
         self.isAvailable = isAvailable
         self.fiveHour = fiveHour
+        self.unavailable = unavailable
     }
 }
 

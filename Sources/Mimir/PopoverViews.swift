@@ -20,6 +20,7 @@ struct PopoverView: View {
 
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 0) {
+                        notificationBanner
                         contentView(now: context.date)
 
                         sectionDivider
@@ -69,10 +70,9 @@ struct PopoverView: View {
     @ViewBuilder
     private func contentView(now: Date) -> some View {
         // Shared with the menu-bar dots so a dot can never line up with the wrong card.
-        let order = serviceDisplayOrder
         let visible = store.services
-            .filter { $0.isAvailable || $0.isStale }
-            .sorted { (order.firstIndex(of: $0.name) ?? 99) < (order.firstIndex(of: $1.name) ?? 99) }
+            .filter { ($0.isAvailable || $0.isStale) && !$0.dataUnavailable }
+            .sortedByDisplayOrder()
         if !visible.isEmpty {
             ForEach(Array(visible.enumerated()), id: \.element.id) { index, service in
                 if index > 0 { sectionDivider }
@@ -85,6 +85,32 @@ struct PopoverView: View {
                 .frame(minHeight: PopoverMetrics.placeholderHeight)
         } else {
             emptyState
+        }
+    }
+
+    /// General alert area (not tied to a model row): surfaces providers whose live source has been
+    /// unreachable too long, with the actionable hint. Hidden when there's nothing to report.
+    @ViewBuilder
+    private var notificationBanner: some View {
+        let down = store.services
+            .filter(\.dataUnavailable)
+            .sortedByDisplayOrder()
+        if !down.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(down) { svc in
+                    Text(String(format: String(localized: "popover.unavailable"), svc.name))
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Color.primary.opacity(0.7))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                        .onTapGesture { AppTarget.open(svc.name) }
+                }
+            }
+            .padding(.horizontal, 12).padding(.vertical, 9)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.05)))
+            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.primary.opacity(0.08), lineWidth: 1))
+            .padding(.horizontal, 13).padding(.top, 11).padding(.bottom, 2)
         }
     }
 

@@ -56,6 +56,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var refreshCount = 0              // refreshes seen this session (for the provider signal)
     private var sentProviderSignal = false   // provider.active is emitted once per session
 
+    /// Handle `mimir://open?app=<provider>` — the deep link the data-unavailable widget/banner taps
+    /// into. The widget extension is sandboxed and can't launch another app, so it hands the URL to
+    /// this host, which opens the provider's app via `AppTarget`.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls where url.scheme == "mimir" && url.host == "open" {
+            if let app = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?.first(where: { $0.name == "app" })?.value {
+                AppTarget.open(app)
+            }
+        }
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Dev builds (com.erayendes.mimir.dev) must not report to the production
         // Sentry project — their crashes/hangs are just local development noise (MIMIR-7).
@@ -400,9 +412,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// the next refresh.
     private func menuBarDotColors() -> [NSColor] {
         menuBarDots(from: store.services).map { dot in
-            // 7g (weekly) spent → grey lockout, matching the widget/popover; else the 5h status
-            // colour, or the neutral grey when there's no 5h reading yet.
-            if dot.weeklyExhausted { return Self.noDataDotColor }
+            // Data unavailable (source down too long) or 7g spent → grey lockout, matching the
+            // widget/popover; else the 5h status colour, or the neutral grey with no 5h reading yet.
+            if dot.unavailable || dot.weeklyExhausted { return Self.noDataDotColor }
             return dot.sessionPercent.map(statusNSColor) ?? Self.noDataDotColor
         }
     }
