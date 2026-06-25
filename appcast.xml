@@ -7,7 +7,31 @@
     <link>https://github.com/erayendes/mimir</link>
     <description>Mimir update feed</description>
     <language>en</language>
-                                                    <item>
+                                                        <item>
+      <title>Mimir 2.5.1</title>
+      <sparkle:version>2005001</sparkle:version>
+      <sparkle:shortVersionString>2.5.1</sparkle:shortVersionString>
+      <pubDate>Thu, 25 Jun 2026 12:47:03 +0000</pubDate>
+      <description><![CDATA[
+<p><b>Added</b></p>
+<ul>
+<li>New "data unavailable" cue: when a provider's live source can't be reached — for example Antigravity is closed — the widgets, panel, and menu-bar dots now say so clearly and offer to open the app (tap the widget, or the notice in the panel), instead of showing stale numbers or a vanished card. It only appears for apps you actually have installed.</li>
+</ul>
+<hr>
+<p><b>Eklendi</b></p>
+<ul>
+<li>Yeni "veri alınamadı" durumu: bir sağlayıcının canlı kaynağına ulaşılamadığında — örneğin Antigravity kapalıyken — widget'lar, panel ve menü çubuğu noktaları artık bunu net gösteriyor ve uygulamayı açmayı öneriyor (widget'a ya da paneldeki uyarıya dokun); eski sayıları veya kaybolan kartı göstermek yerine. Yalnızca kurulu uygulamalar için görünür.</li>
+</ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v2.5.1/Mimir.zip"
+        sparkle:edSignature="9bPfbGyi0Jis0JIffkQ6+0ChvX6vDxsGC/CPHFWogjPeAE3yIVRTazga4iXfXAVmaKKyuNgHERnscaVnF45xAg=="
+        length="6516481"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 2.5</title>
       <sparkle:version>2005000</sparkle:version>
       <sparkle:shortVersionString>2.5</sparkle:shortVersionString>
