@@ -199,8 +199,10 @@ struct LiveUsageDataSource {
         let sessionReset = (root["sessionResetAt"] as? String).flatMap { parseISO8601($0) }
         let weeklyReset = (root["weeklyResetAt"] as? String).flatMap { parseISO8601($0) }
 
-        // Live source unreachable long enough (>15 min) that the snapshot can't be trusted. Only
-        // providers that map to an installable GUI app get the actionable "couldn't fetch — open it"
+        // Live source unreachable long enough (>4.5 h — just under the 5-hour session window, beyond
+        // which the last-known session reading is from a window that has already rotated, so it's
+        // provably stale; a shorter horizon cried wolf on normal breaks) that the snapshot can't be
+        // trusted. Only providers that map to an installable GUI app get the "couldn't fetch — open it"
         // state, and only while that app is actually installed:
         //   • mapped + installed     → unavailable card (keeps model labels for the empty state). It's
         //                               `isAvailable: false` so a stale snapshot never fires a
@@ -209,7 +211,7 @@ struct LiveUsageDataSource {
         //   • mapped + NOT installed → nil → falls back to hidden (don't nag to open a missing app).
         //   • unmapped (Claude/Codex)→ fall through to staleClassifiedCard (CLIs/APIs, nothing to open).
         if let savedRaw = root["savedAt"] as? String, let saved = parseISO8601(savedRaw),
-           now.timeIntervalSince(saved) > 15 * 60,
+           now.timeIntervalSince(saved) > 4.5 * 3600,
            AppTarget.bundleID(for: service) != nil {
             guard AppTarget.installedURL(for: service) != nil else { return nil }
             return ServiceStatus(

@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+### [2.5.2] - 2026-06-25
+
+#### Changed
+- The "data unavailable" notice now waits much longer before appearing — about 4.5 hours without fresh data instead of 15 minutes — so briefly closing the app no longer triggers it.
+
 ### [2.5.1] - 2026-06-25
 
 #### Added
@@ -323,6 +328,11 @@ Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
 
 ### [Yayımlanmadı]
+
+### [2.5.2] - 2026-06-25
+
+#### Değiştirildi
+- "Veri alınamadı" uyarısı artık görünmeden önce çok daha uzun bekliyor — 15 dakika yerine yaklaşık 4,5 saat taze veri olmadan — böylece uygulamayı kısa süreliğine kapatmak onu tetiklemiyor.
 
 ### [2.5.1] - 2026-06-25
 
