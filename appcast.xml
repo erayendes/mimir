@@ -7,7 +7,35 @@
     <link>https://github.com/erayendes/mimir</link>
     <description>Mimir update feed</description>
     <language>en</language>
-                                                            <item>
+                                                                <item>
+      <title>Mimir 2.5.3</title>
+      <sparkle:version>2005003</sparkle:version>
+      <sparkle:shortVersionString>2.5.3</sparkle:shortVersionString>
+      <pubDate>Fri, 26 Jun 2026 14:30:36 +0000</pubDate>
+      <description><![CDATA[
+<p><b>Changed</b></p>
+<ul>
+<li>Sparkle's update sheet now displays release notes with proper formatting — headings, bullet points, and a divider between English and Turkish sections — instead of raw markdown text.</li>
+</ul>
+<p><b>Internal</b></p>
+<ul>
+<li>Usage telemetry expanded: app launches, popover opens, notifications sent (by service and type), and milowda link taps are now tracked anonymously.</li>
+</ul>
+<hr>
+<p><b>Değiştirildi</b></p>
+<ul>
+<li>Sparkle'ın güncelleme ekranı artık sürüm notlarını düzgün biçimlendirmeyle gösteriyor — başlıklar, madde işaretleri ve Türkçe/İngilizce arasında ayraç — ham markdown metni yerine.</li>
+</ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v2.5.3/Mimir.zip"
+        sparkle:edSignature="zx1lgkR28LJtaKqVx089dIq0jb8onaRar7xcvQrhNTUZzDiHv+pf4+/Euv1wPEc83VbWXwj4SDilA8IULCfMCw=="
+        length="6516950"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 2.5.2</title>
       <sparkle:version>2005002</sparkle:version>
       <sparkle:shortVersionString>2.5.2</sparkle:shortVersionString>
