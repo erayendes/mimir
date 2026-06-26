@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+### [2.5.3] - 2026-06-26
+
+#### Changed
+- Sparkle's update sheet now displays release notes with proper formatting — headings, bullet points, and a divider between English and Turkish sections — instead of raw markdown text.
+
+#### Internal
+- Usage telemetry expanded: app launches, popover opens, notifications sent (by service and type), and milowda link taps are now tracked anonymously.
+
 ### [2.5.2] - 2026-06-25
 
 #### Changed
@@ -328,6 +336,11 @@ Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
 
 ### [Yayımlanmadı]
+
+### [2.5.3] - 2026-06-26
+
+#### Değiştirildi
+- Sparkle'ın güncelleme ekranı artık sürüm notlarını düzgün biçimlendirmeyle gösteriyor — başlıklar, madde işaretleri ve Türkçe/İngilizce arasında ayraç — ham markdown metni yerine.
 
 ### [2.5.2] - 2026-06-25
 
