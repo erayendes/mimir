@@ -162,10 +162,16 @@ struct BrandingFooter: View {
 
             Spacer(minLength: 6)
 
-            Link("milowda", destination: URL(string: "https://milowda.com/apps/mimir")!)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(Color.primary.opacity(0.4))
-                .pointingHandCursor()
+            Button {
+                Telemetry.signal("link.tapped", parameters: ["target": "milowda"])
+                NSWorkspace.shared.open(URL(string: "https://milowda.com/apps/mimir")!)
+            } label: {
+                Text("milowda")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Color.primary.opacity(0.4))
+            }
+            .buttonStyle(.plain)
+            .pointingHandCursor()
         }
         .padding(13)
     }

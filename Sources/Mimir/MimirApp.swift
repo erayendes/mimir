@@ -161,6 +161,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
         statusItem = item
 
+        Telemetry.signal("app.launched")
+
         store.refresh()
         refreshStatusTitle()
         store.$services
@@ -297,6 +299,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if panel.isVisible {
             hidePanel()
         } else {
+            Telemetry.signal("popover.opened")
             // Opening the panel is a deliberate user action, so this refresh is allowed to read
             // Claude Code's keychain item if needed (the only path that can prompt). The 60s
             // background timer and the launch refresh stay prompt-free (userInitiated: false).
@@ -634,6 +637,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func sendNotification(identifier: String, title: String, body: String) {
+        // Derive a categorical type from the identifier: "Claude-5h", "Codex-weekly-refilled", etc.
+        let parts = identifier.split(separator: "-")
+        let service = parts.first.map(String.init) ?? "unknown"
+        let isRefill = identifier.hasSuffix("-refilled")
+        let window = identifier.contains("weekly") ? "weekly" : "5h"
+        let kind = isRefill ? "refilled" : "low"
+        Telemetry.signal("notification.sent", parameters: [
+            "service": service, "window": window, "kind": kind
+        ])
+
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body

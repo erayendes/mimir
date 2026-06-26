@@ -7,7 +7,7 @@ import TelemetryDeck
 enum Telemetry {
     /// TelemetryDeck app id — non-secret, embedded in the client (like the Sentry DSN). Empty →
     /// `start()` is a no-op. Namespace scopes signals to our org on the ingestion side.
-    static let appID = "451C5BEF-443E-42ED-960A-513679A23DAE"
+    static let appID = "BB8EDF61-7FE8-48E9-897B-44C2F3B85277"
     static let namespace = "com.milowda"
 
     static let enabledKey = "telemetry.enabled"
