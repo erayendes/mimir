@@ -81,6 +81,51 @@ final class UsageParsingTests: XCTestCase {
         XCTAssertEqual(stale.weeklyRemainingPercent, 99)
     }
 
+    /// `secureAtomicWrite` must land the file at 0o600 (never the umask default), on both a fresh
+    /// write and an overwrite — that's the whole point of the TOCTOU fix for token files.
+    func testSecureAtomicWriteIsAlways0600() throws {
+        let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("mimir-secwrite-\(UUID()).json")
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        func perms() throws -> Int? {
+            try FileManager.default.attributesOfItem(atPath: tmp.path)[.posixPermissions] as? Int
+        }
+
+        // Fresh write (target absent → moveItem path).
+        let first = Data("{\"token\":\"a\"}".utf8)
+        try LiveUsageDataSource.secureAtomicWrite(data: first, to: tmp)
+        XCTAssertEqual(try Data(contentsOf: tmp), first)
+        XCTAssertEqual(try perms(), 0o600)
+
+        // Overwrite (target exists → replaceItemAt path) still 0o600, new content.
+        let second = Data("{\"token\":\"b\"}".utf8)
+        try LiveUsageDataSource.secureAtomicWrite(data: second, to: tmp)
+        XCTAssertEqual(try Data(contentsOf: tmp), second)
+        XCTAssertEqual(try perms(), 0o600)
+    }
+
+    /// A symlinked credential file (dotfile-manager pattern) must be written *through*: the link is
+    /// preserved and the real file behind it gets the new 0o600 content, not clobbered into a file.
+    func testSecureAtomicWriteFollowsSymlink() throws {
+        let fm = FileManager.default
+        let dir = fm.temporaryDirectory
+        let real = dir.appendingPathComponent("mimir-real-\(UUID()).json")
+        let link = dir.appendingPathComponent("mimir-link-\(UUID()).json")
+        defer { try? fm.removeItem(at: real); try? fm.removeItem(at: link) }
+
+        try Data("{\"t\":\"old\"}".utf8).write(to: real)
+        try fm.createSymbolicLink(at: link, withDestinationURL: real)
+
+        let new = Data("{\"t\":\"new\"}".utf8)
+        try LiveUsageDataSource.secureAtomicWrite(data: new, to: link)
+
+        // Link still a symlink pointing at `real` (not replaced by a regular file)…
+        XCTAssertEqual(try fm.destinationOfSymbolicLink(atPath: link.path), real.path)
+        // …and the real file behind it got the new content at 0o600.
+        XCTAssertEqual(try Data(contentsOf: real), new)
+        XCTAssertEqual(try fm.attributesOfItem(atPath: real.path)[.posixPermissions] as? Int, 0o600)
+    }
+
     /// Build a base64url JWT (header.payload.sig) from a payload dict — only the payload is read.
     private static func makeJWT(payload: [String: Any]) -> String {
         let data = try! JSONSerialization.data(withJSONObject: payload)

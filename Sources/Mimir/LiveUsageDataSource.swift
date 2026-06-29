@@ -166,6 +166,41 @@ struct LiveUsageDataSource {
         try? data.write(to: url, options: .atomic)
     }
 
+    /// Write `data` to `targetURL` without ever exposing it through a world-readable window. The usual
+    /// `write(.atomic)` + `setAttributes(0o600)` leaves the file briefly at the umask default (e.g.
+    /// 0644) before the chmod — a TOCTOU window where another local process could read a token. Instead,
+    /// create a temp file already at `permissions`, then atomically swap it in. Used for the credential/
+    /// token writes (Codex auth, Claude credential file), not the non-secret quota snapshots.
+    static func secureAtomicWrite(data: Data, to targetURL: URL, permissions: Int = 0o600) throws {
+        let fm = FileManager.default
+        // Follow symlinks to the real file: if the credential path is a symlink (a common dotfile-
+        // manager pattern, e.g. ~/.codex/auth.json → elsewhere), update the linked file and keep the
+        // link, rather than replacing the symlink node itself and stranding the real file. The old
+        // `write(.atomic)` wrote through the link, so this preserves that behaviour.
+        let target = targetURL.resolvingSymlinksInPath()
+        let dir = target.deletingLastPathComponent()
+        if !fm.fileExists(atPath: dir.path) {
+            try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        }
+        let tempURL = dir.appendingPathComponent(UUID().uuidString)
+        guard fm.createFile(atPath: tempURL.path, contents: data,
+                            attributes: [.posixPermissions: permissions]) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        do {
+            if fm.fileExists(atPath: target.path) {
+                // `.usingNewMetadataOnly` keeps the temp's restrictive permissions instead of
+                // inheriting the original file's (which may be looser).
+                _ = try fm.replaceItemAt(target, withItemAt: tempURL, options: .usingNewMetadataOnly)
+            } else {
+                try fm.moveItem(at: tempURL, to: target)
+            }
+        } catch {
+            try? fm.removeItem(at: tempURL)
+            throw error
+        }
+    }
+
     /// Load a service's snapshot, classifying each window by reset time: a window whose reset is
     /// still in the future shows its cached percent; one that has already reset is blanked (the
     /// real quota has refilled). Any fresh window/model → a normal (available) card from cache;
