@@ -302,8 +302,9 @@ extension LiveUsageDataSource {
               let data = try? JSONSerialization.data(withJSONObject: auth, options: [.prettyPrinted, .sortedKeys]) else {
             return
         }
-        try? data.write(to: state.path, options: .atomic)
-        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: state.path.path)
+        // Token file → secure atomic write so the refreshed token never sits in a 0644 file between
+        // write and chmod (TOCTOU). Replaces write(.atomic) + setAttributes.
+        try? Self.secureAtomicWrite(data: data, to: state.path, permissions: 0o600)
     }
 }
 

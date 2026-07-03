@@ -497,7 +497,8 @@ extension LiveUsageDataSource {
                 SecItemAdd(newItem as CFDictionary, nil)
             }
         case .file(let url):
-            try? data.write(to: url, options: .atomic)
+            // Credential file → secure atomic write (no 0644 TOCTOU window for the token).
+            try? Self.secureAtomicWrite(data: data, to: url)
         }
     }
 }

@@ -70,4 +70,29 @@ final class WidgetBridgeTests: XCTestCase {
         XCTAssertEqual(a, b)      // same data, later timestamp → no reload
         XCTAssertNotEqual(a, c)   // percent moved → reload
     }
+
+    /// The reload throttle: structural changes (availability/unavailable flip) poke immediately;
+    /// %-only drift waits for the throttle so WidgetKit's reload budget isn't burned on every tick.
+    func testShouldReloadStructuralBypassesThrottle() {
+        let t = WidgetBridge.reloadThrottle
+        func prov(_ pct: Int, available: Bool = true, unavailable: Bool = false) -> [ProviderPayload] {
+            [ProviderPayload(name: "Claude", iconName: "claude", isAvailable: available,
+                             fiveHour: [WindowMetric(label: "Claude", percent: pct, resetAt: now)],
+                             unavailable: unavailable)]
+        }
+        // First poke ever (no lastReload) → reload.
+        XCTAssertTrue(WidgetBridge.shouldReload(previous: nil, next: prov(50), lastReload: nil, now: now, throttle: t))
+        // %-only change inside the throttle window → wait.
+        XCTAssertFalse(WidgetBridge.shouldReload(previous: prov(50), next: prov(49),
+                                                 lastReload: now, now: now.addingTimeInterval(60), throttle: t))
+        // %-only change after the throttle elapsed → reload.
+        XCTAssertTrue(WidgetBridge.shouldReload(previous: prov(50), next: prov(49),
+                                                lastReload: now, now: now.addingTimeInterval(t + 1), throttle: t))
+        // Availability flip inside the window → reload now (structural).
+        XCTAssertTrue(WidgetBridge.shouldReload(previous: prov(50), next: prov(50, available: false),
+                                                lastReload: now, now: now.addingTimeInterval(60), throttle: t))
+        // Unavailable flip inside the window → reload now (structural).
+        XCTAssertTrue(WidgetBridge.shouldReload(previous: prov(50), next: prov(50, unavailable: true),
+                                                lastReload: now, now: now.addingTimeInterval(60), throttle: t))
+    }
 }
