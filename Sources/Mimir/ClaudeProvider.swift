@@ -138,19 +138,14 @@ extension LiveUsageDataSource {
     func buildClaudeStatus(from root: [String: Any], note: String, live: Bool = true) -> ServiceStatus {
         let fiveHour = mergeClaudeWindows(root: root, baseKey: "five_hour")
         let sevenDay = mergeClaudeWindows(root: root, baseKey: "seven_day")
-        let sonnet = mergeClaudeWindows(root: root, baseKey: "seven_day_sonnet")
 
-        // Sonnet is a weekly (7-day) window, so it's always shown like the overall
-        // Weekly row — even at 0% used. When the API omits its own reset, fall back
-        // to the seven-day reset since they reset together.
-        var models: [ModelStatus] = [
-            ModelStatus(
-                name: "Sonnet",
-                remainingPercent: remainingPercent(fromUsed: sonnet.utilization),
-                resetAt: sonnet.resetAt ?? sevenDay.resetAt
-            )
-        ]
-        if let billing = claudeBillingRow(root["extra_usage"]) {
+        // Per-model weekly rows (e.g. "Fable") now come from the `limits` array, keyed by
+        // `scope.model.display_name` — not the old flat `seven_day_<model>` keys, which the API
+        // has stopped populating (they read back as null). Reading the array generically means a
+        // new model tier shows up with no code change, instead of needing another hardcoded key
+        // every time Anthropic ships one.
+        var models: [ModelStatus] = claudeScopedModelRows(root["limits"], weeklyResetAt: sevenDay.resetAt)
+        if let billing = claudeBillingRow(root) {
             models.append(billing)
         }
 
@@ -178,7 +173,52 @@ extension LiveUsageDataSource {
             models: models, freshNote: note, staleNote: note)
             ?? unavailableService(name: "Claude", iconName: "claude", models: [], note: note)
     }
-    private func claudeBillingRow(_ raw: Any?) -> ModelStatus? {
+    /// One row per weekly-scoped model in the `limits` array (e.g. `{"kind": "weekly_scoped",
+    /// "group": "weekly", "percent": 66, "scope": {"model": {"display_name": "Fable"}}}`). The
+    /// array is already presentation-ordered by the API, so rows are emitted in that order. When a
+    /// scoped entry omits its own `resets_at`, fall back to the account-wide weekly reset since they
+    /// reset together (mirrors the old Sonnet-specific fallback).
+    private func claudeScopedModelRows(_ raw: Any?, weeklyResetAt: Date?) -> [ModelStatus] {
+        guard let limits = raw as? [[String: Any]] else { return [] }
+        return limits.compactMap { entry -> ModelStatus? in
+            guard entry["group"] as? String == "weekly",
+                  let scope = entry["scope"] as? [String: Any],
+                  let model = scope["model"] as? [String: Any],
+                  let displayName = model["display_name"] as? String else { return nil }
+            let percent = doubleValue(entry["percent"]) ?? 0
+            let resetAt = (entry["resets_at"] as? String).flatMap(parseISO8601) ?? weeklyResetAt
+            return ModelStatus(name: displayName, remainingPercent: remainingPercent(fromUsed: percent), resetAt: resetAt)
+        }
+    }
+
+    /// Billing/credits row. Prefers the new `spend` object (richer: cap, balance, auto_reload,
+    /// disclaimer) and falls back to the legacy `extra_usage` shape for accounts the API hasn't
+    /// migrated yet — both are read defensively since neither's rollout is guaranteed complete.
+    private func claudeBillingRow(_ root: [String: Any]) -> ModelStatus? {
+        if let spend = root["spend"] as? [String: Any], spend["enabled"] as? Bool == true {
+            return claudeSpendBillingRow(spend)
+        }
+        return claudeLegacyBillingRow(root["extra_usage"])
+    }
+
+    private func claudeSpendBillingRow(_ spend: [String: Any]) -> ModelStatus? {
+        guard let usedObj = spend["used"] as? [String: Any] else { return nil }
+        let exponent = (usedObj["exponent"] as? Int) ?? 2
+        let scale = pow(10, Double(exponent))
+        let used = (doubleValue(usedObj["amount_minor"]) ?? 0) / scale
+        let cur = (usedObj["currency"] as? String)?.uppercased() ?? ""
+        let limit = (spend["limit"] as? [String: Any]).flatMap { doubleValue($0["amount_minor"]) }.map { $0 / scale }
+        func money(_ v: Double) -> String {
+            let n = v.truncatingRemainder(dividingBy: 1) == 0 ? String(Int(v)) : String(format: "%.2f", v)
+            return cur.isEmpty ? n : "\(n) \(cur)"
+        }
+        let text = limit.map { "\(money(used)) / \(money($0))" } ?? money(used)
+        let util = doubleValue(spend["percent"]) ?? (limit.map { $0 > 0 ? used / $0 * 100 : 0 } ?? 0)
+        return ModelStatus(name: String(localized: "Billing"), remainingPercent: 0, resetAt: nil,
+                           valueText: text, isLow: util >= 80)
+    }
+
+    private func claudeLegacyBillingRow(_ raw: Any?) -> ModelStatus? {
         guard let e = raw as? [String: Any], e["is_enabled"] as? Bool == true else { return nil }
         let used = doubleValue(e["used_credits"]) ?? 0
         let limit = doubleValue(e["monthly_limit"])
