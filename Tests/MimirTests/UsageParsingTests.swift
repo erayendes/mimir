@@ -81,6 +81,63 @@ final class UsageParsingTests: XCTestCase {
         XCTAssertEqual(stale.weeklyRemainingPercent, 99)
     }
 
+    /// Per-model weekly rows come from the `limits` array (`scope.model.display_name`), not the
+    /// legacy flat `seven_day_<model>` keys — the API now returns those as null. This mirrors a real
+    /// captured response: session 93%, all-models 34%, and a scoped "Fable" row at 66% used.
+    func testClaudeScopedModelRowFromLimitsArray() {
+        let root: [String: Any] = [
+            "five_hour": ["utilization": 93.0, "resets_at": "2030-01-01T00:00:00Z"],
+            "seven_day": ["utilization": 34.0, "resets_at": "2030-01-08T00:00:00Z"],
+            "seven_day_sonnet": NSNull(),   // legacy key: now dead, must be ignored
+            "limits": [
+                ["kind": "session", "group": "session", "percent": 93, "resets_at": "2030-01-01T00:00:00Z", "scope": NSNull()],
+                ["kind": "weekly_all", "group": "weekly", "percent": 34, "resets_at": "2030-01-08T00:00:00Z", "scope": NSNull()],
+                ["kind": "weekly_scoped", "group": "weekly", "percent": 66, "resets_at": "2030-01-08T00:00:00Z",
+                 "scope": ["model": ["id": NSNull(), "display_name": "Fable"], "surface": NSNull()]],
+            ],
+        ]
+        let status = ds.buildClaudeStatus(from: root, note: "oauth usage api")
+        XCTAssertEqual(status.models.map(\.name), ["Fable"])
+        XCTAssertEqual(status.models.first?.remainingPercent, 34)   // 100 - 66
+    }
+
+    /// Multiple scoped models appear as separate rows, in the order the API returns them — no
+    /// hardcoded model list needed for a new tier to show up.
+    func testClaudeMultipleScopedModelRows() {
+        let root: [String: Any] = [
+            "five_hour": ["utilization": 10.0, "resets_at": "2030-01-01T00:00:00Z"],
+            "seven_day": ["utilization": 10.0, "resets_at": "2030-01-08T00:00:00Z"],
+            "limits": [
+                ["kind": "weekly_scoped", "group": "weekly", "percent": 20, "resets_at": "2030-01-08T00:00:00Z",
+                 "scope": ["model": ["display_name": "Fable"], "surface": NSNull()]],
+                ["kind": "weekly_scoped", "group": "weekly", "percent": 50, "resets_at": "2030-01-08T00:00:00Z",
+                 "scope": ["model": ["display_name": "Opus"], "surface": NSNull()]],
+            ],
+        ]
+        let status = ds.buildClaudeStatus(from: root, note: "oauth usage api")
+        XCTAssertEqual(status.models.map(\.name), ["Fable", "Opus"])
+        XCTAssertEqual(status.models.map(\.remainingPercent), [80, 50])
+    }
+
+    /// The new `spend` object is preferred over the legacy `extra_usage` shape when both are present
+    /// and `spend` is enabled.
+    func testClaudeBillingPrefersSpendOverLegacyExtraUsage() {
+        let root: [String: Any] = [
+            "five_hour": ["utilization": 0.0, "resets_at": "2030-01-01T00:00:00Z"],
+            "seven_day": ["utilization": 0.0, "resets_at": "2030-01-08T00:00:00Z"],
+            "extra_usage": ["is_enabled": true, "used_credits": 999.0, "monthly_limit": 999.0, "currency": "USD"],
+            "spend": [
+                "enabled": true,
+                "percent": 50.0,
+                "used": ["amount_minor": 500, "currency": "USD", "exponent": 2],
+                "limit": ["amount_minor": 1000, "currency": "USD", "exponent": 2],
+            ],
+        ]
+        let status = ds.buildClaudeStatus(from: root, note: "oauth usage api")
+        let billing = status.models.first { $0.name == "Billing" }
+        XCTAssertEqual(billing?.valueText, "5 USD / 10 USD")
+    }
+
     /// Build a base64url JWT (header.payload.sig) from a payload dict — only the payload is read.
     private static func makeJWT(payload: [String: Any]) -> String {
         let data = try! JSONSerialization.data(withJSONObject: payload)
