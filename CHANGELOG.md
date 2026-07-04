@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+### [2.5.4] - 2026-07-04
+
+#### Fixed
+- Claude's per-model quota (e.g. the new "Fable" model) shows up again — Anthropic changed how it reports this, and the previous format had quietly stopped updating.
+- Claude sign-in is found again when Claude Code stores it under a newer login entry instead of an older leftover one.
+- Credential files (Claude, Codex) are now written so they're never briefly world-readable to other apps on this Mac.
+
+#### Internal
+- Widget refreshes are throttled for routine percentage changes, so the system's refresh budget isn't spent needlessly.
+
 ### [2.5.3] - 2026-06-26
 
 #### Changed
@@ -336,6 +346,16 @@ Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
 
 ### [Yayımlanmadı]
+
+### [2.5.4] - 2026-07-04
+
+#### Düzeltildi
+- Claude'un model bazlı kotası (örn. yeni "Fable" modeli) tekrar görünüyor — Anthropic bunu bildirme şeklini değiştirmişti ve eski format sessizce güncellenmemeye başlamıştı.
+- Claude Code girişini daha yeni bir kayıtta tuttuğunda Mimir artık onu buluyor, eski bir kayıtta takılı kalmıyor.
+- Kimlik bilgisi dosyaları (Claude, Codex) artık bu Mac'teki başka uygulamalar tarafından kısa süreliğine bile okunabilir olmayacak şekilde yazılıyor.
+
+#### Dahili
+- Widget yenilemeleri, rutin yüzde değişiklikleri için sınırlandırıldı, böylece sistemin yenileme bütçesi gereksiz harcanmıyor.
 
 ### [2.5.3] - 2026-06-26
 

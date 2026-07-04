@@ -365,32 +365,67 @@ extension LiveUsageDataSource {
         return nil
     }
     private enum ClaudeCredentialSource {
-        case keychain(account: String)
+        case keychain(service: String, account: String)
         case file(URL)
     }
 
-    /// Read the Claude Code generic-password item in-process via the Security framework — no
+    /// Claude Code no longer keeps its login only under the exact legacy service name — newer
+    /// versions write per-config items named "Claude Code-credentials-<hash>" and leave the legacy
+    /// item behind with a dead token. List every matching item's ATTRIBUTES (no kSecReturnData, so
+    /// this never pops the keychain prompt) and order newest-modified first: the item Claude Code
+    /// last rewrote is the live login.
+    static func claudeKeychainServicesOrdered(_ items: [(service: String, modifiedAt: Date?)]) -> [String] {
+        items.filter { $0.service == claudeKeychainService || $0.service.hasPrefix("\(claudeKeychainService)-") }
+            .sorted { ($0.modifiedAt ?? .distantPast) > ($1.modifiedAt ?? .distantPast) }
+            .map(\.service)
+    }
+
+    private func claudeKeychainCandidates() -> [(service: String, account: String?)] {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecMatchLimit as String: kSecMatchLimitAll,
+            kSecReturnAttributes as String: true
+        ]
+        var result: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+              let items = result as? [[String: Any]] else { return [] }
+        let attrs = items.compactMap { dict -> (service: String, account: String?, modifiedAt: Date?)? in
+            guard let service = dict[kSecAttrService as String] as? String else { return nil }
+            return (service, dict[kSecAttrAccount as String] as? String,
+                    dict[kSecAttrModificationDate as String] as? Date)
+        }
+        let ordered = Self.claudeKeychainServicesOrdered(attrs.map { ($0.service, $0.modifiedAt) })
+        return ordered.compactMap { service in
+            attrs.first { $0.service == service }.map { (service, $0.account) }
+        }
+    }
+
+    /// Read the newest Claude Code generic-password item in-process via the Security framework — no
     /// `/usr/bin/security` subprocess. This matters for the keychain prompt: an in-process read is
     /// attributed to Mimir's own code signature, so the user's "Always Allow" is tied to Mimir
     /// (stable in release builds) rather than to `/usr/bin/security`, whose grant the item's owner
     /// (Claude Code) wipes whenever it rewrites the entry on token refresh. Returns the stored value
-    /// plus the item's account attribute (needed to update the same entry in place).
-    private func readClaudeKeychainItem() -> (value: String, account: String?)? {
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: Self.claudeKeychainService,
-            kSecReturnData as String: true,
-            kSecReturnAttributes as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-        var result: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
-              let dict = result as? [String: Any],
-              let data = dict[kSecValueData as String] as? Data,
-              let value = String(data: data, encoding: .utf8) else {
-            return nil
+    /// plus the item's service/account attributes (needed to update the same entry in place).
+    private func readClaudeKeychainItem() -> (value: String, service: String, account: String?)? {
+        for candidate in claudeKeychainCandidates() {
+            let query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: candidate.service,
+                kSecReturnData as String: true,
+                kSecMatchLimit as String: kSecMatchLimitOne
+            ]
+            var result: CFTypeRef?
+            guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
+                  let data = result as? Data,
+                  let value = String(data: data, encoding: .utf8),
+                  // Only accept an item that actually parses to a token — the stale legacy item is
+                  // skipped so an older-but-valid entry behind it can still win.
+                  parseClaudeToken(value.trimmingCharacters(in: .whitespacesAndNewlines)) != nil else {
+                continue
+            }
+            return (value, candidate.service, candidate.account)
         }
-        return (value, dict[kSecAttrAccount as String] as? String)
+        return nil
     }
 
     /// Read the full Claude credential JSON (which carries the refresh token) and remember where it
@@ -410,11 +445,11 @@ extension LiveUsageDataSource {
               let data = item.value.trimmingCharacters(in: .whitespacesAndNewlines).data(using: .utf8),
               let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               root["claudeAiOauth"] != nil,
-              // SecItemUpdate locates the entry to rewrite by account; fall back to the login name.
+              // SecItemUpdate locates the entry to rewrite by service+account; fall back to the login name.
               let account = item.account ?? (NSUserName().isEmpty ? nil : NSUserName()) else {
             return nil
         }
-        return (root, .keychain(account: account))
+        return (root, .keychain(service: item.service, account: account))
     }
 
     /// Refresh Claude's access token with the stored refresh token, then write the rotated pair back
@@ -519,10 +554,10 @@ extension LiveUsageDataSource {
     private func writeClaudeCredential(_ root: [String: Any], to source: ClaudeCredentialSource) {
         guard let data = try? JSONSerialization.data(withJSONObject: root) else { return }
         switch source {
-        case .keychain(let account):
+        case .keychain(let service, let account):
             let query: [String: Any] = [
                 kSecClass as String: kSecClassGenericPassword,
-                kSecAttrService as String: Self.claudeKeychainService,
+                kSecAttrService as String: service,
                 kSecAttrAccount as String: account
             ]
             let attributes: [String: Any] = [

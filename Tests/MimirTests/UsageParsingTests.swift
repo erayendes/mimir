@@ -183,6 +183,25 @@ final class UsageParsingTests: XCTestCase {
         XCTAssertEqual(billing?.valueText, "5 USD / 10 USD")
     }
 
+    /// Claude Code now writes per-config keychain items ("Claude Code-credentials-<hash>") and can
+    /// leave the legacy exact-name item behind with a dead token. Candidate ordering must be
+    /// newest-modified first, include both name shapes, and exclude unrelated services.
+    func testClaudeKeychainServicesOrdered() {
+        let old = Date(timeIntervalSince1970: 1_000)
+        let new = Date(timeIntervalSince1970: 2_000)
+        let ordered = LiveUsageDataSource.claudeKeychainServicesOrdered([
+            ("Claude Code-credentials", old),
+            ("Claude Safe Storage", new),                       // unrelated → excluded
+            ("Claude Code-credentials-b47470ab", new),
+            ("Claude Code-credentials-a7f272c1", nil),          // no mdat → sorts last
+        ])
+        XCTAssertEqual(ordered, [
+            "Claude Code-credentials-b47470ab",
+            "Claude Code-credentials",
+            "Claude Code-credentials-a7f272c1",
+        ])
+    }
+
     /// Build a base64url JWT (header.payload.sig) from a payload dict — only the payload is read.
     private static func makeJWT(payload: [String: Any]) -> String {
         let data = try! JSONSerialization.data(withJSONObject: payload)
