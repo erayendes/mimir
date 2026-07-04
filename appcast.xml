@@ -7,7 +7,43 @@
     <link>https://github.com/erayendes/mimir</link>
     <description>Mimir update feed</description>
     <language>en</language>
-                                                                <item>
+                                                                    <item>
+      <title>Mimir 2.5.4</title>
+      <sparkle:version>2005004</sparkle:version>
+      <sparkle:shortVersionString>2.5.4</sparkle:shortVersionString>
+      <pubDate>Sat, 04 Jul 2026 13:52:37 +0000</pubDate>
+      <description><![CDATA[
+<p><b>Fixed</b></p>
+<ul>
+<li>Claude's per-model quota (e.g. the new "Fable" model) shows up again — Anthropic changed how it reports this, and the previous format had quietly stopped updating.</li>
+<li>Claude sign-in is found again when Claude Code stores it under a newer login entry instead of an older leftover one.</li>
+<li>Credential files (Claude, Codex) are now written so they're never briefly world-readable to other apps on this Mac.</li>
+</ul>
+<p><b>Internal</b></p>
+<ul>
+<li>Widget refreshes are throttled for routine percentage changes, so the system's refresh budget isn't spent needlessly.</li>
+</ul>
+<hr>
+<p><b>Düzeltildi</b></p>
+<ul>
+<li>Claude'un model bazlı kotası (örn. yeni "Fable" modeli) tekrar görünüyor — Anthropic bunu bildirme şeklini değiştirmişti ve eski format sessizce güncellenmemeye başlamıştı.</li>
+<li>Claude Code girişini daha yeni bir kayıtta tuttuğunda Mimir artık onu buluyor, eski bir kayıtta takılı kalmıyor.</li>
+<li>Kimlik bilgisi dosyaları (Claude, Codex) artık bu Mac'teki başka uygulamalar tarafından kısa süreliğine bile okunabilir olmayacak şekilde yazılıyor.</li>
+</ul>
+<p><b>Dahili</b></p>
+<ul>
+<li>Widget yenilemeleri, rutin yüzde değişiklikleri için sınırlandırıldı, böylece sistemin yenileme bütçesi gereksiz harcanmıyor.</li>
+</ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v2.5.4/Mimir.zip"
+        sparkle:edSignature="77ed5Nw+0kSEvnRWLY6f51qlPfFk3AOOXfsa+U6ifx8oAaFPlsqFFpgbnpwd199+O9f01w9IlCq1Hd+JagRaBw=="
+        length="6531160"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 2.5.3</title>
       <sparkle:version>2005003</sparkle:version>
       <sparkle:shortVersionString>2.5.3</sparkle:shortVersionString>
