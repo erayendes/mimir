@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+### [2.5.5] - 2026-07-06
+
+#### Fixed
+- Mimir no longer breaks Claude Code's sign-in. It used to refresh Claude's login token itself, and because Anthropic rotates that token on every refresh, this could invalidate Claude Code's own session and force you to log in again. Mimir now only reads your current token and never touches the login — so it can't log you out. (If Claude Code is already asking you to sign in, log in once more; it won't recur.)
+- The macOS keychain permission prompt should also appear far less often, since Claude Code no longer keeps getting logged out and rewriting its keychain entry.
+
 ### [2.5.4] - 2026-07-04
 
 #### Fixed
@@ -346,6 +352,12 @@ Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
 
 ### [Yayımlanmadı]
+
+### [2.5.5] - 2026-07-06
+
+#### Düzeltildi
+- Mimir artık Claude Code'un oturumunu bozmuyor. Önceden Claude'un giriş token'ını kendisi yeniliyordu; Anthropic bu token'ı her yenilemede değiştirdiği (rotasyona soktuğu) için bu, Claude Code'un kendi oturumunu geçersiz kılıp seni yeniden giriş yapmaya zorlayabiliyordu. Mimir artık yalnızca mevcut token'ı okuyor, girişe hiç dokunmuyor — yani seni çıkış yaptıramaz. (Claude Code şu an giriş istiyorsa bir kez daha giriş yap; bir daha tekrarlamaz.)
+- macOS keychain izin uyarısı da çok daha seyrek çıkacak, çünkü Claude Code artık sürekli çıkış yapıp keychain kaydını yeniden yazmıyor.
 
 ### [2.5.4] - 2026-07-04
 
