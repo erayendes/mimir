@@ -7,7 +7,33 @@
     <link>https://github.com/erayendes/mimir</link>
     <description>Mimir update feed</description>
     <language>en</language>
-                                                                    <item>
+                                                                        <item>
+      <title>Mimir 2.5.5</title>
+      <sparkle:version>2005005</sparkle:version>
+      <sparkle:shortVersionString>2.5.5</sparkle:shortVersionString>
+      <pubDate>Sun, 05 Jul 2026 22:27:51 +0000</pubDate>
+      <description><![CDATA[
+<p><b>Fixed</b></p>
+<ul>
+<li>Mimir no longer breaks Claude Code's sign-in. It used to refresh Claude's login token itself, and because Anthropic rotates that token on every refresh, this could invalidate Claude Code's own session and force you to log in again. Mimir now only reads your current token and never touches the login — so it can't log you out. (If Claude Code is already asking you to sign in, log in once more; it won't recur.)</li>
+<li>The macOS keychain permission prompt should also appear far less often, since Claude Code no longer keeps getting logged out and rewriting its keychain entry.</li>
+</ul>
+<hr>
+<p><b>Düzeltildi</b></p>
+<ul>
+<li>Mimir artık Claude Code'un oturumunu bozmuyor. Önceden Claude'un giriş token'ını kendisi yeniliyordu; Anthropic bu token'ı her yenilemede değiştirdiği (rotasyona soktuğu) için bu, Claude Code'un kendi oturumunu geçersiz kılıp seni yeniden giriş yapmaya zorlayabiliyordu. Mimir artık yalnızca mevcut token'ı okuyor, girişe hiç dokunmuyor — yani seni çıkış yaptıramaz. (Claude Code şu an giriş istiyorsa bir kez daha giriş yap; bir daha tekrarlamaz.)</li>
+<li>macOS keychain izin uyarısı da çok daha seyrek çıkacak, çünkü Claude Code artık sürekli çıkış yapıp keychain kaydını yeniden yazmıyor.</li>
+</ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v2.5.5/Mimir.zip"
+        sparkle:edSignature="u6ECsf1oEM6SuVA3Adbo/8xRaXMRIz2VBMM/WD/5lyOnj0rGtKXGi8Dkrld7PsJeC+wSLv4r7hbrC0aRg2B7Cw=="
+        length="6523820"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 2.5.4</title>
       <sparkle:version>2005004</sparkle:version>
       <sparkle:shortVersionString>2.5.4</sparkle:shortVersionString>
