@@ -45,7 +45,7 @@ enum WidgetBridge {
     }
 
     private static func structuralSignature(_ providers: [ProviderPayload]?) -> [String] {
-        (providers ?? []).map { "\($0.name)|\($0.isAvailable)|\($0.unavailable)" }
+        (providers ?? []).map { "\($0.name)|\($0.isAvailable)|\($0.unavailable)|\($0.isStale)" }
     }
 
     /// Built in `serviceDisplayOrder` so the widget rows match the popover and menu bar.
@@ -57,7 +57,8 @@ enum WidgetBridge {
                 iconName: svc.iconName,
                 isAvailable: svc.isAvailable || svc.isStale,
                 fiveHour: fiveHourMetrics(svc),
-                unavailable: svc.dataUnavailable
+                unavailable: svc.dataUnavailable,
+                isStale: svc.isStale
             )
         }
         return WidgetPayload(generatedAt: generatedAt, providers: providers)

@@ -61,9 +61,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// this host, which opens the provider's app via `AppTarget`.
     func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls where url.scheme == "mimir" && url.host == "open" {
-            if let app = URLComponents(url: url, resolvingAgainstBaseURL: false)?
-                .queryItems?.first(where: { $0.name == "app" })?.value {
-                AppTarget.open(app)
+            guard let app = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?.first(where: { $0.name == "app" })?.value else { continue }
+            switch DeepLink.action(forApp: app) {
+            case .openProvider(let provider):
+                AppTarget.open(provider)
+            case .openSelfAndRefresh:
+                // A stale Claude/Codex widget was tapped: open our panel with a user-initiated
+                // refresh — the only path allowed to read Claude Code's keychain and renew the token.
+                openPanelUserInitiated()
             }
         }
     }
@@ -299,14 +305,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if panel.isVisible {
             hidePanel()
         } else {
-            Telemetry.signal("popover.opened")
-            // Opening the panel is a deliberate user action, so this refresh is allowed to read
-            // Claude Code's keychain item if needed (the only path that can prompt). The 60s
-            // background timer and the launch refresh stay prompt-free (userInitiated: false).
-            store.refresh(userInitiated: true)
-            refreshStatusTitle()
-            showPanel()
+            openPanelUserInitiated()
         }
+    }
+
+    /// Show the panel with a user-initiated refresh. Opening the panel is a deliberate user action,
+    /// so this refresh is allowed to read Claude Code's keychain item if needed (the only path that
+    /// can prompt); the 60s background timer and the launch refresh stay prompt-free. Shared by the
+    /// menu-bar click and the stale-widget deep link.
+    private func openPanelUserInitiated() {
+        Telemetry.signal("popover.opened")
+        store.refresh(userInitiated: true)
+        refreshStatusTitle()
+        showPanel()
     }
 
     /// Position the panel just below the menu-bar button, clamped to the screen, and show it.

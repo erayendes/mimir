@@ -26,14 +26,33 @@ public struct ProviderPayload: Codable, Equatable {
     // actionable "couldn't fetch" state (small message / medium "—") instead of stale numbers. The
     // `fiveHour` labels are still carried so the rows know what to render.
     public var unavailable: Bool
+    // Last-known reading shown while the live source is briefly unusable — e.g. Claude's access token
+    // expired and only a user-initiated refresh can renew it (Mimir won't rotate Claude Code's token).
+    // The widget dims such rows and makes them tappable so a tap triggers that refresh in the host.
+    public var isStale: Bool
 
     public init(name: String, iconName: String, isAvailable: Bool, fiveHour: [WindowMetric],
-                unavailable: Bool = false) {
+                unavailable: Bool = false, isStale: Bool = false) {
         self.name = name
         self.iconName = iconName
         self.isAvailable = isAvailable
         self.fiveHour = fiveHour
         self.unavailable = unavailable
+        self.isStale = isStale
+    }
+
+    private enum CodingKeys: String, CodingKey { case name, iconName, isAvailable, fiveHour, unavailable, isStale }
+
+    // Custom decode so a payload written by an older app version (no `unavailable`/`isStale` key) still
+    // reads — otherwise the widget would fail to decode and blank out during the post-update window.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        name = try c.decode(String.self, forKey: .name)
+        iconName = try c.decode(String.self, forKey: .iconName)
+        isAvailable = try c.decode(Bool.self, forKey: .isAvailable)
+        fiveHour = try c.decode([WindowMetric].self, forKey: .fiveHour)
+        unavailable = try c.decodeIfPresent(Bool.self, forKey: .unavailable) ?? false
+        isStale = try c.decodeIfPresent(Bool.self, forKey: .isStale) ?? false
     }
 }
 
