@@ -10,8 +10,9 @@ struct MimirEntry: TimelineEntry {
 
 /// Reads the App Group snapshot the app writes (see `WidgetBridge`). Never touches keychain or
 /// network — a widget extension is sandboxed and can only see the shared container. The app pokes
-/// `reloadAllTimelines` on every quota refresh, so fresh data appears promptly; the ~15 min policy
-/// is just a fallback so the "kalan süre" countdown doesn't go stale if the app is quiet.
+/// `reloadAllTimelines` when the data actually changes (immediately on a structural change, and at
+/// most once per ~75s for routine %-drift), so the widget tracks the popover; the ~15 min policy is
+/// just a fallback so the "kalan süre" countdown doesn't go stale if the app is quiet.
 struct MimirProvider: AppIntentTimelineProvider {
     func placeholder(in context: Context) -> MimirEntry {
         MimirEntry(date: Date(), payload: .sample)

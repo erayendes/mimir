@@ -265,11 +265,20 @@ struct LiveUsageDataSource {
             models: allModels, freshNote: freshNote, staleNote: staleNote)
     }
 
-    /// Classify a last-known reading by reset time. A window keeps its cached percent while its
-    /// reset is still in the future — or while it has no reset time at all, since then nothing has
-    /// invalidated it; a window whose reset has already passed is blanked (its quota refilled). Any
-    /// fresh window/model → an available card; everything stale → a dimmed `isStale` card. Returns
-    /// nil only when there is no data at all.
+    /// Standard reset periods for the quota windows all three providers expose: a 5-hour session and a
+    /// 7-day week. Used only to roll a *lapsed* last-known reset forward to the next boundary so the
+    /// countdown stays meaningful (the window itself really did refill); the live fetch always carries
+    /// the exact `resets_at`.
+    static let sessionResetPeriod: TimeInterval = 5 * 60 * 60
+    static let weeklyResetPeriod: TimeInterval = 7 * 24 * 60 * 60
+
+    /// Classify a last-known reading by reset time. A window/model still within its reset keeps its
+    /// real percent; one whose reset has already passed has *refilled to full*, so it shows 100% with
+    /// its reset rolled forward to the next boundary — NOT blanked (which made the session vanish and
+    /// dropped the provider from the widget) and NOT dropped (which made per-model rows like Fable
+    /// disappear). When every row is only a refilled estimate (nothing still inside its original
+    /// window) the card is dimmed (`isStale`) so it reads as last-known rather than live. Returns nil
+    /// only when there is no data at all.
     func staleClassifiedCard(name: String, iconName: String,
                                      sessionPct: Int?, sessionReset: Date?,
                                      weeklyPct: Int?, weeklyReset: Date?,
@@ -277,27 +286,42 @@ struct LiveUsageDataSource {
                                      freshNote: String, staleNote: String) -> ServiceStatus? {
         guard sessionPct != nil || weeklyPct != nil || !models.isEmpty else { return nil }
         let now = Date()
-        let sessionFresh = sessionPct != nil && (sessionReset.map { now < $0 } ?? true)
-        let weeklyFresh = weeklyPct != nil && (weeklyReset.map { now < $0 } ?? true)
-        let freshModels = models.filter { ($0.resetAt.map { now < $0 }) ?? true }
 
-        if sessionFresh || weeklyFresh || !freshModels.isEmpty {
-            return ServiceStatus(
-                name: name, iconName: iconName,
-                sessionResetAt: sessionFresh ? sessionReset : nil,
-                weeklyResetAt: weeklyFresh ? weeklyReset : nil,
-                sessionRemainingPercent: sessionFresh ? sessionPct : nil,
-                weeklyRemainingPercent: weeklyFresh ? weeklyPct : nil,
-                models: freshModels,
-                isAvailable: true, statusNote: freshNote)
+        // Advance a passed reset to the next future boundary so a refilled window still shows a live
+        // countdown instead of a stale/blank one.
+        func rollForward(_ reset: Date?, _ period: TimeInterval) -> Date? {
+            guard let reset, period > 0, reset <= now else { return reset }
+            let steps = (now.timeIntervalSince(reset) / period).rounded(.down) + 1
+            return reset.addingTimeInterval(steps * period)
+        }
+        // (displayPct, displayReset, stillInWindow) for a window: in-window keeps its real number,
+        // lapsed refills to 100% with the reset rolled forward.
+        func window(_ pct: Int?, _ reset: Date?, _ period: TimeInterval) -> (pct: Int?, reset: Date?, live: Bool) {
+            guard let pct else { return (nil, nil, false) }
+            let live = reset.map { now < $0 } ?? true
+            return live ? (pct, reset, true) : (100, rollForward(reset, period), false)
         }
 
+        let s = window(sessionPct, sessionReset, Self.sessionResetPeriod)
+        let w = window(weeklyPct, weeklyReset, Self.weeklyResetPeriod)
+        // Keep every model row: an in-window one as-is, a lapsed (refilled) one at 100% with its weekly
+        // reset rolled forward. Value rows (billing) carry no resetting percent — pass them through.
+        let rows = models.map { m -> (row: ModelStatus, live: Bool) in
+            if m.valueText != nil { return (m, true) }
+            let live = m.resetAt.map { now < $0 } ?? true
+            if live { return (m, true) }
+            return (ModelStatus(name: m.name, remainingPercent: 100, resetAt: rollForward(m.resetAt, Self.weeklyResetPeriod)), false)
+        }
+
+        let anyLive = s.live || w.live || rows.contains { $0.live }
         return ServiceStatus(
             name: name, iconName: iconName,
-            sessionResetAt: nil, weeklyResetAt: nil,
-            sessionRemainingPercent: sessionPct, weeklyRemainingPercent: weeklyPct,
-            models: models,
-            isAvailable: false, statusNote: staleNote, isStale: true)
+            sessionResetAt: s.reset, weeklyResetAt: w.reset,
+            sessionRemainingPercent: s.pct, weeklyRemainingPercent: w.pct,
+            models: rows.map(\.row),
+            isAvailable: true,
+            statusNote: anyLive ? freshNote : staleNote,
+            isStale: !anyLive)
     }
 
     /// Antigravity keeps its original method names as thin wrappers over the generic helpers,

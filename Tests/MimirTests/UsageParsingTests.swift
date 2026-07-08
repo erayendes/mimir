@@ -74,11 +74,36 @@ final class UsageParsingTests: XCTestCase {
         XCTAssertEqual(live.weeklyRemainingPercent, 99)
         XCTAssertTrue(live.isAvailable)
 
-        // Stale fallback: a window whose reset has passed is blanked (it refilled); the weekly (future
-        // reset) survives.
+        // Stale fallback: a window whose reset has passed has refilled to full, so it shows 100% (not
+        // a blank that would make the session vanish from the card and drop it from the widget); the
+        // weekly (future reset) keeps its real number. The card stays present and available.
         let stale = ds.buildClaudeStatus(from: root, note: "snapshot", live: false)
-        XCTAssertNil(stale.sessionRemainingPercent)
+        XCTAssertEqual(stale.sessionRemainingPercent, 100)
         XCTAssertEqual(stale.weeklyRemainingPercent, 99)
+        XCTAssertTrue(stale.isAvailable)
+    }
+
+    /// When EVERY window and per-model row has lapsed (idle for hours — no fresh hook or OAuth fetch),
+    /// the card must not blank the session (Claude vanishes) or drop the model rows (Fable disappears).
+    /// Each lapsed row refills to 100% with its reset rolled forward to the next boundary, and the card
+    /// dims (`isStale`) so it reads as last-known rather than live.
+    func testStaleCardRefillsAndKeepsModelsWhenAllLapsed() {
+        let past = Date(timeIntervalSinceNow: -3600)   // 1h ago → lapsed
+        let card = ds.staleClassifiedCard(
+            name: "Claude", iconName: "claude",
+            sessionPct: 93, sessionReset: past,
+            weeklyPct: 16, weeklyReset: past,
+            models: [ModelStatus(name: "Fable", remainingPercent: 6, resetAt: past)],
+            freshNote: "fresh", staleNote: "stale")
+        XCTAssertEqual(card?.sessionRemainingPercent, 100)          // refilled, not blanked
+        XCTAssertEqual(card?.weeklyRemainingPercent, 100)
+        XCTAssertEqual(card?.models.first?.name, "Fable")          // kept, not dropped
+        XCTAssertEqual(card?.models.first?.remainingPercent, 100)
+        XCTAssertTrue(card?.isStale ?? false)                      // dimmed = last-known
+        XCTAssertNotNil(card?.sessionResetAt)
+        XCTAssertGreaterThan(card!.sessionResetAt!, Date())        // reset rolled into the future
+        XCTAssertGreaterThan(card!.weeklyResetAt!, Date())
+        XCTAssertGreaterThan(card!.models.first!.resetAt!, Date())
     }
 
     /// `secureAtomicWrite` must land the file at 0o600 (never the umask default), on both a fresh

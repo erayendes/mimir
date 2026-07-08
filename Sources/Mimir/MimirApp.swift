@@ -69,6 +69,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             case .openSelfAndRefresh:
                 // A stale Claude/Codex widget was tapped: open our panel with a user-initiated
                 // refresh — the only path allowed to read Claude Code's keychain and renew the token.
+                // Force the resulting payload write to reload the widget at once, so the tapped widget
+                // visibly refreshes even if the numbers come back unchanged.
+                WidgetBridge.forceReloadOnNextUpdate()
                 openPanelUserInitiated()
             }
         }
@@ -193,7 +196,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
+        // Rewrite the statusLine hook script from current code when it's wired, so app upgrades take
+        // effect (cheap; touches no settings).
+        MimirStatusLineHook.refreshScript()
+
         maybePromptLaunchAtLogin()
+        maybeOfferClaudeHook()
+    }
+
+    // MARK: - Prompt-free Claude offer
+
+    private static let didOfferClaudeHookKey = "didOfferClaudeHook"
+
+    /// Once, offer to enable prompt-free Claude tracking so Claude's usage updates without the macOS
+    /// keychain prompt. Skipped when already wired. Deferred and guarded so it never stacks on the
+    /// launch-at-login prompt — if a modal is up, we skip silently (the menu toggle still offers it).
+    private func maybeOfferClaudeHook() {
+        guard !UserDefaults.standard.bool(forKey: Self.didOfferClaudeHookKey) else { return }
+        if MimirStatusLineHook.isWired() {
+            UserDefaults.standard.set(true, forKey: Self.didOfferClaudeHookKey)
+            return
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            Task { @MainActor in
+                guard NSApp.modalWindow == nil else { return }   // don't stack on another prompt
+                UserDefaults.standard.set(true, forKey: Self.didOfferClaudeHookKey)
+                self?.presentClaudeHookOffer()
+            }
+        }
+    }
+
+    private func presentClaudeHookOffer() {
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Track Claude without the keychain prompt?")
+        alert.informativeText = String(localized: "Mimir can read Claude Code's own usage through a small status-line hook — no keychain permission prompt. It preserves any status line you already use and can be turned off anytime from Mimir's menu.")
+        alert.addButton(withTitle: String(localized: "Enable"))
+        alert.addButton(withTitle: String(localized: "Not Now"))
+        NSApp.activate(ignoringOtherApps: true)
+        if alert.runModal() == .alertFirstButtonReturn {
+            toggleClaudeHook()
+        }
     }
 
     // MARK: - Launch at login
@@ -259,6 +301,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         toggle.target = self
         toggle.state = Telemetry.enabled ? .on : .off
         menu.addItem(toggle)
+
+        // Prompt-free Claude: a statusLine hook lets Mimir read Claude Code's own usage without ever
+        // touching the keychain (no macOS permission prompt). Checkbox reflects whether it's wired.
+        let hook = NSMenuItem(title: String(localized: "Prompt-free Claude tracking"),
+                              action: #selector(toggleClaudeHook), keyEquivalent: "")
+        hook.target = self
+        hook.state = MimirStatusLineHook.isWired() ? .on : .off
+        menu.addItem(hook)
         menu.addItem(.separator())
 
         let update = NSMenuItem(title: String(localized: "Check for updates"),
@@ -278,6 +328,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func toggleTelemetry() {
         Telemetry.setEnabled(!Telemetry.enabled)
         if Telemetry.enabled { Telemetry.signal("telemetry.enabled") }
+    }
+
+    /// Toggle the prompt-free Claude statusLine hook. Enabling chains any existing statusLine and
+    /// modifies ~/.claude/settings.json, so it's a deliberate user action here; disabling restores it.
+    /// After wiring, kick a refresh so Claude's card can pick up the hook file on the next tick.
+    @objc private func toggleClaudeHook() {
+        let outcome = MimirStatusLineHook.isWired()
+            ? MimirStatusLineHook.disable()
+            : MimirStatusLineHook.enable()
+        switch outcome {
+        case .failed(let why):
+            let alert = NSAlert()
+            alert.messageText = String(localized: "Couldn't update Claude tracking")
+            alert.informativeText = why
+            NSApp.activate(ignoringOtherApps: true)
+            alert.runModal()
+        case .enabled, .chained, .alreadyOn:
+            Telemetry.signal("claudeHook.enabled")
+            store.refresh(userInitiated: true)
+        case .disabled:
+            Telemetry.signal("claudeHook.disabled")
+            store.refresh()
+        }
     }
 
     @objc private func menuCheckForUpdates() {
