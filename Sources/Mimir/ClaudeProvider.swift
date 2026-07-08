@@ -13,13 +13,21 @@ extension LiveUsageDataSource {
             return buildClaudeStatus(from: cached, note: "oauth usage cache").withCooldownHint(0)
         }
 
+        // When Claude Code's prompt-free statusLine hook is fresh it already carries the live
+        // session/weekly numbers, so a routine open must NOT reach for the prompting keychain read.
+        // Claude Code wipes its item's ACL on every token refresh, so our "Always Allow" doesn't
+        // survive — a prompting read would then re-pop the dialog every few hours (once per refresh).
+        // Gate the prompt behind "no fresh hook": while the hook covers us we do silent reads only, so
+        // the keychain (and its dialog) is touched solely when the hook can't (Claude Code idle).
+        let hookFresh = readClaudeHookUsage(maxAge: 30 * 60) != nil
+
         // Reuse the in-memory token while it's comfortably valid, so the keychain — and its macOS
         // permission prompt — is touched only at launch and around token expiry, not every refresh.
         var tokenInfo = await Self.claudeTokenCache.get()
         let needsKeychain = tokenInfo.map { $0.expiresAt.map { $0.timeIntervalSinceNow <= 300 } ?? false } ?? true
 
         if needsKeychain {
-            guard let read = readClaudeTokenInfo(userInitiated: userInitiated) else {
+            guard let read = readClaudeTokenInfo(userInitiated: userInitiated && !hookFresh) else {
                 // No prompt-free source had a usable token. We deliberately did NOT read Claude
                 // Code's keychain item in the background; opening Mimir (a user action) will.
                 let note = userInitiated
