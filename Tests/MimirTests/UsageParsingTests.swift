@@ -106,6 +106,22 @@ final class UsageParsingTests: XCTestCase {
         XCTAssertGreaterThan(card!.models.first!.resetAt!, Date())
     }
 
+    /// A card with even ONE refilled window is an estimate → `isStale`, so it's excluded from the reset
+    /// notification path (which fires on `!isStale`). This stops the false "weekly quota refilled" spam
+    /// when a stale card bounces its weekly to a refilled 100 while the session is still live.
+    func testMixedRefilledWindowMarksCardStale() {
+        let future = Date(timeIntervalSinceNow: 3600)
+        let past = Date(timeIntervalSinceNow: -3600)
+        let card = ds.staleClassifiedCard(
+            name: "Codex", iconName: "codex",
+            sessionPct: 90, sessionReset: future,   // live
+            weeklyPct: 40, weeklyReset: past,        // lapsed → refilled to 100
+            models: [], freshNote: "fresh", staleNote: "stale")
+        XCTAssertEqual(card?.sessionRemainingPercent, 90)   // live window kept
+        XCTAssertEqual(card?.weeklyRemainingPercent, 100)   // refilled estimate
+        XCTAssertTrue(card?.isStale ?? false)               // → not eligible to notify
+    }
+
     /// `secureAtomicWrite` must land the file at 0o600 (never the umask default), on both a fresh
     /// write and an overwrite — that's the whole point of the TOCTOU fix for token files.
     func testSecureAtomicWriteIsAlways0600() throws {

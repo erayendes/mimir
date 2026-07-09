@@ -590,12 +590,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func checkNotifications() {
-        // Only the account-level 5h + weekly windows of LIVE services notify here. The
-        // `isAvailable` guard is load-bearing: a service served from a stale snapshot is
-        // `isAvailable == false`, so it never fires a low/refill alert on cached numbers — this
-        // holds for Claude/Codex snapshots too, not just Antigravity. Antigravity is additionally
-        // excluded by name (it has no service-level windows; it uses per-group model rows).
-        for service in store.services where service.isAvailable && service.name != "Antigravity" {
+        // Only the account-level 5h + weekly windows of genuinely LIVE services notify here. The
+        // `!isStale` guard is load-bearing: a card served from a snapshot / a refilled estimate is
+        // `isStale`, so it never fires a low/refill alert on inferred numbers — otherwise a card
+        // bouncing between a live reading and a refilled 100 would spam false "quota refilled" alerts.
+        // A genuine reset is still caught: a LIVE fetch (which never reset-classifies) reports the real
+        // 100. Antigravity is excluded by name (no service-level windows; it uses per-group model rows).
+        for service in store.services where service.isAvailable && !service.isStale && service.name != "Antigravity" {
             evaluateWindow(service: service, window: .fiveHour,
                            percent: service.sessionRemainingPercent, resetAt: service.sessionResetAt)
             evaluateWindow(service: service, window: .weekly,

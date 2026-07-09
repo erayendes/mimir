@@ -314,6 +314,12 @@ struct LiveUsageDataSource {
         }
 
         let anyLive = s.live || w.live || rows.contains { $0.live }
+        // A refilled window/model is an ESTIMATE (we inferred "reset → 100%", we didn't observe it), so
+        // mark the whole card `isStale` whenever anything was refilled — not only when everything is.
+        // This keeps the refill out of the notification path: reset alerts fire on `!isStale` cards only
+        // (a genuine reset is seen by a LIVE fetch, which never goes through here), so a stale card
+        // bouncing to a refilled 100 can't spam a false "weekly quota refilled" notification.
+        let anyRefilled = (s.pct != nil && !s.live) || (w.pct != nil && !w.live) || rows.contains { !$0.live }
         return ServiceStatus(
             name: name, iconName: iconName,
             sessionResetAt: s.reset, weeklyResetAt: w.reset,
@@ -321,7 +327,7 @@ struct LiveUsageDataSource {
             models: rows.map(\.row),
             isAvailable: true,
             statusNote: anyLive ? freshNote : staleNote,
-            isStale: !anyLive)
+            isStale: anyRefilled || !anyLive)
     }
 
     /// Antigravity keeps its original method names as thin wrappers over the generic helpers,
