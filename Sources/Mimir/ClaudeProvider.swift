@@ -13,6 +13,15 @@ extension LiveUsageDataSource {
             return buildClaudeStatus(from: cached, note: "oauth usage cache").withCooldownHint(0)
         }
 
+        // Claude *desktop* app users: read the app's own claude.ai session and hit claude.ai directly.
+        // This is the live source when you use the desktop app — the CLI token and statusLine hook only
+        // refresh with CLI use, so for a desktop-only user they're perpetually stale. One-time grant for
+        // "Claude Safe Storage" (which, unlike Claude Code's item, isn't rewritten, so the grant sticks
+        // and later reads are silent). Any miss falls straight through to the CLI/hook path below.
+        if let desktop = await fetchClaudeDesktopUsage(userInitiated: userInitiated) {
+            return desktop
+        }
+
         // When Claude Code's prompt-free statusLine hook is fresh it already carries the live
         // session/weekly numbers, so a routine open must NOT reach for the prompting keychain read.
         // Claude Code wipes its item's ACL on every token refresh, so our "Always Allow" doesn't
@@ -430,7 +439,7 @@ extension LiveUsageDataSource {
         return root
     }
 
-    private func writeClaudeUsageCache(_ data: Data) {
+    func writeClaudeUsageCache(_ data: Data) {
         let url = claudeUsageCacheURL()
         do {
             try FileManager.default.createDirectory(
