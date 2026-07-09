@@ -51,6 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // Per-window notification state, keyed "<service>-5h" / "<service>-weekly".
     private var lowNotified: Set<String> = []     // window is below its low threshold (until it resets)
     private var depleted5h: Set<String> = []      // service's 5h window hit 0% since its last refill
+    private var depletedWeekly: Set<String> = []  // service's weekly ran below its low threshold since refill
     private var lastWindowPercent: [String: Int] = [:]  // previous reading, for refill edge detection
     private var iconSource: NSImage?
     private var refreshCount = 0              // refreshes seen this session (for the provider signal)
@@ -660,13 +661,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let previous = lastWindowPercent[key]
         lastWindowPercent[key] = percent
 
-        // A fully drained 5h window is the only thing that earns a 5h refill notice later.
+        // A refill notice is only meaningful (and only trustworthy) if the window was actually run down
+        // first — mirror the 5h `== 0` guard for the weekly, using its low threshold. Without this, a
+        // momentary blip to 100 (a stale-refill estimate, or a partial/late read) on a window sitting at
+        // 76% would announce a "refill" that never happened.
         if window == .fiveHour, percent == 0 {
             depleted5h.insert(service.name)
         }
+        if window == .weekly, percent < window.lowThreshold {
+            depletedWeekly.insert(service.name)
+        }
 
-        // Refill: the window jumped back to 100 (a reset). Edge-triggered on the <100 → 100
-        // crossing so it fires once per reset, never on the first reading (previous == nil).
+        // Refill: the window jumped back to 100 (a reset). Edge-triggered on the <100 → 100 crossing so
+        // it fires once per reset, never on the first reading (previous == nil), and only when the
+        // window had genuinely been depleted since its last refill.
         if percent == 100, let previous, previous < 100 {
             switch window {
             case .fiveHour:
@@ -679,11 +687,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
                 depleted5h.remove(service.name)
             case .weekly:
-                sendNotification(
-                    identifier: "\(key)-refilled",
-                    title: String(format: String(localized: "🚀 %@ weekly quota refilled."), service.name),
-                    body: String(localized: "Your weekly quota is back to 100%. Pick up where you left off.")
-                )
+                if depletedWeekly.contains(service.name) {
+                    sendNotification(
+                        identifier: "\(key)-refilled",
+                        title: String(format: String(localized: "🚀 %@ weekly quota refilled."), service.name),
+                        body: String(localized: "Your weekly quota is back to 100%. Pick up where you left off.")
+                    )
+                }
+                depletedWeekly.remove(service.name)
             }
             lowNotified.remove(key)
             return
