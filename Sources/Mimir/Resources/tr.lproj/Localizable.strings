@@ -77,3 +77,7 @@
 /* Status menu */
 "Send anonymous statistics" = "Anonim istatistik gönder";
 "Quit Mimir" = "Mimir'den Çık";
+
+/* Ollama */
+"open Ollama to refresh" = "Ollama'ı açarak yenile";
+"ollama cloud" = "ollama cloud";

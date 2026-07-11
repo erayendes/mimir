@@ -9,6 +9,7 @@ import AppKit
 enum AppTarget {
     private static let bundleIDs: [String: String] = [
         "Antigravity": "com.google.antigravity",
+        "Ollama": "com.electron.ollama",
     ]
 
     static func bundleID(for provider: String) -> String? { bundleIDs[provider] }

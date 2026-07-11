@@ -77,3 +77,7 @@
 /* Status menu */
 "Send anonymous statistics" = "Send anonymous statistics";
 "Quit Mimir" = "Quit Mimir";
+
+/* Ollama */
+"open Ollama to refresh" = "open Ollama to refresh";
+"ollama cloud" = "ollama cloud";

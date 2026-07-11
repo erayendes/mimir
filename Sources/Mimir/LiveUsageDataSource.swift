@@ -76,6 +76,15 @@ struct LiveUsageDataSource {
                 models: [],
                 isAvailable: false,
                 statusNote: String(localized: "no local source")
+            ),
+            ServiceStatus(
+                name: "Ollama",
+                iconName: "ollama",
+                sessionResetAt: nil,
+                weeklyResetAt: nil,
+                models: [],
+                isAvailable: false,
+                statusNote: String(localized: "no local source")
             )
         ]
     }
@@ -88,7 +97,7 @@ struct LiveUsageDataSource {
     /// and are served from their snapshot instead of hitting the network. A live fetch that times
     /// out also falls back to the snapshot, so a transient failure never empties a card.
     func fetchAll(skip: Set<String> = [], userInitiated: Bool = false) async -> [ServiceStatus] {
-        let order = ["Antigravity", "Claude", "Codex"]
+        let order = ["Antigravity", "Claude", "Codex", "Ollama"]
         return await withTaskGroup(of: ServiceStatus.self) { group in
             group.addTask {
                 if skip.contains("Claude") { return self.snapshotOrFallback("Claude", iconName: "claude") }
@@ -105,6 +114,11 @@ struct LiveUsageDataSource {
                 let status = await withTimeout(seconds: 8) { await fetchAntigravity() }
                     ?? self.snapshotOrFallback("Antigravity", iconName: "antigravity")
                 return status.withInfoText(Self.antigravityInfo)
+            }
+            group.addTask {
+                if skip.contains("Ollama") { return self.snapshotOrFallback("Ollama", iconName: "ollama") }
+                return await withTimeout(seconds: 8) { await fetchOllama() }
+                    ?? self.snapshotOrFallback("Ollama", iconName: "ollama")
             }
 
             var out: [ServiceStatus] = []

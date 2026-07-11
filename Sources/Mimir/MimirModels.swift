@@ -111,7 +111,7 @@ enum ModelWindow {
 /// (`PopoverView.contentView`) and the menu-bar dots (`menuBarDots`). Keeping it in one place is
 /// load-bearing: when the two defined the order independently they drifted, and a yellow dot lined
 /// up with the wrong card. Change the order here and both move together.
-let serviceDisplayOrder = ["Claude", "Codex", "Antigravity"]
+let serviceDisplayOrder = ["Claude", "Codex", "Antigravity", "Ollama"]
 
 extension Array where Element == ServiceStatus {
     /// Sorted into the canonical display order (Claude, Codex, Antigravity); unknown names last.
