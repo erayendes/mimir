@@ -7,7 +7,47 @@
     <link>https://github.com/erayendes/mimir</link>
     <description>Mimir update feed</description>
     <language>en</language>
-                                                                        <item>
+                                                                            <item>
+      <title>Mimir 2.6</title>
+      <sparkle:version>2006000</sparkle:version>
+      <sparkle:shortVersionString>2.6</sparkle:shortVersionString>
+      <pubDate>Sat, 11 Jul 2026 10:35:23 +0000</pubDate>
+      <description><![CDATA[
+<p><b>Added</b></p>
+<ul>
+<li>Claude usage now works with the <b>Claude desktop app</b>, not just the Claude Code CLI. Mimir reads the desktop app's own session, so your real 5-hour and weekly numbers show up even if you never open the CLI. The first time, grant the one-time "Claude Safe Storage" keychain permission.</li>
+<li>Tap a stale Claude or Codex widget to refresh it right away.</li>
+</ul>
+<p><b>Fixed</b></p>
+<ul>
+<li>Claude's card no longer freezes at 100% when no live source is reachable — you get your real numbers, or a clearly dimmed last-known estimate, instead of a card that vanishes or shows wrong percentages.</li>
+<li>Far fewer macOS keychain prompts: once you allow it, Mimir reads the token silently in the background and won't keep re-asking while it already has fresh data.</li>
+<li>No more false "weekly quota refilled" notifications caused by a momentary blip to 100%.</li>
+<li>Widgets now track the popover and menu bar closely instead of trailing them by several minutes, and per-model rows (like "Fable") and reset countdowns no longer disappear from a stale card.</li>
+</ul>
+<hr>
+<p><b>Eklendi</b></p>
+<ul>
+<li>Claude kullanımı artık <b>Claude masaüstü uygulamasıyla</b> da çalışıyor, yalnızca Claude Code CLI ile değil. Mimir masaüstü uygulamasının kendi oturumunu okur; böylece CLI'ı hiç açmasan bile gerçek 5 saatlik ve haftalık sayıların görünür. İlk seferde tek seferlik "Claude Safe Storage" keychain iznini ver.</li>
+<li>Bayat bir Claude veya Codex widget'ına dokunarak onu anında yenile.</li>
+</ul>
+<p><b>Düzeltildi</b></p>
+<ul>
+<li>Claude kartı, canlı bir kaynağa ulaşamadığında artık %100'de donmuyor — kart kaybolmadan ya da yanlış yüzde göstermeden gerçek sayılarını, ya da net biçimde soluklaştırılmış son bilinen tahmini gösteriyor.</li>
+<li>Çok daha az macOS keychain uyarısı: bir kez izin verdikten sonra Mimir token'ı arka planda sessizce okur ve elinde taze veri varken tekrar tekrar sormaz.</li>
+<li>Anlık bir %100 sıçramasından kaynaklanan sahte "haftalık kota yenilendi" bildirimleri kalktı.</li>
+<li>Widget'lar artık popover ve menü çubuğunu birkaç dakika geriden takip etmek yerine yakından izliyor; model bazlı satırlar (örn. "Fable") ve sıfırlanma sayaçları bayat bir kartta artık kaybolmuyor.</li>
+</ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v2.6/Mimir.zip"
+        sparkle:edSignature="RFr4xpiHZPsC1vAKV6dsw+Ofk2NcPMmXlIOCVc3M8pZBt7/N5cg3y3FBesMY3KO615c5EJRPheQXYc1XaXocAA=="
+        length="6557719"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 2.5.5</title>
       <sparkle:version>2005005</sparkle:version>
       <sparkle:shortVersionString>2.5.5</sparkle:shortVersionString>
