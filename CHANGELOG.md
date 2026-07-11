@@ -11,6 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+### [2.6] - 2026-07-09
+
+#### Added
+- Claude usage now works with the **Claude desktop app**, not just the Claude Code CLI. Mimir reads the desktop app's own session, so your real 5-hour and weekly numbers show up even if you never open the CLI. The first time, grant the one-time "Claude Safe Storage" keychain permission.
+- Tap a stale Claude or Codex widget to refresh it right away.
+
+#### Fixed
+- Claude's card no longer freezes at 100% when no live source is reachable — you get your real numbers, or a clearly dimmed last-known estimate, instead of a card that vanishes or shows wrong percentages.
+- Far fewer macOS keychain prompts: once you allow it, Mimir reads the token silently in the background and won't keep re-asking while it already has fresh data.
+- No more false "weekly quota refilled" notifications caused by a momentary blip to 100%.
+- Widgets now track the popover and menu bar closely instead of trailing them by several minutes, and per-model rows (like "Fable") and reset countdowns no longer disappear from a stale card.
+
 ### [2.5.5] - 2026-07-06
 
 #### Fixed
@@ -352,6 +364,18 @@ Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
 
 ### [Yayımlanmadı]
+
+### [2.6] - 2026-07-09
+
+#### Eklendi
+- Claude kullanımı artık **Claude masaüstü uygulamasıyla** da çalışıyor, yalnızca Claude Code CLI ile değil. Mimir masaüstü uygulamasının kendi oturumunu okur; böylece CLI'ı hiç açmasan bile gerçek 5 saatlik ve haftalık sayıların görünür. İlk seferde tek seferlik "Claude Safe Storage" keychain iznini ver.
+- Bayat bir Claude veya Codex widget'ına dokunarak onu anında yenile.
+
+#### Düzeltildi
+- Claude kartı, canlı bir kaynağa ulaşamadığında artık %100'de donmuyor — kart kaybolmadan ya da yanlış yüzde göstermeden gerçek sayılarını, ya da net biçimde soluklaştırılmış son bilinen tahmini gösteriyor.
+- Çok daha az macOS keychain uyarısı: bir kez izin verdikten sonra Mimir token'ı arka planda sessizce okur ve elinde taze veri varken tekrar tekrar sormaz.
+- Anlık bir %100 sıçramasından kaynaklanan sahte "haftalık kota yenilendi" bildirimleri kalktı.
+- Widget'lar artık popover ve menü çubuğunu birkaç dakika geriden takip etmek yerine yakından izliyor; model bazlı satırlar (örn. "Fable") ve sıfırlanma sayaçları bayat bir kartta artık kaybolmuyor.
 
 ### [2.5.5] - 2026-07-06
 
