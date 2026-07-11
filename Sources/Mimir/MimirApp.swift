@@ -51,6 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // Per-window notification state, keyed "<service>-5h" / "<service>-weekly".
     private var lowNotified: Set<String> = []     // window is below its low threshold (until it resets)
     private var depleted5h: Set<String> = []      // service's 5h window hit 0% since its last refill
+    private var depletedWeekly: Set<String> = []  // service's weekly ran below its low threshold since refill
     private var lastWindowPercent: [String: Int] = [:]  // previous reading, for refill edge detection
     private var iconSource: NSImage?
     private var refreshCount = 0              // refreshes seen this session (for the provider signal)
@@ -61,9 +62,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// this host, which opens the provider's app via `AppTarget`.
     func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls where url.scheme == "mimir" && url.host == "open" {
-            if let app = URLComponents(url: url, resolvingAgainstBaseURL: false)?
-                .queryItems?.first(where: { $0.name == "app" })?.value {
-                AppTarget.open(app)
+            guard let app = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+                .queryItems?.first(where: { $0.name == "app" })?.value else { continue }
+            switch DeepLink.action(forApp: app) {
+            case .openProvider(let provider):
+                AppTarget.open(provider)
+            case .openSelfAndRefresh:
+                // A stale Claude/Codex widget was tapped: open our panel with a user-initiated
+                // refresh — the only path allowed to read Claude Code's keychain and renew the token.
+                // Force the resulting payload write to reload the widget at once, so the tapped widget
+                // visibly refreshes even if the numbers come back unchanged.
+                WidgetBridge.forceReloadOnNextUpdate()
+                openPanelUserInitiated()
             }
         }
     }
@@ -187,7 +197,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
+        // Rewrite the statusLine hook script from current code when it's wired, so app upgrades take
+        // effect (cheap; touches no settings).
+        MimirStatusLineHook.refreshScript()
+
         maybePromptLaunchAtLogin()
+        maybeOfferClaudeHook()
+    }
+
+    // MARK: - Prompt-free Claude offer
+
+    private static let didOfferClaudeHookKey = "didOfferClaudeHook"
+
+    /// Once, offer to enable prompt-free Claude tracking so Claude's usage updates without the macOS
+    /// keychain prompt. Skipped when already wired. Deferred and guarded so it never stacks on the
+    /// launch-at-login prompt — if a modal is up, we skip silently (the menu toggle still offers it).
+    private func maybeOfferClaudeHook() {
+        guard !UserDefaults.standard.bool(forKey: Self.didOfferClaudeHookKey) else { return }
+        if MimirStatusLineHook.isWired() {
+            UserDefaults.standard.set(true, forKey: Self.didOfferClaudeHookKey)
+            return
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            Task { @MainActor in
+                guard NSApp.modalWindow == nil else { return }   // don't stack on another prompt
+                UserDefaults.standard.set(true, forKey: Self.didOfferClaudeHookKey)
+                self?.presentClaudeHookOffer()
+            }
+        }
+    }
+
+    private func presentClaudeHookOffer() {
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Track Claude without the keychain prompt?")
+        alert.informativeText = String(localized: "Mimir can read Claude Code's own usage through a small status-line hook — no keychain permission prompt. It preserves any status line you already use and can be turned off anytime from Mimir's menu.")
+        alert.addButton(withTitle: String(localized: "Enable"))
+        alert.addButton(withTitle: String(localized: "Not Now"))
+        NSApp.activate(ignoringOtherApps: true)
+        if alert.runModal() == .alertFirstButtonReturn {
+            toggleClaudeHook()
+        }
     }
 
     // MARK: - Launch at login
@@ -253,6 +302,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         toggle.target = self
         toggle.state = Telemetry.enabled ? .on : .off
         menu.addItem(toggle)
+
+        // Prompt-free Claude: a statusLine hook lets Mimir read Claude Code's own usage without ever
+        // touching the keychain (no macOS permission prompt). Checkbox reflects whether it's wired.
+        let hook = NSMenuItem(title: String(localized: "Prompt-free Claude tracking"),
+                              action: #selector(toggleClaudeHook), keyEquivalent: "")
+        hook.target = self
+        hook.state = MimirStatusLineHook.isWired() ? .on : .off
+        menu.addItem(hook)
         menu.addItem(.separator())
 
         let update = NSMenuItem(title: String(localized: "Check for updates"),
@@ -272,6 +329,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func toggleTelemetry() {
         Telemetry.setEnabled(!Telemetry.enabled)
         if Telemetry.enabled { Telemetry.signal("telemetry.enabled") }
+    }
+
+    /// Toggle the prompt-free Claude statusLine hook. Enabling chains any existing statusLine and
+    /// modifies ~/.claude/settings.json, so it's a deliberate user action here; disabling restores it.
+    /// After wiring, kick a refresh so Claude's card can pick up the hook file on the next tick.
+    @objc private func toggleClaudeHook() {
+        let outcome = MimirStatusLineHook.isWired()
+            ? MimirStatusLineHook.disable()
+            : MimirStatusLineHook.enable()
+        switch outcome {
+        case .failed(let why):
+            let alert = NSAlert()
+            alert.messageText = String(localized: "Couldn't update Claude tracking")
+            alert.informativeText = why
+            NSApp.activate(ignoringOtherApps: true)
+            alert.runModal()
+        case .enabled, .chained, .alreadyOn:
+            Telemetry.signal("claudeHook.enabled")
+            store.refresh(userInitiated: true)
+        case .disabled:
+            Telemetry.signal("claudeHook.disabled")
+            store.refresh()
+        }
     }
 
     @objc private func menuCheckForUpdates() {
@@ -299,14 +379,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if panel.isVisible {
             hidePanel()
         } else {
-            Telemetry.signal("popover.opened")
-            // Opening the panel is a deliberate user action, so this refresh is allowed to read
-            // Claude Code's keychain item if needed (the only path that can prompt). The 60s
-            // background timer and the launch refresh stay prompt-free (userInitiated: false).
-            store.refresh(userInitiated: true)
-            refreshStatusTitle()
-            showPanel()
+            openPanelUserInitiated()
         }
+    }
+
+    /// Show the panel with a user-initiated refresh. Opening the panel is a deliberate user action,
+    /// so this refresh is allowed to read Claude Code's keychain item if needed (the only path that
+    /// can prompt); the 60s background timer and the launch refresh stay prompt-free. Shared by the
+    /// menu-bar click and the stale-widget deep link.
+    private func openPanelUserInitiated() {
+        Telemetry.signal("popover.opened")
+        store.refresh(userInitiated: true)
+        refreshStatusTitle()
+        showPanel()
     }
 
     /// Position the panel just below the menu-bar button, clamped to the screen, and show it.
@@ -506,12 +591,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func checkNotifications() {
-        // Only the account-level 5h + weekly windows of LIVE services notify here. The
-        // `isAvailable` guard is load-bearing: a service served from a stale snapshot is
-        // `isAvailable == false`, so it never fires a low/refill alert on cached numbers — this
-        // holds for Claude/Codex snapshots too, not just Antigravity. Antigravity is additionally
-        // excluded by name (it has no service-level windows; it uses per-group model rows).
-        for service in store.services where service.isAvailable && service.name != "Antigravity" {
+        // Only the account-level 5h + weekly windows of genuinely LIVE services notify here. The
+        // `!isStale` guard is load-bearing: a card served from a snapshot / a refilled estimate is
+        // `isStale`, so it never fires a low/refill alert on inferred numbers — otherwise a card
+        // bouncing between a live reading and a refilled 100 would spam false "quota refilled" alerts.
+        // A genuine reset is still caught: a LIVE fetch (which never reset-classifies) reports the real
+        // 100. Antigravity is excluded by name (no service-level windows; it uses per-group model rows).
+        for service in store.services where service.isAvailable && !service.isStale && service.name != "Antigravity" {
             evaluateWindow(service: service, window: .fiveHour,
                            percent: service.sessionRemainingPercent, resetAt: service.sessionResetAt)
             evaluateWindow(service: service, window: .weekly,
@@ -575,13 +661,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let previous = lastWindowPercent[key]
         lastWindowPercent[key] = percent
 
-        // A fully drained 5h window is the only thing that earns a 5h refill notice later.
+        // A refill notice is only meaningful (and only trustworthy) if the window was actually run down
+        // first — mirror the 5h `== 0` guard for the weekly, using its low threshold. Without this, a
+        // momentary blip to 100 (a stale-refill estimate, or a partial/late read) on a window sitting at
+        // 76% would announce a "refill" that never happened.
         if window == .fiveHour, percent == 0 {
             depleted5h.insert(service.name)
         }
+        if window == .weekly, percent < window.lowThreshold {
+            depletedWeekly.insert(service.name)
+        }
 
-        // Refill: the window jumped back to 100 (a reset). Edge-triggered on the <100 → 100
-        // crossing so it fires once per reset, never on the first reading (previous == nil).
+        // Refill: the window jumped back to 100 (a reset). Edge-triggered on the <100 → 100 crossing so
+        // it fires once per reset, never on the first reading (previous == nil), and only when the
+        // window had genuinely been depleted since its last refill.
         if percent == 100, let previous, previous < 100 {
             switch window {
             case .fiveHour:
@@ -594,11 +687,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
                 depleted5h.remove(service.name)
             case .weekly:
-                sendNotification(
-                    identifier: "\(key)-refilled",
-                    title: String(format: String(localized: "🚀 %@ weekly quota refilled."), service.name),
-                    body: String(localized: "Your weekly quota is back to 100%. Pick up where you left off.")
-                )
+                if depletedWeekly.contains(service.name) {
+                    sendNotification(
+                        identifier: "\(key)-refilled",
+                        title: String(format: String(localized: "🚀 %@ weekly quota refilled."), service.name),
+                        body: String(localized: "Your weekly quota is back to 100%. Pick up where you left off.")
+                    )
+                }
+                depletedWeekly.remove(service.name)
             }
             lowNotified.remove(key)
             return

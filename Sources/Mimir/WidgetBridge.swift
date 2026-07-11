@@ -12,24 +12,39 @@ enum WidgetBridge {
     /// skips no-op writes; `lastReload` rate-limits the reload poke.
     nonisolated(unsafe) private static var lastProviders: [ProviderPayload]?
     nonisolated(unsafe) private static var lastReload: Date?
-    /// Minimum spacing between reload pokes for routine %-drift (structural changes bypass it).
-    static let reloadThrottle: TimeInterval = 10 * 60
+    /// One-shot: a widget tap asks the next payload update to reload immediately (see below).
+    nonisolated(unsafe) private static var pendingForceReload = false
+    /// Minimum spacing between reload pokes for routine %-drift (structural changes bypass it). Kept
+    /// short enough (aligned to the 60s refresh) that the widget tracks the popover instead of
+    /// trailing it by 10+ minutes, but still coalesced so WidgetKit's daily reload budget isn't burnt
+    /// by pokes on unchanged data (we only poke when `providers` actually changed).
+    static let reloadThrottle: TimeInterval = 75
+
+    /// A tapped widget must visibly refresh right away, even if the numbers didn't change (e.g. the
+    /// user-initiated refresh it kicked off failed) — so the deep-link handler sets this and the next
+    /// `update` reloads immediately, bypassing the %-drift throttle.
+    static func forceReloadOnNextUpdate() { pendingForceReload = true }
 
     static func update(_ services: [ServiceStatus]) {
         let now = Date()
         let payload = makePayload(services, generatedAt: now)
-        // Always persist fresh data when it changes (cheap, no budget) so any later refresh reads
-        // current numbers. The reload POKE is the scarce resource: WidgetKit budgets ~dozens/day, and
-        // firing one on every 60s % tick burns it — after which even the widget's 15-min timeline
-        // policy gets throttled and the widget sticks on a stale entry for long stretches (the bug
-        // users hit). So poke now only on a structural change; rate-limit routine %-drift and let the
-        // timeline policy carry the rest.
-        guard payload.providers != lastProviders else { return }
+        let forced = pendingForceReload
+        pendingForceReload = false
+
+        // Persist fresh data whenever it changes (cheap, no budget) so any later refresh reads current
+        // numbers. The reload POKE is the scarce resource: WidgetKit budgets ~dozens/day. A no-op tick
+        // with unchanged data and no pending tap short-circuits so we never spend budget for nothing.
+        let changed = payload.providers != lastProviders
+        guard changed || forced else { return }
         let previous = lastProviders
-        lastProviders = payload.providers
-        WidgetStore.write(payload)
-        if shouldReload(previous: previous, next: payload.providers, lastReload: lastReload,
-                        now: now, throttle: reloadThrottle) {
+        if changed {
+            lastProviders = payload.providers
+            WidgetStore.write(payload)
+        }
+        // Reload on a structural change or once the throttle window elapses (routine %-drift), or
+        // immediately when a widget tap forced it.
+        if forced || shouldReload(previous: previous, next: payload.providers, lastReload: lastReload,
+                                  now: now, throttle: reloadThrottle) {
             lastReload = now
             WidgetCenter.shared.reloadAllTimelines()
         }
@@ -45,7 +60,7 @@ enum WidgetBridge {
     }
 
     private static func structuralSignature(_ providers: [ProviderPayload]?) -> [String] {
-        (providers ?? []).map { "\($0.name)|\($0.isAvailable)|\($0.unavailable)" }
+        (providers ?? []).map { "\($0.name)|\($0.isAvailable)|\($0.unavailable)|\($0.isStale)" }
     }
 
     /// Built in `serviceDisplayOrder` so the widget rows match the popover and menu bar.
@@ -57,7 +72,8 @@ enum WidgetBridge {
                 iconName: svc.iconName,
                 isAvailable: svc.isAvailable || svc.isStale,
                 fiveHour: fiveHourMetrics(svc),
-                unavailable: svc.dataUnavailable
+                unavailable: svc.dataUnavailable,
+                isStale: svc.isStale
             )
         }
         return WidgetPayload(generatedAt: generatedAt, providers: providers)

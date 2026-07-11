@@ -77,3 +77,12 @@
 /* Status menu */
 "Send anonymous statistics" = "Anonim istatistik gönder";
 "Quit Mimir" = "Mimir'den Çık";
+
+/* Prompt-free Claude hook */
+"Prompt-free Claude tracking" = "Parolasız Claude takibi";
+"Couldn't update Claude tracking" = "Claude takibi güncellenemedi";
+"Track Claude without the keychain prompt?" = "Claude'u parola sormadan takip et?";
+"Mimir can read Claude Code's own usage through a small status-line hook — no keychain permission prompt. It preserves any status line you already use and can be turned off anytime from Mimir's menu." = "Mimir, küçük bir durum-çubuğu (statusLine) hook'u ile Claude Code'un kendi kullanımını okuyabilir — keychain parola sorusu olmadan. Zaten kullandığın durum çubuğunu korur ve Mimir menüsünden istediğin zaman kapatılabilir.";
+"Enable" = "Etkinleştir";
+"~/.claude/settings.json is not valid JSON" = "~/.claude/settings.json geçerli bir JSON değil";
+"couldn't write to ~/.claude" = "~/.claude klasörüne yazılamadı";

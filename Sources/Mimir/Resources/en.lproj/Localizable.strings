@@ -77,3 +77,12 @@
 /* Status menu */
 "Send anonymous statistics" = "Send anonymous statistics";
 "Quit Mimir" = "Quit Mimir";
+
+/* Prompt-free Claude hook */
+"Prompt-free Claude tracking" = "Prompt-free Claude tracking";
+"Couldn't update Claude tracking" = "Couldn't update Claude tracking";
+"Track Claude without the keychain prompt?" = "Track Claude without the keychain prompt?";
+"Mimir can read Claude Code's own usage through a small status-line hook — no keychain permission prompt. It preserves any status line you already use and can be turned off anytime from Mimir's menu." = "Mimir can read Claude Code's own usage through a small status-line hook — no keychain permission prompt. It preserves any status line you already use and can be turned off anytime from Mimir's menu.";
+"Enable" = "Enable";
+"~/.claude/settings.json is not valid JSON" = "~/.claude/settings.json is not valid JSON";
+"couldn't write to ~/.claude" = "couldn't write to ~/.claude";
