@@ -106,11 +106,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
-        updaterController = SPUStandardUpdaterController(
-            startingUpdater: true,
-            updaterDelegate: nil,
-            userDriverDelegate: nil
-        )
+        // Dev builds have no Sparkle feed — skip the updater to avoid the
+        // "Unable to Check For Updates" error dialog at launch.
+        if !isDevBuild {
+            updaterController = SPUStandardUpdaterController(
+                startingUpdater: true,
+                updaterDelegate: nil,
+                userDriverDelegate: nil
+            )
+        }
 
         NSApp.setActivationPolicy(.accessory)
 
@@ -255,10 +259,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(toggle)
         menu.addItem(.separator())
 
-        let update = NSMenuItem(title: String(localized: "Check for updates"),
-                                action: #selector(menuCheckForUpdates), keyEquivalent: "")
-        update.target = self
-        menu.addItem(update)
+        if updaterController != nil {
+            let update = NSMenuItem(title: String(localized: "Check for updates"),
+                                    action: #selector(menuCheckForUpdates), keyEquivalent: "")
+            update.target = self
+            menu.addItem(update)
+        }
 
         let quit = NSMenuItem(title: String(localized: "Quit Mimir"),
                               action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
