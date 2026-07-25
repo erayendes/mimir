@@ -14,7 +14,11 @@ extension LiveUsageDataSource {
         }
 
         // Both live sources failed — show the last-known snapshot instead of vanishing.
-        return loadSnapshot(for: "Codex", iconName: "codex") ?? local
+        // A business account was last saved under "ChatGPT Business" (see codexStatus), so try
+        // that snapshot first, then the regular "Codex" one.
+        return loadSnapshot(for: "ChatGPT Business", iconName: "codex")
+            ?? loadSnapshot(for: "Codex", iconName: "codex")
+            ?? local
     }
 
     private func fetchCodexLocalSessions() -> ServiceStatus {
@@ -58,12 +62,17 @@ extension LiveUsageDataSource {
             ? "local .codex sessions (reset time not found in file)"
             : "local .codex sessions"
 
+        // No 5-hour (primary) window anywhere in the records, only a weekly one → a business/credit
+        // account, which has no 5h rolling quota. Render it as its own card without a 5h block instead
+        // of pinning a misleading "100%" session (see codexStatus for the same split on the live API).
+        let isBusiness = sessionRemaining == nil && weeklyRemaining != nil
+
         return ServiceStatus(
-            name: "Codex",
+            name: isBusiness ? "ChatGPT Business" : "Codex",
             iconName: "codex",
             sessionResetAt: sessionReset,
             weeklyResetAt: weeklyReset,
-            sessionRemainingPercent: sessionRemaining ?? 100,
+            sessionRemainingPercent: isBusiness ? nil : (sessionRemaining ?? 100),
             weeklyRemainingPercent: weeklyRemaining ?? 100,
             models: [],
             isAvailable: true,
@@ -101,27 +110,55 @@ extension LiveUsageDataSource {
             let (data, response) = try await URLSession.shared.data(for: req)
             guard (response as? HTTPURLResponse).map({ 200 ... 299 ~= $0.statusCode }) == true,
                   let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let rateLimit = root["rate_limit"] as? [String: Any] else {
+                  root["rate_limit"] is [String: Any] else {
                 return nil
             }
-
-            let session = codexAPIWindow(rateLimit["primary_window"])
-            let weekly = codexAPIWindow(rateLimit["secondary_window"])
-
-            return ServiceStatus(
-                name: "Codex",
-                iconName: "codex",
-                sessionResetAt: session.resetAt,
-                weeklyResetAt: weekly.resetAt,
-                sessionRemainingPercent: session.usedPercent.map(remainingPercent(fromUsed:)) ?? 100,
-                weeklyRemainingPercent: weekly.usedPercent.map(remainingPercent(fromUsed:)) ?? 100,
-                models: codexCreditRow(root["credits"]).map { [$0] } ?? [],
-                isAvailable: true,
-                statusNote: "chatgpt usage api"
-            )
+            return codexStatus(fromUsageRoot: root)
         } catch {
             return nil
         }
+    }
+
+    /// Build the Codex `ServiceStatus` from a parsed `wham/usage` response root. Pure (no I/O) so it's
+    /// unit-testable. Splits on account shape:
+    ///   • **Plus/Pro** — a `primary_window` (5-hour rolling quota) is present → the existing "Codex"
+    ///     card, unchanged (absent windows still pin to 100%, matching prior behaviour).
+    ///   • **Business/credit** — no `primary_window` (business accounts have no 5h quota; usage is
+    ///     billed from credits) → a distinct "ChatGPT Business" card with NO 5h block: only the weekly
+    ///     window (if any) and the credit balance. `sessionRemainingPercent: nil` makes the popover's
+    ///     `sessionHeroes` guard drop the 5s hero and the menu bar omit its dot.
+    func codexStatus(fromUsageRoot root: [String: Any]) -> ServiceStatus {
+        let rateLimit = root["rate_limit"] as? [String: Any] ?? [:]
+        let creditRow = codexCreditRow(root["credits"])
+        let weekly = codexAPIWindow(rateLimit["secondary_window"])
+
+        // No 5-hour (primary) window → business/credit account.
+        guard rateLimit["primary_window"] is [String: Any] else {
+            return ServiceStatus(
+                name: "ChatGPT Business",
+                iconName: "codex",
+                sessionResetAt: nil,
+                weeklyResetAt: weekly.resetAt,
+                sessionRemainingPercent: nil,
+                weeklyRemainingPercent: weekly.usedPercent.map(remainingPercent(fromUsed:)),
+                models: creditRow.map { [$0] } ?? [],
+                isAvailable: true,
+                statusNote: "chatgpt usage api (business)"
+            )
+        }
+
+        let session = codexAPIWindow(rateLimit["primary_window"])
+        return ServiceStatus(
+            name: "Codex",
+            iconName: "codex",
+            sessionResetAt: session.resetAt,
+            weeklyResetAt: weekly.resetAt,
+            sessionRemainingPercent: session.usedPercent.map(remainingPercent(fromUsed:)) ?? 100,
+            weeklyRemainingPercent: weekly.usedPercent.map(remainingPercent(fromUsed:)) ?? 100,
+            models: creditRow.map { [$0] } ?? [],
+            isAvailable: true,
+            statusNote: "chatgpt usage api"
+        )
     }
 
     /// Codex premium credit balance from `wham/usage` `credits: { has_credits, unlimited, balance }`.

@@ -46,6 +46,55 @@ final class UsageParsingTests: XCTestCase {
         XCTAssertNil(noReset)
     }
 
+    /// Plus/Pro account: a `primary_window` (5-hour quota) is present → the existing "Codex" card,
+    /// with both windows populated. This locks the pre-business behaviour against regressions.
+    func testCodexStatusPlusKeepsFiveHourWindow() {
+        let root: [String: Any] = [
+            "rate_limit": [
+                "primary_window": ["used_percent": 20.0, "reset_at": 1_700_000_000.0],
+                "secondary_window": ["used_percent": 60.0, "reset_at": 1_700_500_000.0],
+            ]
+        ]
+        let status = ds.codexStatus(fromUsageRoot: root)
+        XCTAssertEqual(status.name, "Codex")
+        XCTAssertEqual(status.sessionRemainingPercent, 80)
+        XCTAssertEqual(status.weeklyRemainingPercent, 40)
+        XCTAssertEqual(status.sessionResetAt, Date(timeIntervalSince1970: 1_700_000_000))
+        XCTAssertTrue(status.isAvailable)
+    }
+
+    /// Business/credit account: no `primary_window` (business has no 5-hour quota) → a distinct
+    /// "ChatGPT Business" card with NO session reading, the weekly window, and the credit balance.
+    func testCodexStatusBusinessDropsFiveHourWindow() {
+        let root: [String: Any] = [
+            "rate_limit": [
+                "secondary_window": ["used_percent": 10.0, "reset_at": 1_700_500_000.0],
+            ],
+            "credits": ["has_credits": true, "balance": "42"],
+        ]
+        let status = ds.codexStatus(fromUsageRoot: root)
+        XCTAssertEqual(status.name, "ChatGPT Business")
+        XCTAssertNil(status.sessionRemainingPercent)          // 5h hero is dropped
+        XCTAssertNil(status.sessionResetAt)
+        XCTAssertEqual(status.weeklyRemainingPercent, 90)     // weekly still shown
+        XCTAssertEqual(status.models.first?.valueText?.contains("42"), true)
+        XCTAssertTrue(status.isAvailable)
+    }
+
+    /// Credit-only business account with neither window → the "ChatGPT Business" card shows just the
+    /// credit balance, no weekly row (weekly percent stays nil rather than a misleading 100%).
+    func testCodexStatusBusinessCreditOnly() {
+        let root: [String: Any] = [
+            "rate_limit": [:],
+            "credits": ["has_credits": true, "balance": "5"],
+        ]
+        let status = ds.codexStatus(fromUsageRoot: root)
+        XCTAssertEqual(status.name, "ChatGPT Business")
+        XCTAssertNil(status.sessionRemainingPercent)
+        XCTAssertNil(status.weeklyRemainingPercent)
+        XCTAssertEqual(status.models.first?.valueText?.contains("5"), true)
+    }
+
     func testJWTExpiry() {
         let token = Self.makeJWT(payload: ["exp": 2_000_000_000])
         XCTAssertEqual(ds.jwtExpiry(token), Date(timeIntervalSince1970: 2_000_000_000))

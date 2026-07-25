@@ -30,7 +30,8 @@ enum Telemetry {
             (services.first { $0.name == name }.map { $0.isAvailable || $0.isStale } ?? false)
                 ? "true" : "false"
         }
-        return ["claude": active("Claude"), "codex": active("Codex"), "antigravity": active("Antigravity")]
+        return ["claude": active("Claude"), "codex": active("Codex"),
+                "chatgpt_business": active("ChatGPT Business"), "antigravity": active("Antigravity")]
     }
 
     /// Count of placed widgets per supported family (from WidgetCenter family raw names).
