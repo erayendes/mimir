@@ -76,16 +76,14 @@ struct DetailedWidgetView: View {
 
 // MARK: - Shared bits
 
-/// The "mimir" wordmark + a small window/credit pill, used as the header of S/M.
+/// The "mimir" wordmark, used as the header of Medium. It carries no window badge: rows can mix
+/// windows (Claude 5h + Codex weekly since the July 2026 5h removal), so a single badge would be
+/// wrong — each row's reset line already says which window it is.
 private struct WordmarkHeader: View {
-    var badge: String?
     var body: some View {
         HStack {
             Text("mimir").font(.system(size: 11, weight: .medium)).tracking(-0.1).foregroundStyle(Tok.brand)
             Spacer()
-            // Medium rows can mix windows (Claude 5h + Codex weekly since the July 2026 5h removal), so a
-            // single header badge would be wrong — each row carries its own pill instead and this is nil.
-            if let badge { Pill(badge) }
         }
     }
 }
@@ -201,7 +199,7 @@ private struct MediumView: View {
     let now: Date
     var body: some View {
         VStack(spacing: 0) {
-            WordmarkHeader(badge: nil)   // per-row pills carry each window (5h/7g) — see MediumRow
+            WordmarkHeader()
             Spacer(minLength: 12)   // keep the header off the first row
             VStack(spacing: 12) {
                 ForEach(payload.fiveHourFlat.prefix(4)) { MediumRow(item: $0, now: now) }
@@ -233,9 +231,7 @@ private struct MediumRow: View {
     }
 
     private var row: some View {
-        // spacing 6 (not 8): the per-row window pill costs horizontal room, and the reset text below
-        // is fixed-size, so the gaps give the progress bar its width back.
-        HStack(spacing: 6) {
+        HStack(spacing: 8) {
             HStack(spacing: 6) {
                 BrandMark(iconName: item.iconName, size: 14)
                 Text(item.metric.label).font(.system(size: 12)).foregroundStyle(Tok.secondary).lineLimit(1)
@@ -243,7 +239,6 @@ private struct MediumRow: View {
             // 92, not 84: the longest label ("Claude/GPT") plus its logo runs ~85pt at 12pt, so the
             // narrower column truncated it to "Claude/G…".
             .frame(width: 92, alignment: .leading)
-            Pill(windowPill(item.metric))   // per-row window (5h/7g) — rows can mix since the 5h removal
             if item.unavailable {
                 // Live source unreachable too long → empty track + "—" (Stocks "no data" language).
                 Capsule().fill(Tok.track).frame(height: 5)
