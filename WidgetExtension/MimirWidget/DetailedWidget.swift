@@ -233,12 +233,16 @@ private struct MediumRow: View {
     }
 
     private var row: some View {
-        HStack(spacing: 8) {
+        // spacing 6 (not 8): the per-row window pill costs horizontal room, and the reset text below
+        // is fixed-size, so the gaps give the progress bar its width back.
+        HStack(spacing: 6) {
             HStack(spacing: 6) {
                 BrandMark(iconName: item.iconName, size: 14)
                 Text(item.metric.label).font(.system(size: 12)).foregroundStyle(Tok.secondary).lineLimit(1)
             }
-            .frame(width: 84, alignment: .leading)
+            // 92, not 84: the longest label ("Claude/GPT") plus its logo runs ~85pt at 12pt, so the
+            // narrower column truncated it to "Claude/G…".
+            .frame(width: 92, alignment: .leading)
             Pill(windowPill(item.metric))   // per-row window (5h/7g) — rows can mix since the 5h removal
             if item.unavailable {
                 // Live source unreachable too long → empty track + "—" (Stocks "no data" language).
@@ -256,6 +260,7 @@ private struct MediumRow: View {
                 Text(resetLine)
                     .font(.system(size: 9)).monospacedDigit().foregroundStyle(Tok.tertiary)
                     .frame(minWidth: 62, alignment: .trailing).lineLimit(1)
+                    .fixedSize()   // never truncate the reset text ("6g 20s · 08:50") — same rule as Small
             }
         }
     }
