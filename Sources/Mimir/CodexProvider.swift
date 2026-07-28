@@ -37,17 +37,25 @@ extension LiveUsageDataSource {
                   record.payload?.type == "token_count",
                   let rl = record.payload?.rate_limits else { continue }
 
-            if let p = rl.primary, let summary = summarizeCodexWindow(p, now: Date()) {
-                if sessionRemaining == nil { sessionRemaining = remainingPercent(fromUsed: summary.usedPercent) }
-                if sessionReset == nil { sessionReset = summary.resetAt }
+            // Classify each window by its real length, not its slot (see codexStatus): a window of
+            // <= 6h is the 5-hour session, anything longer is the weekly one. Since July 2026 the
+            // sole window OpenAI returns can be the weekly one (window_minutes 10080), so "primary"
+            // no longer implies "5-hour". Missing window_minutes → fall back to the slot.
+            for (w, slotIsPrimary) in [(rl.primary, true), (rl.secondary, false)] {
+                guard let w, let summary = summarizeCodexWindow(w, now: Date()) else { continue }
+                let isSession = w.window_minutes.map { $0 <= 360 } ?? slotIsPrimary
+                if isSession {
+                    if sessionRemaining == nil {
+                        sessionRemaining = remainingPercent(fromUsed: summary.usedPercent)
+                        sessionReset = summary.resetAt
+                    }
+                } else if weeklyRemaining == nil {
+                    weeklyRemaining = remainingPercent(fromUsed: summary.usedPercent)
+                    weeklyReset = summary.resetAt
+                }
             }
 
-            if let s = rl.secondary, let summary = summarizeCodexWindow(s, now: Date()) {
-                if weeklyRemaining == nil { weeklyRemaining = remainingPercent(fromUsed: summary.usedPercent) }
-                if weeklyReset == nil { weeklyReset = summary.resetAt }
-            }
-
-            if sessionRemaining != nil && weeklyRemaining != nil && sessionReset != nil && weeklyReset != nil { break }
+            if sessionRemaining != nil && weeklyRemaining != nil { break }
         }
 
         guard sessionRemaining != nil || weeklyRemaining != nil else {
@@ -58,17 +66,15 @@ extension LiveUsageDataSource {
             ? "local .codex sessions (reset time not found in file)"
             : "local .codex sessions"
 
-        // No 5-hour (primary) window found → leave the session reading nil so the popover drops the
-        // 5s block instead of pinning a misleading "100%". Since July 2026 the 5h window is (temporarily)
-        // gone for all Codex users, so this is the common case, not a business-only one — the card stays
-        // "Codex" and the weekly + credit rows carry the real limits.
+        // A window that isn't present stays nil (no misleading "100%"): when there's no 5-hour window
+        // the popover drops the 5s block and promotes the weekly reading instead (see PopoverViews).
         return ServiceStatus(
             name: "Codex",
             iconName: "codex",
             sessionResetAt: sessionReset,
             weeklyResetAt: weeklyReset,
             sessionRemainingPercent: sessionRemaining,
-            weeklyRemainingPercent: weeklyRemaining ?? 100,
+            weeklyRemainingPercent: weeklyRemaining,
             models: [],
             isAvailable: true,
             statusNote: statusNote
@@ -115,31 +121,40 @@ extension LiveUsageDataSource {
     }
 
     /// Build the Codex `ServiceStatus` from a parsed `wham/usage` response root. Pure (no I/O) so it's
-    /// unit-testable. Each quota window is optional: when the window object is present its remaining %
-    /// is used (falling back to 100 when the object carries no `used_percent`), and when it's absent the
-    /// reading is left `nil` — no misleading "100%". Since OpenAI temporarily removed Codex's 5-hour
-    /// window in July 2026, `primary_window` is now absent for everyone, so the popover simply drops the
-    /// 5s block and shows the weekly window + credit balance. If the 5h window returns, it shows again.
+    /// unit-testable. Classifies each present window by its real PERIOD, not its slot: OpenAI
+    /// temporarily removed Codex's 5-hour limit in July 2026, so the sole window it now returns can be
+    /// the WEEKLY one sitting in the `primary_window` slot (limit_window_seconds 604800) — "primary" no
+    /// longer implies "5-hour". A window of <= 6h is the 5-hour session, anything longer is the weekly
+    /// one; when the period field is missing, fall back to the slot. An absent window stays nil (no
+    /// misleading "100%"). If the 5h window returns later, it's classified as the session again.
     func codexStatus(fromUsageRoot root: [String: Any]) -> ServiceStatus {
         let rateLimit = root["rate_limit"] as? [String: Any] ?? [:]
+
+        var session: (percent: Int, resetAt: Date?)?
+        var weekly: (percent: Int, resetAt: Date?)?
+        for (raw, slotIsPrimary) in [(rateLimit["primary_window"], true), (rateLimit["secondary_window"], false)] {
+            guard let obj = raw as? [String: Any] else { continue }
+            let window = codexAPIWindow(obj)
+            let percent = window.usedPercent.map(remainingPercent(fromUsed:)) ?? 100
+            let isSession = doubleValue(obj["limit_window_seconds"]).map { $0 <= 6 * 3600 } ?? slotIsPrimary
+            if isSession {
+                if session == nil { session = (percent, window.resetAt) }
+            } else if weekly == nil {
+                weekly = (percent, window.resetAt)
+            }
+        }
+
         return ServiceStatus(
             name: "Codex",
             iconName: "codex",
-            sessionResetAt: codexAPIWindow(rateLimit["primary_window"]).resetAt,
-            weeklyResetAt: codexAPIWindow(rateLimit["secondary_window"]).resetAt,
-            sessionRemainingPercent: codexWindowPercent(rateLimit["primary_window"]),
-            weeklyRemainingPercent: codexWindowPercent(rateLimit["secondary_window"]),
+            sessionResetAt: session?.resetAt,
+            weeklyResetAt: weekly?.resetAt,
+            sessionRemainingPercent: session?.percent,
+            weeklyRemainingPercent: weekly?.percent,
             models: codexCreditRow(root["credits"]).map { [$0] } ?? [],
             isAvailable: true,
             statusNote: "chatgpt usage api"
         )
-    }
-
-    /// Remaining % for one `wham/usage` rate-limit window: `nil` when the window object is absent (no
-    /// such quota in effect), else `100 - used_percent` (or 100 when the object omits `used_percent`).
-    func codexWindowPercent(_ raw: Any?) -> Int? {
-        guard raw is [String: Any] else { return nil }
-        return codexAPIWindow(raw).usedPercent.map(remainingPercent(fromUsed:)) ?? 100
     }
 
     /// Codex premium credit balance from `wham/usage` `credits: { has_credits, unlimited, balance }`.

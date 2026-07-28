@@ -46,9 +46,42 @@ final class UsageParsingTests: XCTestCase {
         XCTAssertNil(noReset)
     }
 
-    /// Both windows present (the 5-hour window is active) → the "Codex" card with session + weekly
-    /// populated. Locks the pre-existing behaviour so the 5h reading isn't lost when it does exist.
-    func testCodexStatusKeepsFiveHourWindowWhenPresent() {
+    /// The real Plus case since OpenAI's July 2026 5-hour removal: the sole window sits in the
+    /// `primary_window` slot but is the WEEKLY one (limit_window_seconds 604800). It must be classified
+    /// as weekly — not mislabeled as the 5-hour session (which showed a bogus "5s, resets in 6d").
+    func testCodexStatusWeeklyWindowInPrimarySlot() {
+        let root: [String: Any] = [
+            "rate_limit": [
+                "primary_window": ["used_percent": 1.0, "limit_window_seconds": 604800, "reset_at": 1_785_822_607.0],
+            ],
+            "credits": ["has_credits": false, "balance": "0"],
+        ]
+        let status = ds.codexStatus(fromUsageRoot: root)
+        XCTAssertEqual(status.name, "Codex")
+        XCTAssertNil(status.sessionRemainingPercent)                       // NOT a 5h window
+        XCTAssertEqual(status.weeklyRemainingPercent, 99)                  // classified as weekly
+        XCTAssertEqual(status.weeklyResetAt, Date(timeIntervalSince1970: 1_785_822_607))
+        XCTAssertTrue(status.models.isEmpty)                              // no credits row
+    }
+
+    /// Both windows present with real durations: the 5-hour one (limit_window_seconds 18000) is the
+    /// session, the 7-day one (604800) is weekly — classified by duration regardless of slot.
+    func testCodexStatusClassifiesBothWindowsByDuration() {
+        let root: [String: Any] = [
+            "rate_limit": [
+                "primary_window": ["used_percent": 20.0, "limit_window_seconds": 18000, "reset_at": 1_700_000_000.0],
+                "secondary_window": ["used_percent": 60.0, "limit_window_seconds": 604800, "reset_at": 1_700_500_000.0],
+            ]
+        ]
+        let status = ds.codexStatus(fromUsageRoot: root)
+        XCTAssertEqual(status.sessionRemainingPercent, 80)
+        XCTAssertEqual(status.weeklyRemainingPercent, 40)
+        XCTAssertEqual(status.sessionResetAt, Date(timeIntervalSince1970: 1_700_000_000))
+    }
+
+    /// No duration field (legacy shape) → fall back to the slot: primary is the session, secondary
+    /// the weekly. Keeps older payloads working unchanged.
+    func testCodexStatusFallsBackToSlotWhenNoDuration() {
         let root: [String: Any] = [
             "rate_limit": [
                 "primary_window": ["used_percent": 20.0, "reset_at": 1_700_000_000.0],
@@ -56,11 +89,8 @@ final class UsageParsingTests: XCTestCase {
             ]
         ]
         let status = ds.codexStatus(fromUsageRoot: root)
-        XCTAssertEqual(status.name, "Codex")
         XCTAssertEqual(status.sessionRemainingPercent, 80)
         XCTAssertEqual(status.weeklyRemainingPercent, 40)
-        XCTAssertEqual(status.sessionResetAt, Date(timeIntervalSince1970: 1_700_000_000))
-        XCTAssertTrue(status.isAvailable)
     }
 
     /// No `primary_window` — the common case since OpenAI temporarily removed Codex's 5-hour limit in

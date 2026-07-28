@@ -281,7 +281,7 @@ struct ServiceCard: View {
                 // Claude / Codex: a single session block, then the weekly rows.
                 ForEach(Array(sessionHeroes.enumerated()), id: \.offset) { index, hero in
                     SessionRow(label: hero.label, percent: hero.percent, resetAt: hero.resetAt, now: now,
-                               gated: service.weeklyRemainingPercent == 0)
+                               gated: hero.gated, badge: hero.badge, windowFallback: hero.fallback)
                         .padding(.top, index == 0 ? 11 : 13)
                 }
                 if !weeklyEntries.isEmpty {
@@ -358,7 +358,9 @@ struct ServiceCard: View {
     private var weeklyEntries: [(label: String, percent: Int, resetAt: Date?)] {
         if hasServiceQuotas {
             var out: [(label: String, percent: Int, resetAt: Date?)] = []
-            if let weekly = service.weeklyRemainingPercent {
+            // The account weekly is a row only when there IS a 5h session above it; with no session the
+            // weekly is promoted into the hero block (see sessionHeroes), so don't repeat it here.
+            if service.sessionRemainingPercent != nil, let weekly = service.weeklyRemainingPercent {
                 out.append((service.name, weekly, service.weeklyResetAt))
             }
             for model in service.models where model.valueText == nil {
@@ -371,10 +373,19 @@ struct ServiceCard: View {
             .map { (label: $0.name, percent: $0.remainingPercent, resetAt: $0.resetAt) }
     }
 
-    /// The prominent 5-hour session block (Claude/Codex only — one each).
-    private var sessionHeroes: [(label: String, percent: Int, resetAt: Date?)] {
-        guard let session = service.sessionRemainingPercent else { return [] }
-        return [(service.name, session, service.sessionResetAt)]
+    /// The prominent block (Claude/Codex — one each). Normally the 5-hour session; but when a service
+    /// has no 5h window (Codex since OpenAI's July 2026 removal) the weekly reading is promoted here
+    /// with a "7g" badge so the card still shows a clear number instead of a bare row.
+    private var sessionHeroes: [(label: String, percent: Int, resetAt: Date?, badge: String, fallback: TimeInterval, gated: Bool)] {
+        if let session = service.sessionRemainingPercent {
+            return [(service.name, session, service.sessionResetAt,
+                     String(localized: "5s"), 5 * 3600, service.weeklyRemainingPercent == 0)]
+        }
+        if let weekly = service.weeklyRemainingPercent {
+            return [(service.name, weekly, service.weeklyResetAt,
+                     String(localized: "7g"), 7 * 24 * 3600, false)]
+        }
+        return []
     }
 
     /// Antigravity grouped by family, preserving first-seen order, each family carrying
@@ -451,6 +462,11 @@ struct SessionRow: View {
     /// True when this model's weekly quota is spent — grey the figure + bar so a full 5h window
     /// can't masquerade as usable while the week is locked.
     var gated: Bool = false
+    /// Window badge — "5s" for the 5-hour session, "7g" when a weekly reading is promoted here
+    /// (a service with no 5h window, e.g. Codex since the July 2026 removal).
+    var badge: String = String(localized: "5s")
+    /// Reset-countdown fallback length shown when there's no `resetAt`, matching this window (5h vs 7d).
+    var windowFallback: TimeInterval = 5 * 3600
 
     private static let clockFormatter: DateFormatter = {
         let f = DateFormatter(); f.dateFormat = "HH:mm"; return f
@@ -463,7 +479,7 @@ struct SessionRow: View {
                     .font(.system(size: 12.5, weight: .semibold))
                     .foregroundStyle(Color.primary.opacity(0.88))
                     .lineLimit(1)
-                QuotaBadge(text: String(localized: "5s"), prominent: true)
+                QuotaBadge(text: badge, prominent: true)
                 Spacer(minLength: 6)
                 Text("%\(clampPct(percent))")
                     .font(.system(size: 18, weight: .semibold).monospacedDigit())
@@ -476,8 +492,8 @@ struct SessionRow: View {
             HStack(spacing: 8) {
                 Label {
                     // No reset scheduled (window full / not yet counting down) → show the
-                    // full 5-hour window rather than a bare dash.
-                    Text(relDuration(resetAt, now) ?? TimeFormatter.duration(from: 5 * 3600))
+                    // full window length rather than a bare dash.
+                    Text(relDuration(resetAt, now) ?? TimeFormatter.duration(from: windowFallback))
                 } icon: {
                     Image(systemName: "gauge.medium")
                 }
