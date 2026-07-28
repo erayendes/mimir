@@ -76,15 +76,6 @@ struct LiveUsageDataSource {
                 models: [],
                 isAvailable: false,
                 statusNote: String(localized: "no local source")
-            ),
-            ServiceStatus(
-                name: "ChatGPT Business",
-                iconName: "codex",
-                sessionResetAt: nil,
-                weeklyResetAt: nil,
-                models: [],
-                isAvailable: false,
-                statusNote: String(localized: "no local source")
             )
         ]
     }
@@ -105,13 +96,9 @@ struct LiveUsageDataSource {
                     ?? self.snapshotOrFallback("Claude", iconName: "claude")
             }
             group.addTask {
-                // Codex may resolve to either "Codex" (Plus/Pro) or "ChatGPT Business" (credit account);
-                // its cooldown key follows whichever name was last saved, so honour either. The snapshot
-                // fallback prefers the business card when one exists, else the regular Codex card.
-                let codexFallback = { self.loadSnapshot(for: "ChatGPT Business", iconName: "codex")
-                    ?? self.snapshotOrFallback("Codex", iconName: "codex") }
-                if skip.contains("Codex") || skip.contains("ChatGPT Business") { return codexFallback() }
-                return await withTimeout(seconds: 8) { await fetchCodex() } ?? codexFallback()
+                if skip.contains("Codex") { return self.snapshotOrFallback("Codex", iconName: "codex") }
+                return await withTimeout(seconds: 8) { await fetchCodex() }
+                    ?? self.snapshotOrFallback("Codex", iconName: "codex")
             }
             group.addTask {
                 if skip.contains("Antigravity") { return self.snapshotOrFallback("Antigravity", iconName: "antigravity").withInfoText(Self.antigravityInfo) }

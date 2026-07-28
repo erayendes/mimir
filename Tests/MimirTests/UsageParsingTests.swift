@@ -46,9 +46,9 @@ final class UsageParsingTests: XCTestCase {
         XCTAssertNil(noReset)
     }
 
-    /// Plus/Pro account: a `primary_window` (5-hour quota) is present → the existing "Codex" card,
-    /// with both windows populated. This locks the pre-business behaviour against regressions.
-    func testCodexStatusPlusKeepsFiveHourWindow() {
+    /// Both windows present (the 5-hour window is active) → the "Codex" card with session + weekly
+    /// populated. Locks the pre-existing behaviour so the 5h reading isn't lost when it does exist.
+    func testCodexStatusKeepsFiveHourWindowWhenPresent() {
         let root: [String: Any] = [
             "rate_limit": [
                 "primary_window": ["used_percent": 20.0, "reset_at": 1_700_000_000.0],
@@ -63,9 +63,10 @@ final class UsageParsingTests: XCTestCase {
         XCTAssertTrue(status.isAvailable)
     }
 
-    /// Business/credit account: no `primary_window` (business has no 5-hour quota) → a distinct
-    /// "ChatGPT Business" card with NO session reading, the weekly window, and the credit balance.
-    func testCodexStatusBusinessDropsFiveHourWindow() {
+    /// No `primary_window` — the common case since OpenAI temporarily removed Codex's 5-hour limit in
+    /// July 2026 (all plans, not just business). The card stays "Codex" but drops the 5h reading
+    /// (`sessionRemainingPercent == nil` → popover hides the 5s block); weekly + credit still show.
+    func testCodexStatusDropsFiveHourWindowWhenAbsent() {
         let root: [String: Any] = [
             "rate_limit": [
                 "secondary_window": ["used_percent": 10.0, "reset_at": 1_700_500_000.0],
@@ -73,23 +74,23 @@ final class UsageParsingTests: XCTestCase {
             "credits": ["has_credits": true, "balance": "42"],
         ]
         let status = ds.codexStatus(fromUsageRoot: root)
-        XCTAssertEqual(status.name, "ChatGPT Business")
-        XCTAssertNil(status.sessionRemainingPercent)          // 5h hero is dropped
+        XCTAssertEqual(status.name, "Codex")
+        XCTAssertNil(status.sessionRemainingPercent)          // 5h block is dropped, not pinned to 100
         XCTAssertNil(status.sessionResetAt)
         XCTAssertEqual(status.weeklyRemainingPercent, 90)     // weekly still shown
         XCTAssertEqual(status.models.first?.valueText?.contains("42"), true)
         XCTAssertTrue(status.isAvailable)
     }
 
-    /// Credit-only business account with neither window → the "ChatGPT Business" card shows just the
-    /// credit balance, no weekly row (weekly percent stays nil rather than a misleading 100%).
-    func testCodexStatusBusinessCreditOnly() {
+    /// Credit-only account with neither window → "Codex" shows just the credit balance; both window
+    /// readings stay nil (no misleading 100%).
+    func testCodexStatusCreditOnly() {
         let root: [String: Any] = [
             "rate_limit": [:],
             "credits": ["has_credits": true, "balance": "5"],
         ]
         let status = ds.codexStatus(fromUsageRoot: root)
-        XCTAssertEqual(status.name, "ChatGPT Business")
+        XCTAssertEqual(status.name, "Codex")
         XCTAssertNil(status.sessionRemainingPercent)
         XCTAssertNil(status.weeklyRemainingPercent)
         XCTAssertEqual(status.models.first?.valueText?.contains("5"), true)

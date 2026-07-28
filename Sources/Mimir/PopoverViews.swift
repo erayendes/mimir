@@ -405,7 +405,7 @@ struct ServiceCard: View {
     }
 
     private var hasServiceQuotas: Bool {
-        service.name == "Claude" || service.name == "Codex" || service.name == "ChatGPT Business"
+        service.name == "Claude" || service.name == "Codex"
     }
 }
 

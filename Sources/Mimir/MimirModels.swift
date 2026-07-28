@@ -111,7 +111,7 @@ enum ModelWindow {
 /// (`PopoverView.contentView`) and the menu-bar dots (`menuBarDots`). Keeping it in one place is
 /// load-bearing: when the two defined the order independently they drifted, and a yellow dot lined
 /// up with the wrong card. Change the order here and both move together.
-let serviceDisplayOrder = ["Claude", "Codex", "ChatGPT Business", "Antigravity"]
+let serviceDisplayOrder = ["Claude", "Codex", "Antigravity"]
 
 extension Array where Element == ServiceStatus {
     /// Sorted into the canonical display order (Claude, Codex, Antigravity); unknown names last.
@@ -172,7 +172,11 @@ func menuBarDots(from services: [ServiceStatus]) -> [MenuBarDot] {
         guard let svc = services.first(where: { $0.name == name }),
               svc.isAvailable || svc.isStale else { continue }
         dots.append(contentsOf: svc.sessionWindows.map {
-            MenuBarDot(sessionPercent: $0.sessionPercent, weeklyExhausted: $0.weeklyPercent == 0,
+            // When a window has no 5h reading (Codex since OpenAI's July 2026 removal of the 5-hour
+            // limit), colour the dot by the weekly quota instead of greying out — the weekly cap is the
+            // real binding limit now. `weeklyExhausted` still greys it when the week itself is spent.
+            MenuBarDot(sessionPercent: $0.sessionPercent ?? $0.weeklyPercent,
+                       weeklyExhausted: $0.weeklyPercent == 0,
                        unavailable: svc.dataUnavailable)
         })
     }

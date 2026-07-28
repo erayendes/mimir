@@ -14,11 +14,7 @@ extension LiveUsageDataSource {
         }
 
         // Both live sources failed — show the last-known snapshot instead of vanishing.
-        // A business account was last saved under "ChatGPT Business" (see codexStatus), so try
-        // that snapshot first, then the regular "Codex" one.
-        return loadSnapshot(for: "ChatGPT Business", iconName: "codex")
-            ?? loadSnapshot(for: "Codex", iconName: "codex")
-            ?? local
+        return loadSnapshot(for: "Codex", iconName: "codex") ?? local
     }
 
     private func fetchCodexLocalSessions() -> ServiceStatus {
@@ -62,17 +58,16 @@ extension LiveUsageDataSource {
             ? "local .codex sessions (reset time not found in file)"
             : "local .codex sessions"
 
-        // No 5-hour (primary) window anywhere in the records, only a weekly one → a business/credit
-        // account, which has no 5h rolling quota. Render it as its own card without a 5h block instead
-        // of pinning a misleading "100%" session (see codexStatus for the same split on the live API).
-        let isBusiness = sessionRemaining == nil && weeklyRemaining != nil
-
+        // No 5-hour (primary) window found → leave the session reading nil so the popover drops the
+        // 5s block instead of pinning a misleading "100%". Since July 2026 the 5h window is (temporarily)
+        // gone for all Codex users, so this is the common case, not a business-only one — the card stays
+        // "Codex" and the weekly + credit rows carry the real limits.
         return ServiceStatus(
-            name: isBusiness ? "ChatGPT Business" : "Codex",
+            name: "Codex",
             iconName: "codex",
             sessionResetAt: sessionReset,
             weeklyResetAt: weeklyReset,
-            sessionRemainingPercent: isBusiness ? nil : (sessionRemaining ?? 100),
+            sessionRemainingPercent: sessionRemaining,
             weeklyRemainingPercent: weeklyRemaining ?? 100,
             models: [],
             isAvailable: true,
@@ -120,45 +115,31 @@ extension LiveUsageDataSource {
     }
 
     /// Build the Codex `ServiceStatus` from a parsed `wham/usage` response root. Pure (no I/O) so it's
-    /// unit-testable. Splits on account shape:
-    ///   • **Plus/Pro** — a `primary_window` (5-hour rolling quota) is present → the existing "Codex"
-    ///     card, unchanged (absent windows still pin to 100%, matching prior behaviour).
-    ///   • **Business/credit** — no `primary_window` (business accounts have no 5h quota; usage is
-    ///     billed from credits) → a distinct "ChatGPT Business" card with NO 5h block: only the weekly
-    ///     window (if any) and the credit balance. `sessionRemainingPercent: nil` makes the popover's
-    ///     `sessionHeroes` guard drop the 5s hero and the menu bar omit its dot.
+    /// unit-testable. Each quota window is optional: when the window object is present its remaining %
+    /// is used (falling back to 100 when the object carries no `used_percent`), and when it's absent the
+    /// reading is left `nil` — no misleading "100%". Since OpenAI temporarily removed Codex's 5-hour
+    /// window in July 2026, `primary_window` is now absent for everyone, so the popover simply drops the
+    /// 5s block and shows the weekly window + credit balance. If the 5h window returns, it shows again.
     func codexStatus(fromUsageRoot root: [String: Any]) -> ServiceStatus {
         let rateLimit = root["rate_limit"] as? [String: Any] ?? [:]
-        let creditRow = codexCreditRow(root["credits"])
-        let weekly = codexAPIWindow(rateLimit["secondary_window"])
-
-        // No 5-hour (primary) window → business/credit account.
-        guard rateLimit["primary_window"] is [String: Any] else {
-            return ServiceStatus(
-                name: "ChatGPT Business",
-                iconName: "codex",
-                sessionResetAt: nil,
-                weeklyResetAt: weekly.resetAt,
-                sessionRemainingPercent: nil,
-                weeklyRemainingPercent: weekly.usedPercent.map(remainingPercent(fromUsed:)),
-                models: creditRow.map { [$0] } ?? [],
-                isAvailable: true,
-                statusNote: "chatgpt usage api (business)"
-            )
-        }
-
-        let session = codexAPIWindow(rateLimit["primary_window"])
         return ServiceStatus(
             name: "Codex",
             iconName: "codex",
-            sessionResetAt: session.resetAt,
-            weeklyResetAt: weekly.resetAt,
-            sessionRemainingPercent: session.usedPercent.map(remainingPercent(fromUsed:)) ?? 100,
-            weeklyRemainingPercent: weekly.usedPercent.map(remainingPercent(fromUsed:)) ?? 100,
-            models: creditRow.map { [$0] } ?? [],
+            sessionResetAt: codexAPIWindow(rateLimit["primary_window"]).resetAt,
+            weeklyResetAt: codexAPIWindow(rateLimit["secondary_window"]).resetAt,
+            sessionRemainingPercent: codexWindowPercent(rateLimit["primary_window"]),
+            weeklyRemainingPercent: codexWindowPercent(rateLimit["secondary_window"]),
+            models: codexCreditRow(root["credits"]).map { [$0] } ?? [],
             isAvailable: true,
             statusNote: "chatgpt usage api"
         )
+    }
+
+    /// Remaining % for one `wham/usage` rate-limit window: `nil` when the window object is absent (no
+    /// such quota in effect), else `100 - used_percent` (or 100 when the object omits `used_percent`).
+    func codexWindowPercent(_ raw: Any?) -> Int? {
+        guard raw is [String: Any] else { return nil }
+        return codexAPIWindow(raw).usedPercent.map(remainingPercent(fromUsed:)) ?? 100
     }
 
     /// Codex premium credit balance from `wham/usage` `credits: { has_credits, unlimited, balance }`.

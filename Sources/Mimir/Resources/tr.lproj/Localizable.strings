@@ -66,6 +66,7 @@
 /* Widgets */
 "widget.detailed.description" = "Bakışta yapay zekâ kotası.";
 "widget.window.fiveHour" = "5s";
+"widget.window.weekly" = "7g";
 "widget.unavailable.title" = "Veri alınamadı";
 "widget.unavailable.app" = "%@ kapalı görünüyor";
 "widget.unavailable.action" = "Açmak için dokun";
