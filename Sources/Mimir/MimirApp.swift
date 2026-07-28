@@ -101,6 +101,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 // so it fires false positives whenever a modal is open (MIMIR-4/5/6/7).
                 // Crash and error reporting stay on.
                 options.enableAppHangTracking = false
+                // We poll third-party usage APIs (chatgpt.com, claude.ai) every minute;
+                // their transient 5xx are expected and handled by the next poll's retry.
+                // Sentry's auto HTTP-failure capture turned every one into an error
+                // (MIMIR-3: 885 events of a 503 from chatgpt.com/backend-api/wham/usage).
+                options.enableCaptureFailedRequests = false
             }
         }
 
