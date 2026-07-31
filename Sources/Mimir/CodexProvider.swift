@@ -40,15 +40,16 @@ extension LiveUsageDataSource {
             // Classify each window by its real length, not its slot (see codexStatus): a window of
             // <= 6h is the 5-hour session, anything longer is the weekly one. Since July 2026 the
             // sole window OpenAI returns can be the weekly one (window_minutes 10080), so "primary"
-            // no longer implies "5-hour". Missing window_minutes → fall back to the slot.
+            // no longer implies "5-hour".
+            let now = Date()
             for (w, slotIsPrimary) in [(rl.primary, true), (rl.secondary, false)] {
-                guard let w, let summary = summarizeCodexWindow(w, now: Date()) else { continue }
-                let isSession = w.window_minutes.map { $0 <= 360 } ?? slotIsPrimary
-                if isSession {
-                    if sessionRemaining == nil {
-                        sessionRemaining = remainingPercent(fromUsed: summary.usedPercent)
-                        sessionReset = summary.resetAt
-                    }
+                guard let w, let summary = summarizeCodexWindow(w, now: now) else { continue }
+                let isSession = codexWindowIsSession(periodSeconds: w.window_minutes.map { Double($0) * 60 },
+                                                     resetAt: summary.resetAt,
+                                                     slotIsPrimary: slotIsPrimary, now: now)
+                if isSession, sessionRemaining == nil {
+                    sessionRemaining = remainingPercent(fromUsed: summary.usedPercent)
+                    sessionReset = summary.resetAt
                 } else if weeklyRemaining == nil {
                     weeklyRemaining = remainingPercent(fromUsed: summary.usedPercent)
                     weeklyReset = summary.resetAt
@@ -125,9 +126,9 @@ extension LiveUsageDataSource {
     /// temporarily removed Codex's 5-hour limit in July 2026, so the sole window it now returns can be
     /// the WEEKLY one sitting in the `primary_window` slot (limit_window_seconds 604800) — "primary" no
     /// longer implies "5-hour". A window of <= 6h is the 5-hour session, anything longer is the weekly
-    /// one; when the period field is missing, fall back to the slot. An absent window stays nil (no
-    /// misleading "100%"). If the 5h window returns later, it's classified as the session again.
-    func codexStatus(fromUsageRoot root: [String: Any]) -> ServiceStatus {
+    /// one; see `codexWindowIsSession` for what happens when the period field is missing. An absent
+    /// window stays nil (no misleading "100%"). If the 5h window returns later, it's the session again.
+    func codexStatus(fromUsageRoot root: [String: Any], now: Date = Date()) -> ServiceStatus {
         let rateLimit = root["rate_limit"] as? [String: Any] ?? [:]
 
         var session: (percent: Int, resetAt: Date?)?
@@ -136,9 +137,13 @@ extension LiveUsageDataSource {
             guard let obj = raw as? [String: Any] else { continue }
             let window = codexAPIWindow(obj)
             let percent = window.usedPercent.map(remainingPercent(fromUsed:)) ?? 100
-            let isSession = doubleValue(obj["limit_window_seconds"]).map { $0 <= 6 * 3600 } ?? slotIsPrimary
-            if isSession {
-                if session == nil { session = (percent, window.resetAt) }
+            let isSession = codexWindowIsSession(periodSeconds: doubleValue(obj["limit_window_seconds"]),
+                                                 resetAt: window.resetAt,
+                                                 slotIsPrimary: slotIsPrimary, now: now)
+            // A second window that also reads as the session lands in the weekly slot rather than
+            // being dropped — better a slightly mislabelled reading than a missing one.
+            if isSession, session == nil {
+                session = (percent, window.resetAt)
             } else if weekly == nil {
                 weekly = (percent, window.resetAt)
             }
@@ -197,8 +202,22 @@ extension LiveUsageDataSource {
         }
 
         let used = doubleValue(obj["used_percent"])
-        let reset = doubleValue(obj["reset_at"]).map { Date(timeIntervalSince1970: $0) }
-        return (used, reset)
+        // The reset epoch has appeared under both spellings across Codex surfaces (`reset_at` in the
+        // usage API, `resets_at` in the session files), so accept either rather than silently losing
+        // the countdown if this response switches.
+        let resetEpoch = doubleValue(obj["reset_at"]) ?? doubleValue(obj["resets_at"])
+        return (used, resetEpoch.map { Date(timeIntervalSince1970: $0) })
+    }
+
+    /// Is this rate-limit window the 5-hour session (vs the weekly one)? Decided by the window's real
+    /// PERIOD — "primary" no longer implies "5-hour" (see `codexStatus`). The period field is the only
+    /// reliable signal, so when it's absent fall back to how far the reset is: a 5-hour window can
+    /// never reset more than 5h out. That fallback misreads a weekly window in its final hours, which
+    /// is still better than trusting the slot; the slot is the last resort.
+    func codexWindowIsSession(periodSeconds: Double?, resetAt: Date?, slotIsPrimary: Bool, now: Date) -> Bool {
+        if let periodSeconds { return periodSeconds <= 6 * 3600 }
+        if let resetAt, resetAt > now { return resetAt.timeIntervalSince(now) <= 8 * 3600 }
+        return slotIsPrimary
     }
 
     private func readCodexAuthState() -> CodexAuthState? {
