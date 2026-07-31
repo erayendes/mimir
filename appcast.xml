@@ -7,7 +7,47 @@
     <link>https://github.com/erayendes/mimir</link>
     <description>Mimir update feed</description>
     <language>en</language>
-                                                                            <item>
+                                                                                <item>
+      <title>Mimir 2.7</title>
+      <sparkle:version>2007000</sparkle:version>
+      <sparkle:shortVersionString>2.7</sparkle:shortVersionString>
+      <pubDate>Fri, 31 Jul 2026 14:55:55 +0000</pubDate>
+      <description><![CDATA[
+<p><b>Fixed</b></p>
+<ul>
+<li>Codex now shows the quota window you're actually on. OpenAI removed Codex's 5-hour limit, but the weekly allowance that replaced it was still labelled "5h" — with a countdown reading six days. Mimir now recognises each window by its real length, so you see the limit that actually applies; if the 5-hour window comes back, it appears again on its own.</li>
+<li>When a provider has no 5-hour window, the menu-bar dot and the widget now follow its weekly quota instead of showing a grey "no data" dot and dropping the widget row.</li>
+<li>Widget: the reset countdown is no longer cut off, and longer names like "Claude/GPT" fit without being clipped.</li>
+</ul>
+<p><b>Internal</b></p>
+<ul>
+<li>Every push and pull request now builds the app and the widget and runs the tests on macOS.</li>
+<li>Codex quota windows are now recognised by how far their reset is when the API leaves out the window length, and either spelling of the reset field is accepted — so another change to OpenAI's payload can't quietly bring the mislabelled window back.</li>
+<li>Transient outages from the providers' usage APIs are no longer filed as app errors.</li>
+</ul>
+<hr>
+<p><b>Düzeltildi</b></p>
+<ul>
+<li>Codex artık gerçekte hangi kota penceresindeysen onu gösteriyor. OpenAI Codex'in 5 saatlik limitini kaldırdı, ama yerine geçen haftalık hak hâlâ "5s" diye etiketleniyor ve altında altı günlük bir sayaç görünüyordu. Mimir artık her pencereyi gerçek uzunluğundan tanıyor; böylece geçerli olan limiti görüyorsun. 5 saatlik pencere geri gelirse kendiliğinden yeniden beliriyor.</li>
+<li>Bir sağlayıcının 5 saatlik penceresi yoksa, menü çubuğu noktası ve widget artık onun haftalık kotasını izliyor — gri "veri yok" noktası gösterip widget satırını düşürmek yerine.</li>
+<li>Widget: sıfırlanma sayacı artık kesilmiyor ve "Claude/GPT" gibi uzun adlar kırpılmadan sığıyor.</li>
+</ul>
+<p><b>Dahili</b></p>
+<ul>
+<li>Her push ve pull request'te uygulama ve widget macOS'ta derlenip testler çalıştırılıyor.</li>
+<li>Codex kota pencereleri, API pencere uzunluğunu göndermediğinde sıfırlanma uzaklığından tanınıyor ve sıfırlanma alanının iki yazımı da kabul ediliyor — böylece OpenAI'nin verisindeki yeni bir değişiklik yanlış etiketlenen pencereyi sessizce geri getiremiyor.</li>
+<li>Sağlayıcıların kullanım API'lerindeki geçici kesintiler artık uygulama hatası olarak kaydedilmiyor.</li>
+</ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v2.7/Mimir.zip"
+        sparkle:edSignature="ly8dxhEDo+f62yk4NriK7PWE08lm93hlG9m+pHT0MuZDNsxQiWC3Z8tgZ8+GeDKl/W6wEjzckn5+MhWeeHCdDQ=="
+        length="6565275"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 2.6</title>
       <sparkle:version>2006000</sparkle:version>
       <sparkle:shortVersionString>2.6</sparkle:shortVersionString>
