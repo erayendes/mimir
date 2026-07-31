@@ -1,0 +1,37 @@
+name: "✨ Feature Request"
+description: "Suggest a new feature or improvement for Mimir"
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem-motivation
+    attributes:
+      label: Problem / Motivation
+      description: What need or problem are you trying to solve? Why does it matter?
+      placeholder: Right now, when I do X, I run into...
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed solution
+      description: What solution do you have in mind? Describe the behavior concretely if you can.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered (optional)
+      description: What other approaches did you consider, and why prefer this one?
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: existing-issues
+    attributes:
+      label: Checklist
+      options:
+        - label: I've checked for existing open/closed issues about this.
+          required: true

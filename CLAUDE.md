@@ -14,7 +14,7 @@ macOS menu bar app — Claude Code, Codex ve Antigravity için quota takibi.
 Releaseler tamamen GitHub Actions'ta yapılır (`.github/workflows/release.yml`).
 Geliştiricinin yaptığı:
 
-1. `CHANGELOG.md`'ye yeni sürüm bölümünü ekle — **hem `## English` hem `## Türkçe`
+1. `docs/CHANGELOG.md`'ye yeni sürüm bölümünü ekle — **hem `## English` hem `## Türkçe`
    altında** `### [X.Y]` başlığıyla (release notları buradan çekilir, EN sonra TR).
 2. Tag at ve push'la:
 

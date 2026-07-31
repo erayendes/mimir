@@ -31,7 +31,7 @@ is run.
 #### Releases
 
 Releases follow [Semantic Versioning](https://semver.org). Release notes are kept
-in the [Changelog](../CHANGELOG.md).
+in the [Changelog](../docs/CHANGELOG.md).
 
 #### Code of Conduct
 
@@ -70,7 +70,7 @@ açıklar.
 #### Sürümler
 
 Sürümler [Semantic Versioning](https://semver.org) kurallarını izler. Sürüm
-notları [Sürüm Notları](../CHANGELOG.md) dosyasında tutulur.
+notları [Sürüm Notları](../docs/CHANGELOG.md) dosyasında tutulur.
 
 #### Davranış Kuralları
 

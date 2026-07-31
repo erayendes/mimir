@@ -1,0 +1,70 @@
+name: "🐛 Bug Report"
+description: "Report a bug you ran into in Mimir"
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the issue clearly.
+      placeholder: When I click the menu bar icon, quota info doesn't show up...
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: Steps to reproduce
+      description: How can we reproduce this from scratch?
+      placeholder: |
+        1. Launch Mimir
+        2. Select '...' from the menu bar
+        3. Click on '...'
+        4. See the error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen instead?
+    validations:
+      required: true
+
+  - type: input
+    id: macos-version
+    attributes:
+      label: macOS version
+      placeholder: e.g. macOS 15.1 (Sequoia)
+    validations:
+      required: true
+
+  - type: input
+    id: mimir-version
+    attributes:
+      label: Mimir version
+      description: You can find this in the menu bar under About Mimir.
+      placeholder: e.g. 2.7
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs (optional)
+      description: |
+        Paste any relevant logs here. You can grab them by running
+        `./script/build_and_run.sh logs` from the repo root.
+      render: shell
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: existing-issues
+    attributes:
+      label: Checklist
+      options:
+        - label: I've checked for existing open/closed issues about this.
+          required: true

@@ -8,6 +8,7 @@
 [![Platform](https://img.shields.io/badge/platform-macOS%2014%2B-blue)](https://developer.apple.com/macos/)
 [![Swift](https://img.shields.io/badge/Swift-6.0-orange.svg)](https://swift.org)
 [![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-ffdd00?logo=buymeacoffee&logoColor=black)](https://buymeacoffee.com/erayendes)
+![YERLİ ÜRETİM](https://img.shields.io/badge/%F0%9F%A4%9D-YERL%C4%B0%20%C3%9CRET%C4%B0M-red)
 
 ---
 
@@ -98,7 +99,7 @@ single glance, tells you how much you have left and when it resets.
 ### Contributing
 
 Bug reports and pull requests are welcome. For major changes, please open an
-issue first. See [Contributing](CONTRIBUTING.md) · [Support & FAQ](SUPPORT.md) · [Changelog](../CHANGELOG.md).
+issue first. See [Contributing](../.github/CONTRIBUTING.md) · [Support & FAQ](../.github/SUPPORT.md) · [Changelog](CHANGELOG.md).
 
 ---
 
@@ -190,7 +191,7 @@ sessiz bir danışman.
 ### Katkıda Bulunma
 
 Hata raporları ve pull request'ler memnuniyetle karşılanır. Büyük değişiklikler için
-önce bir issue açın. Bkz. [Katkı](CONTRIBUTING.md) · [Destek & SSS](SUPPORT.md) · [Sürüm Notları](../CHANGELOG.md).
+önce bir issue açın. Bkz. [Katkı](../.github/CONTRIBUTING.md) · [Destek & SSS](../.github/SUPPORT.md) · [Sürüm Notları](CHANGELOG.md).
 
 ---
 
