@@ -44,6 +44,11 @@ final class UsageParsingTests: XCTestCase {
         let (none, noReset) = ds.codexAPIWindow(nil)
         XCTAssertNil(none)
         XCTAssertNil(noReset)
+
+        // The session files spell it `resets_at`; accept either so a shape change can't silently
+        // drop the countdown.
+        let (_, plural) = ds.codexAPIWindow(["used_percent": 5.0, "resets_at": 1_700_000_000.0])
+        XCTAssertEqual(plural, Date(timeIntervalSince1970: 1_700_000_000))
     }
 
     /// The real Plus case since OpenAI's July 2026 5-hour removal: the sole window sits in the
@@ -79,8 +84,8 @@ final class UsageParsingTests: XCTestCase {
         XCTAssertEqual(status.sessionResetAt, Date(timeIntervalSince1970: 1_700_000_000))
     }
 
-    /// No duration field (legacy shape) → fall back to the slot: primary is the session, secondary
-    /// the weekly. Keeps older payloads working unchanged.
+    /// No duration field and the resets already lapsed → nothing better to go on, so fall back to the
+    /// slot: primary is the session, secondary the weekly. Keeps older payloads working unchanged.
     func testCodexStatusFallsBackToSlotWhenNoDuration() {
         let root: [String: Any] = [
             "rate_limit": [
@@ -91,6 +96,42 @@ final class UsageParsingTests: XCTestCase {
         let status = ds.codexStatus(fromUsageRoot: root)
         XCTAssertEqual(status.sessionRemainingPercent, 80)
         XCTAssertEqual(status.weeklyRemainingPercent, 40)
+    }
+
+    /// The period field is the only reliable signal; when it goes missing, how far the reset is beats
+    /// the slot. Here the sole window resets 6 DAYS out while sitting in `primary_window` — the shape
+    /// that made Mimir print "5s, resets in 6d". Without a duration it must still read as weekly.
+    func testCodexStatusUsesResetDistanceWhenDurationMissing() {
+        let now = Date(timeIntervalSince1970: 1_785_000_000)
+        let root: [String: Any] = [
+            "rate_limit": [
+                "primary_window": ["used_percent": 1.0, "reset_at": now.addingTimeInterval(6 * 86400).timeIntervalSince1970],
+            ]
+        ]
+        let status = ds.codexStatus(fromUsageRoot: root, now: now)
+        XCTAssertNil(status.sessionRemainingPercent)          // not a 5h window
+        XCTAssertEqual(status.weeklyRemainingPercent, 99)
+
+        // A reset within 5h can only be the session window.
+        let soon: [String: Any] = [
+            "rate_limit": ["primary_window": ["used_percent": 10.0, "reset_at": now.addingTimeInterval(2 * 3600).timeIntervalSince1970]]
+        ]
+        XCTAssertEqual(ds.codexStatus(fromUsageRoot: soon, now: now).sessionRemainingPercent, 90)
+    }
+
+    /// Both windows read as the session (no duration, both resetting soon): the second must land in
+    /// the weekly slot instead of being dropped — a slightly mislabelled reading beats a missing one.
+    func testCodexStatusKeepsSecondWindowWhenBothLookLikeSession() {
+        let now = Date(timeIntervalSince1970: 1_785_000_000)
+        let root: [String: Any] = [
+            "rate_limit": [
+                "primary_window": ["used_percent": 20.0, "reset_at": now.addingTimeInterval(3600).timeIntervalSince1970],
+                "secondary_window": ["used_percent": 60.0, "reset_at": now.addingTimeInterval(2 * 3600).timeIntervalSince1970],
+            ]
+        ]
+        let status = ds.codexStatus(fromUsageRoot: root, now: now)
+        XCTAssertEqual(status.sessionRemainingPercent, 80)
+        XCTAssertEqual(status.weeklyRemainingPercent, 40)     // kept, not dropped
     }
 
     /// No `primary_window` — the common case since OpenAI temporarily removed Codex's 5-hour limit in

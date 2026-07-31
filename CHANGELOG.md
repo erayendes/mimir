@@ -20,6 +20,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Internal
 - Every push and pull request now builds the app and the widget and runs the tests on macOS.
+- Codex quota windows are now recognised by how far their reset is when the API leaves out the window length, and either spelling of the reset field is accepted — so another change to OpenAI's payload can't quietly bring the mislabelled window back.
+- Transient outages from the providers' usage APIs are no longer filed as app errors.
 
 ### [2.6] - 2026-07-09
 
@@ -384,6 +386,8 @@ sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) k
 
 #### Dahili
 - Her push ve pull request'te uygulama ve widget macOS'ta derlenip testler çalıştırılıyor.
+- Codex kota pencereleri, API pencere uzunluğunu göndermediğinde sıfırlanma uzaklığından tanınıyor ve sıfırlanma alanının iki yazımı da kabul ediliyor — böylece OpenAI'nin verisindeki yeni bir değişiklik yanlış etiketlenen pencereyi sessizce geri getiremiyor.
+- Sağlayıcıların kullanım API'lerindeki geçici kesintiler artık uygulama hatası olarak kaydedilmiyor.
 
 ### [2.6] - 2026-07-09
 
