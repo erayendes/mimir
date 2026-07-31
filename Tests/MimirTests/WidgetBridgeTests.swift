@@ -43,6 +43,35 @@ final class WidgetBridgeTests: XCTestCase {
         XCTAssertEqual(p.fiveHour.map(\.weeklyPercent), [88, nil])
     }
 
+    /// Codex since OpenAI's July 2026 5-hour removal: no session reading, only a weekly one. The widget
+    /// falls back to the weekly quota as the headline metric (tagged `isWeekly`) instead of dropping the
+    /// row, so the "7g" pill and real binding limit still render.
+    func testCodexWeeklyFallbackWhenNoFiveHour() {
+        let codex = ServiceStatus(
+            name: "Codex", iconName: "codex",
+            sessionResetAt: nil, weeklyResetAt: now.addingTimeInterval(86_400),
+            sessionRemainingPercent: nil, weeklyRemainingPercent: 72,
+            models: [], isAvailable: true, statusNote: nil)
+
+        let p = WidgetBridge.makePayload([codex], generatedAt: now).providers.first!
+        XCTAssertEqual(p.fiveHour.count, 1)
+        let m = p.fiveHour.first!
+        XCTAssertTrue(m.isWeekly)                                   // labelled as the weekly window
+        XCTAssertEqual(m.percent, 72)                              // headline = weekly percent
+        XCTAssertEqual(m.resetAt, now.addingTimeInterval(86_400))  // and the weekly reset
+        XCTAssertEqual(m.weeklyPercent, 72)
+    }
+
+    /// A service with neither a session nor a weekly reading produces no metric (dropped, not a zero row).
+    func testNoWindowsProducesNoMetric() {
+        let codex = ServiceStatus(
+            name: "Codex", iconName: "codex", sessionResetAt: nil, weeklyResetAt: nil,
+            sessionRemainingPercent: nil, weeklyRemainingPercent: nil,
+            models: [], isAvailable: true, statusNote: nil)
+        let p = WidgetBridge.makePayload([codex], generatedAt: now).providers.first!
+        XCTAssertTrue(p.fiveHour.isEmpty)
+    }
+
     func testOrderFollowsServiceDisplayOrderAndStaleCounts() {
         let codex = ServiceStatus(name: "Codex", iconName: "codex", sessionResetAt: now, weeklyResetAt: now,
                                   sessionRemainingPercent: 99, weeklyRemainingPercent: 71, models: [],

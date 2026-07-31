@@ -4,8 +4,10 @@ import XCTest
 /// `menuBarDots` emits one dot per **5-hour session window** the popover shows, in popover order
 /// (Claude, Codex, then each Antigravity family). A multi-family service like Antigravity expands
 /// to one dot per family instead of collapsing to the worst — so Gemini and Claude/GPT show
-/// separately. A missing 5h reading is `nil` (painted grey), never a dropped dot. Each dot also
-/// carries `weeklyExhausted` (7g spent → grey lockout, like the widget/popover).
+/// separately. An account-level service with no 5h reading falls back to its weekly quota for the
+/// dot colour (Codex since the July 2026 5h removal); a per-model window with neither reading stays
+/// `nil` (painted grey), never a dropped dot. Each dot also carries `weeklyExhausted` (7g spent →
+/// grey lockout, like the widget/popover).
 /// `menuBarColumnCount` is the grid rule: 1 column up to 3 dots, 2 columns from 4 on.
 final class MenuBarDotTests: XCTestCase {
     private func service(
@@ -61,9 +63,20 @@ final class MenuBarDotTests: XCTestCase {
         XCTAssertEqual(menuBarDots(from: [service("Codex", session: 40, weekly: 90)]).map(\.sessionPercent), [40])
     }
 
-    /// Claude with only a weekly reading (5h reset) → one grey dot, not dropped.
-    func testWeeklyOnlyServiceIsOneGreyDot() {
-        XCTAssertEqual(menuBarDots(from: [service("Claude", session: nil, weekly: 95)]).map(\.sessionPercent), [nil])
+    /// An account-level service with no 5h reading but a weekly one now colours its dot by the weekly
+    /// quota (the real binding limit) rather than greying out — this is Codex since OpenAI's July 2026
+    /// 5-hour removal, and Claude while its 5h window is idle. `weeklyExhausted` still greys it at 0.
+    func testAccountWeeklyFallbackColoursDot() {
+        let dots = menuBarDots(from: [service("Codex", session: nil, weekly: 72)])
+        XCTAssertEqual(dots.map(\.sessionPercent), [72])
+        XCTAssertEqual(dots.map(\.weeklyExhausted), [false])
+    }
+
+    /// Weekly fallback with the week spent (0) → coloured 0 and flagged exhausted (grey lockout).
+    func testAccountWeeklyFallbackExhausted() {
+        let dots = menuBarDots(from: [service("Codex", session: nil, weekly: 0)])
+        XCTAssertEqual(dots.map(\.sessionPercent), [0])
+        XCTAssertEqual(dots.map(\.weeklyExhausted), [true])
     }
 
     /// A service with no data at all (hidden fallback card) produces no dot, matching the popover.

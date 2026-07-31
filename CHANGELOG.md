@@ -11,6 +11,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+### [2.7] - 2026-07-31
+
+#### Fixed
+- Codex now shows the quota window you're actually on. OpenAI removed Codex's 5-hour limit, but the weekly allowance that replaced it was still labelled "5h" — with a countdown reading six days. Mimir now recognises each window by its real length, so you see the limit that actually applies; if the 5-hour window comes back, it appears again on its own.
+- When a provider has no 5-hour window, the menu-bar dot and the widget now follow its weekly quota instead of showing a grey "no data" dot and dropping the widget row.
+- Widget: the reset countdown is no longer cut off, and longer names like "Claude/GPT" fit without being clipped.
+
+#### Internal
+- Every push and pull request now builds the app and the widget and runs the tests on macOS.
+
 ### [2.6] - 2026-07-09
 
 #### Added
@@ -364,6 +374,16 @@ Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
 
 ### [Yayımlanmadı]
+
+### [2.7] - 2026-07-31
+
+#### Düzeltildi
+- Codex artık gerçekte hangi kota penceresindeysen onu gösteriyor. OpenAI Codex'in 5 saatlik limitini kaldırdı, ama yerine geçen haftalık hak hâlâ "5s" diye etiketleniyor ve altında altı günlük bir sayaç görünüyordu. Mimir artık her pencereyi gerçek uzunluğundan tanıyor; böylece geçerli olan limiti görüyorsun. 5 saatlik pencere geri gelirse kendiliğinden yeniden beliriyor.
+- Bir sağlayıcının 5 saatlik penceresi yoksa, menü çubuğu noktası ve widget artık onun haftalık kotasını izliyor — gri "veri yok" noktası gösterip widget satırını düşürmek yerine.
+- Widget: sıfırlanma sayacı artık kesilmiyor ve "Claude/GPT" gibi uzun adlar kırpılmadan sığıyor.
+
+#### Dahili
+- Her push ve pull request'te uygulama ve widget macOS'ta derlenip testler çalıştırılıyor.
 
 ### [2.6] - 2026-07-09
 

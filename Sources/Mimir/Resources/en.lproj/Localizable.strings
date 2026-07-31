@@ -66,6 +66,7 @@
 /* Widgets */
 "widget.detailed.description" = "AI quota at a glance.";
 "widget.window.fiveHour" = "5h";
+"widget.window.weekly" = "7d";
 "widget.unavailable.title" = "Data unavailable";
 "widget.unavailable.app" = "%@ appears to be closed";
 "widget.unavailable.action" = "Tap to open";

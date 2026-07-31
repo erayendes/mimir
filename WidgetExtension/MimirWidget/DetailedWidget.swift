@@ -4,6 +4,19 @@ import SwiftUI
 /// The 5-hour session window length — the reset fallback shown when a provider reports no `resetAt`
 /// (Claude does this while its 5h window is inactive/full), so the row reads "5h" instead of blank.
 private let fiveHourWindow: TimeInterval = 5 * 3600
+/// The weekly window length — reset fallback for a metric that represents the weekly (7g) quota
+/// (a service with no active 5h window, e.g. Codex since OpenAI's July 2026 removal).
+private let weeklyWindow: TimeInterval = 7 * 24 * 3600
+
+/// The pill text for a metric's window: "7d/7g" when it's the weekly quota, else "5h/5s".
+private func windowPill(_ m: WindowMetric) -> String {
+    m.isWeekly ? String(localized: "widget.window.weekly") : String(localized: "widget.window.fiveHour")
+}
+
+/// The reset countdown fallback length matching a metric's window (weekly vs 5-hour).
+private func windowFallback(_ m: WindowMetric) -> TimeInterval {
+    m.isWeekly ? weeklyWindow : fiveHourWindow
+}
 
 // A 5-hour metric paired with its provider's logo, flattened across providers for the Small
 // (single metric) and Medium (one row per metric) layouts.
@@ -63,14 +76,14 @@ struct DetailedWidgetView: View {
 
 // MARK: - Shared bits
 
-/// The "mimir" wordmark + a small window/credit pill, used as the header of S/M.
+/// The "mimir" wordmark, used as the header of Medium. It carries no window badge: rows can mix
+/// windows (Claude 5h + Codex weekly since the July 2026 5h removal), so a single badge would be
+/// wrong — each row's reset line already says which window it is.
 private struct WordmarkHeader: View {
-    var badge: String
     var body: some View {
         HStack {
             Text("mimir").font(.system(size: 11, weight: .medium)).tracking(-0.1).foregroundStyle(Tok.brand)
             Spacer()
-            Pill(badge)
         }
     }
 }
@@ -94,10 +107,11 @@ private struct ResetFooter: View {
     let resetAt: Date?
     let now: Date
     var size: CGFloat = 10
+    var fallbackWindow: TimeInterval = fiveHourWindow
     var body: some View {
         HStack(spacing: 0) {
             IconText(symbol: "gauge.with.needle",
-                     text: Reset.remaining(resetAt, now: now, fallbackWindow: fiveHourWindow), size: size)
+                     text: Reset.remaining(resetAt, now: now, fallbackWindow: fallbackWindow), size: size)
             Spacer(minLength: 6)
             IconText(symbol: "clock", text: Reset.clock(resetAt), size: size)
         }
@@ -137,7 +151,7 @@ private struct SmallView: View {
             HStack(spacing: 6) {
                 BrandMark(iconName: metric.iconName, size: 14)
                 Text(metric.metric.label).font(.system(size: 13)).foregroundStyle(Tok.secondary).lineLimit(1)
-                Pill(String(localized: "widget.window.fiveHour"))
+                Pill(windowPill(metric.metric))
             }
             if metric.unavailable {
                 // Live source unreachable too long → an actionable "couldn't fetch" state (no number).
@@ -165,7 +179,8 @@ private struct SmallView: View {
                     // Symmetric gaps: the number's font carries ~descender(48pt)≈10pt of slack below the
                     // digits, so a +2 here visually matches the footer's `.padding(.top, 10)` below the bar.
                     ProgressBar(percent: pct, height: 6, color: weeklyExhausted ? Tok.passive : nil).padding(.top, 2)
-                    ResetFooter(resetAt: metric.metric.resetAt, now: now, size: 11).padding(.top, 10)
+                    ResetFooter(resetAt: metric.metric.resetAt, now: now, size: 11,
+                                fallbackWindow: windowFallback(metric.metric)).padding(.top, 10)
                 }
                 .opacity(metric.isStale ? 0.55 : 1)
             }
@@ -184,7 +199,7 @@ private struct MediumView: View {
     let now: Date
     var body: some View {
         VStack(spacing: 0) {
-            WordmarkHeader(badge: String(localized: "widget.window.fiveHour"))
+            WordmarkHeader()
             Spacer(minLength: 12)   // keep the header off the first row
             VStack(spacing: 12) {
                 ForEach(payload.fiveHourFlat.prefix(4)) { MediumRow(item: $0, now: now) }
@@ -221,7 +236,9 @@ private struct MediumRow: View {
                 BrandMark(iconName: item.iconName, size: 14)
                 Text(item.metric.label).font(.system(size: 12)).foregroundStyle(Tok.secondary).lineLimit(1)
             }
-            .frame(width: 84, alignment: .leading)
+            // 92, not 84: the longest label ("Claude/GPT") plus its logo runs ~85pt at 12pt, so the
+            // narrower column truncated it to "Claude/G…".
+            .frame(width: 92, alignment: .leading)
             if item.unavailable {
                 // Live source unreachable too long → empty track + "—" (Stocks "no data" language).
                 Capsule().fill(Tok.track).frame(height: 5)
@@ -238,11 +255,12 @@ private struct MediumRow: View {
                 Text(resetLine)
                     .font(.system(size: 9)).monospacedDigit().foregroundStyle(Tok.tertiary)
                     .frame(minWidth: 62, alignment: .trailing).lineLimit(1)
+                    .fixedSize()   // never truncate the reset text ("6g 20s · 08:50") — same rule as Small
             }
         }
     }
     private var resetLine: String {
-        [Reset.remaining(item.metric.resetAt, now: now, fallbackWindow: fiveHourWindow), Reset.clock(item.metric.resetAt)]
+        [Reset.remaining(item.metric.resetAt, now: now, fallbackWindow: windowFallback(item.metric)), Reset.clock(item.metric.resetAt)]
             .compactMap { $0 }.joined(separator: " · ")
     }
 }

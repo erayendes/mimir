@@ -1,0 +1,43 @@
+name: CI
+
+# Build + test on real macOS for every push / PR, so changes are verified on the
+# same toolchain the release uses (the release workflow only runs on version tags).
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-test:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Cache SwiftPM
+        uses: actions/cache@v5
+        with:
+          path: |
+            .build
+            ~/.swiftpm
+          key: ${{ runner.os }}-swiftpm-${{ hashFiles('**/Package.resolved') }}
+          restore-keys: ${{ runner.os }}-swiftpm-
+
+      # Unit tests: compiles Mimir + MimirShared + MimirTests and runs the suite.
+      - name: Run unit tests
+        run: swift test
+
+      # XcodeGen generates the widget extension's .xcodeproj from project.yml (release.sh builds it).
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      # Full compile of the app *and* the WidgetKit extension (DetailedWidget.swift etc. live outside
+      # SwiftPM), unsigned — the same BUILD_ONLY path CI's release uses, minus signing/notarization.
+      - name: Build app + widget (unsigned)
+        run: BUILD_ONLY=1 ./script/release.sh 0.0

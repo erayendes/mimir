@@ -79,16 +79,25 @@ enum WidgetBridge {
         return WidgetPayload(generatedAt: generatedAt, providers: providers)
     }
 
-    /// The prominent 5-hour windows, each paired with the weekly (7g) quota that gates it. Reuses the
-    /// shared `ServiceStatus.sessionWindows` pairing (Antigravity per `.session` model matched to its
-    /// weekly by name; Claude/Codex the account session) and drops windows with no 5h reading — the
-    /// widget has no number to render for those (the menu bar keeps them as placeholder dots).
+    /// The prominent window per session, each paired with the weekly (7g) quota that gates it. Reuses
+    /// the shared `ServiceStatus.sessionWindows` pairing (Antigravity per `.session` model matched to its
+    /// weekly by name; Claude/Codex the account session). Prefers the 5-hour reading; when a service has
+    /// no active 5h window (Codex since OpenAI's July 2026 removal) it falls back to the weekly reading
+    /// tagged `isWeekly` so the widget shows the real binding limit with a "7g" pill instead of dropping
+    /// the row. Only windows with neither reading are dropped.
     private static func fiveHourMetrics(_ svc: ServiceStatus) -> [WindowMetric] {
         svc.sessionWindows.compactMap { w in
-            w.sessionPercent.map { pct in
-                WindowMetric(label: w.label, percent: pct, resetAt: w.sessionResetAt,
-                             weeklyPercent: w.weeklyPercent, weeklyResetAt: w.weeklyResetAt)
+            if let pct = w.sessionPercent {
+                return WindowMetric(label: w.label, percent: pct, resetAt: w.sessionResetAt,
+                                    weeklyPercent: w.weeklyPercent, weeklyResetAt: w.weeklyResetAt,
+                                    isWeekly: false)
             }
+            if let weeklyPct = w.weeklyPercent {
+                return WindowMetric(label: w.label, percent: weeklyPct, resetAt: w.weeklyResetAt,
+                                    weeklyPercent: w.weeklyPercent, weeklyResetAt: w.weeklyResetAt,
+                                    isWeekly: true)
+            }
+            return nil
         }
     }
 }

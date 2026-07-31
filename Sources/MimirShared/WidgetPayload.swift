@@ -64,14 +64,35 @@ public struct WindowMetric: Codable, Equatable {
     // the 7g line and grey a model out when its week is spent — a fresh 5h window isn't usable then.
     public var weeklyPercent: Int?
     public var weeklyResetAt: Date?
+    // True when `percent`/`resetAt` describe the weekly (7g) window rather than the 5-hour (5s) one —
+    // i.e. this service has no active 5h window (Codex since OpenAI's July 2026 removal), so the widget
+    // shows its weekly reading as the headline and labels the pill "7g" instead of "5s".
+    public var isWeekly: Bool
 
     public init(label: String, percent: Int, resetAt: Date?,
-                weeklyPercent: Int? = nil, weeklyResetAt: Date? = nil) {
+                weeklyPercent: Int? = nil, weeklyResetAt: Date? = nil, isWeekly: Bool = false) {
         self.label = label
         self.percent = percent
         self.resetAt = resetAt
         self.weeklyPercent = weeklyPercent
         self.weeklyResetAt = weeklyResetAt
+        self.isWeekly = isWeekly
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case label, percent, resetAt, weeklyPercent, weeklyResetAt, isWeekly
+    }
+
+    // Custom decode so a payload written by an older app version (no `isWeekly` key) still reads —
+    // otherwise the widget would fail to decode and blank out during the post-update window.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        label = try c.decode(String.self, forKey: .label)
+        percent = try c.decode(Int.self, forKey: .percent)
+        resetAt = try c.decodeIfPresent(Date.self, forKey: .resetAt)
+        weeklyPercent = try c.decodeIfPresent(Int.self, forKey: .weeklyPercent)
+        weeklyResetAt = try c.decodeIfPresent(Date.self, forKey: .weeklyResetAt)
+        isWeekly = try c.decodeIfPresent(Bool.self, forKey: .isWeekly) ?? false
     }
 }
 
