@@ -53,7 +53,7 @@ For services to appear, you must have signed in to each AI tool at least once (M
 
 Mimir updates itself via **Sparkle**. Use **Check for Updates** from the popover menu, or download the new `.dmg` from the Releases page.
 
-Stuck on something? → [Support & FAQ](SUPPORT.md). Otherwise → **[Services](SERVICES.md)**.
+Stuck on something? → [Support & FAQ](../.github/SUPPORT.md). Otherwise → **[Services](SERVICES.md)**.
 
 ---
 
@@ -104,4 +104,4 @@ Mimir ilk açıldığında, **oturum açıldığında otomatik başlatma** (Laun
 
 Mimir, **Sparkle** ile kendi içinden güncellenir. Açılır penceredeki menüden **Güncellemeleri Denetle**'yi kullanabilir veya yeni `.dmg`'yi Releases sayfasından indirebilirsiniz.
 
-Takıldığınız bir nokta olursa → [Destek & SSS](SUPPORT.md). Kurulum tamamsa → **[Servisler](SERVICES.md)**.
+Takıldığınız bir nokta olursa → [Destek & SSS](../.github/SUPPORT.md). Kurulum tamamsa → **[Servisler](SERVICES.md)**.
