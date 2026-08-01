@@ -14,9 +14,12 @@ Jump to: [Claude](#claude) · [Codex](#codex) · [Antigravity](#antigravity)
 
 <img src="assets/claude.svg" alt="Claude" width="40" align="right">
 
-Mimir shows **Claude Code**'s usage limits: the session (5-hour) and weekly windows, with reset times.
+Mimir shows your Claude account's usage limits: the session (5-hour) and weekly windows, with reset times.
 
-**Data source.** Mimir uses the **OAuth token** that Claude Code creates on your machine to query Anthropic's official usage endpoint:
+**Data source.** Two paths, tried in order:
+
+1. **The Claude desktop app's session** (preferred). Mimir decrypts the app's own session cookie using the macOS Keychain key the app itself uses, then reads your account's live usage from claude.ai. This is what most people are actually on, and it stays accurate whether or not you use the CLI.
+2. **Claude Code's OAuth token**, used against Anthropic's official usage endpoint:
 
 ```
 GET https://api.anthropic.com/api/oauth/usage
@@ -47,7 +50,9 @@ Mimir shows session and weekly quotas for **Codex**, trying two sources in order
 2. **Local `~/.codex/sessions` JSONL fallback** — if the API is unreachable.
 3. If both fail, the **last-known snapshot**.
 
-**How the local fallback is read.** The **most recent `.jsonl` file** under `~/.codex/sessions` is scanned from the end backwards. From the `rate_limits` field of `token_count` events, Mimir extracts **primary** → session (5-hour) window and **secondary** → weekly window, then computes remaining percentages and reset times.
+**How the local fallback is read.** The **most recent `.jsonl` file** under `~/.codex/sessions` is scanned from the end backwards, taking the `rate_limits` field of `token_count` events.
+
+**How windows are classified.** Each window is identified by its **real length**, not by which slot it arrives in. OpenAI removed Codex's 5-hour limit in July 2026, so the single window it now returns is the *weekly* one — sitting in the `primary` slot, which used to mean "5-hour". A window of 6 hours or less is the session; anything longer is weekly. If the length is missing, Mimir falls back to how far the reset is (a 5-hour window can never reset more than 5h out), and only then to the slot. When there is no session window, the card drops that block and promotes the weekly reading rather than showing a misleading 100%.
 
 > 📝 **Note:** If no reset time is found in the local file, the card still shows the remaining percentage, but the countdown may be omitted (the card notes this).
 
@@ -93,9 +98,12 @@ Atla: [Claude](#claude-1) · [Codex](#codex-1) · [Antigravity](#antigravity-1)
 
 <img src="assets/claude.svg" alt="Claude" width="40" align="right">
 
-Mimir, **Claude Code**'un kullanım limitlerini gösterir: seans (5 saatlik) ve haftalık pencereler ile yenilenme zamanları.
+Mimir, Claude hesabınızın kullanım limitlerini gösterir: seans (5 saatlik) ve haftalık pencereler ile yenilenme zamanları.
 
-**Veri kaynağı.** Mimir, Claude Code'un makinenizde oluşturduğu **OAuth token'ını** kullanarak Anthropic'in resmî kullanım uç noktasını sorgular:
+**Veri kaynağı.** Sırayla denenen iki yol var:
+
+1. **Claude masaüstü uygulamasının oturumu** (tercih edilen). Mimir, uygulamanın kendi oturum çerezini, uygulamanın da kullandığı macOS Keychain anahtarıyla çözer ve hesabınızın canlı kullanımını claude.ai'den okur. Çoğu kullanıcının gerçekte bulunduğu yer burasıdır; CLI kullanıp kullanmadığınızdan bağımsız olarak doğru kalır.
+2. **Claude Code'un OAuth token'ı** ile Anthropic'in resmî kullanım uç noktası:
 
 ```
 GET https://api.anthropic.com/api/oauth/usage
@@ -126,7 +134,9 @@ Mimir, **Codex** için seans ve haftalık kotaları gösterir. İki kaynağı s�
 2. **Yerel `~/.codex/sessions` JSONL yedeği** — API erişilemezse.
 3. Her ikisi de başarısız olursa **son bilinen anlık görüntü** (snapshot).
 
-**Yerel yedek nasıl okunur?** `~/.codex/sessions` altındaki **en güncel `.jsonl` dosyası** sondan başa taranır. Mimir, `token_count` olaylarındaki `rate_limits` alanından **primary** → seans (5 saatlik) ve **secondary** → haftalık değerlerini çıkarır; kalan yüzdeleri ve sıfırlanma zamanlarını hesaplar.
+**Yerel yedek nasıl okunur?** `~/.codex/sessions` altındaki **en güncel `.jsonl` dosyası** sondan başa taranır; `token_count` olaylarındaki `rate_limits` alanı okunur.
+
+**Pencereler nasıl sınıflandırılır?** Her pencere, geldiği slota göre değil **gerçek uzunluğuna** göre tanınır. OpenAI Temmuz 2026'da Codex'in 5 saatlik limitini kaldırdı; bu yüzden artık dönen tek pencere *haftalık* olan — üstelik eskiden "5 saatlik" anlamına gelen `primary` slotunda. 6 saat ve altı seans, daha uzunu haftalık sayılır. Uzunluk bilgisi yoksa Mimir sıfırlanmanın ne kadar uzakta olduğuna bakar (5 saatlik bir pencere asla 5 saatten uzağa sıfırlanamaz), en son çare olarak slota. Seans penceresi yoksa kart o bloğu düşürür ve yanıltıcı bir %100 göstermek yerine haftalık okumayı öne çıkarır.
 
 > 📝 **Not:** Yerel dosyada sıfırlanma zamanı bulunamazsa kart yine kalan yüzdeyi gösterir, ancak geri sayım gösterilmeyebilir (kart bunu bir notla belirtir).
 

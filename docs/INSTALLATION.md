@@ -15,8 +15,8 @@
 
 ### Option 1 — Download a release (recommended)
 
-1. Grab the latest `.dmg` from the [Releases](https://github.com/erayendes/mimir/releases) page.
-2. Open the `.dmg` and drag **Mimir.app** into your **Applications** folder.
+1. Grab the latest `Mimir.zip` from the [Releases](https://github.com/erayendes/mimir/releases) page.
+2. Unzip it and drag **Mimir.app** into your **Applications** folder.
 3. Launch Mimir — the Mimir icon appears in the menu bar.
 
 > ℹ️ **Notarized** — Distributed releases are notarized by Apple, so you won't get a Gatekeeper warning. (Releases are signed and notarized entirely on CI.)
@@ -51,7 +51,7 @@ For services to appear, you must have signed in to each AI tool at least once (M
 
 ### Updating
 
-Mimir updates itself via **Sparkle**. Use **Check for Updates** from the popover menu, or download the new `.dmg` from the Releases page.
+Mimir updates itself via **Sparkle**. Use **Check for Updates** from the popover menu, or download the new `Mimir.zip` from the Releases page.
 
 Stuck on something? → [Support & FAQ](../.github/SUPPORT.md). Otherwise → **[Services](SERVICES.md)**.
 
@@ -66,8 +66,8 @@ Stuck on something? → [Support & FAQ](../.github/SUPPORT.md). Otherwise → **
 
 ### Seçenek 1 — Hazır sürümü indir (önerilen)
 
-1. [Releases](https://github.com/erayendes/mimir/releases) sayfasından en güncel `.dmg` dosyasını indirin.
-2. `.dmg`'yi açın ve **Mimir.app**'i **Uygulamalar** klasörünüze sürükleyin.
+1. [Releases](https://github.com/erayendes/mimir/releases) sayfasından en güncel `Mimir.zip` dosyasını indirin.
+2. Arşivi açın ve **Mimir.app**'i **Uygulamalar** klasörünüze sürükleyin.
 3. Mimir'i çalıştırın — menü çubuğunda Mimir ikonu belirir.
 
 > ℹ️ **Notarize edilmiştir** — Dağıtılan sürümler Apple tarafından notarize edilir; Gatekeeper uyarısı almazsınız. (Sürümler tamamen CI üzerinde imzalanıp notarize edilir.)
@@ -102,6 +102,6 @@ Mimir ilk açıldığında, **oturum açıldığında otomatik başlatma** (Laun
 
 ### Güncelleme
 
-Mimir, **Sparkle** ile kendi içinden güncellenir. Açılır penceredeki menüden **Güncellemeleri Denetle**'yi kullanabilir veya yeni `.dmg`'yi Releases sayfasından indirebilirsiniz.
+Mimir, **Sparkle** ile kendi içinden güncellenir. Açılır penceredeki menüden **Güncellemeleri Denetle**'yi kullanabilir veya yeni `Mimir.zip` dosyasını Releases sayfasından indirebilirsiniz.
 
 Takıldığınız bir nokta olursa → [Destek & SSS](../.github/SUPPORT.md). Kurulum tamamsa → **[Servisler](SERVICES.md)**.
