@@ -16,3 +16,17 @@ updates:
       actions:
         patterns:
           - "*"
+
+  # Sparkle verifies and installs the app's own updates, so a flaw in it is a flaw in
+  # Mimir's update path — worth hearing about. Nothing was watching these before: the
+  # dependency graph only picked up the workflow actions, not Package.resolved.
+  - package-ecosystem: swift
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: chore
+    groups:
+      swift:
+        patterns:
+          - "*"
