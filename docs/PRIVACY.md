@@ -18,6 +18,8 @@ Mimir reads only **local** sources:
 
 - The AI tools' config/log files: `~/.claude`, `~/.codex`, etc.
 - Entries in the macOS **Keychain** created by the respective apps (tokens).
+- The **Claude desktop app's** session cookie, decrypted with the same macOS Keychain key
+  the app itself uses — this is what gives Claude's live reading.
 
 This is data your tools **already** create on your machine; Mimir only reads it.
 
@@ -29,7 +31,16 @@ Mimir only makes requests to each service's **own official endpoint**, with **th
 - The ChatGPT usage API for Codex
 - Google Cloud Code authorized endpoints for Antigravity
 
-These requests are the same kind the tool itself would make. **Mimir inserts no server of its own** and relays data to no third party.
+These requests are the same kind the tool itself would make. **Mimir inserts no server of its own**, and your quota figures and tokens are relayed to no one.
+
+Two services do receive data, and neither gets anything about your usage:
+
+| Service | What it receives | Control |
+|---|---|---|
+| **Sentry** | Crash and error reports — technical app health only | Always on in released builds |
+| **TelemetryDeck** | Anonymous, categorical signals: which providers are in use (a yes/no, never a value) and how many widgets are placed | Opt-out from the popover menu |
+
+No quota percentages, reset times, credit balances, account ids or tokens are ever sent to either. Development builds send nothing at all.
 
 ### Token handling
 
@@ -61,6 +72,8 @@ Mimir yalnızca **yerel** kaynakları okur:
 
 - AI araçlarının yapılandırma/log dosyaları: `~/.claude`, `~/.codex` vb.
 - macOS **Keychain**'de ilgili uygulamaların oluşturduğu kayıtlar (token'lar).
+- **Claude masaüstü uygulamasının** oturum çerezi; uygulamanın kendi kullandığı macOS
+  Keychain anahtarıyla çözülür — Claude'un canlı okumasını sağlayan kaynak budur.
 
 Bu veriler, kullandığınız araçların makinenizde **zaten** oluşturduğu verilerdir; Mimir bunları sadece okur.
 
@@ -72,7 +85,16 @@ Mimir yalnızca, ilgili servisin **kendi resmî uç noktasına**, **o servisin k
 - Codex için ChatGPT kullanım API'si
 - Antigravity için Google Cloud Code yetkili uç noktaları
 
-Bu istekler, aracın kendisinin yapacağı isteklerle aynı niteliktedir. **Mimir araya kendi sunucusunu sokmaz**, veriyi hiçbir üçüncü tarafa iletmez.
+Bu istekler, aracın kendisinin yapacağı isteklerle aynı niteliktedir. **Mimir araya kendi sunucusunu sokmaz**; kota bilgileriniz ve token'larınız hiç kimseye iletilmez.
+
+İki servis veri alır, ikisi de kullanımınıza dair hiçbir şey görmez:
+
+| Servis | Ne alır | Denetim |
+|---|---|---|
+| **Sentry** | Çökme ve hata raporları — yalnızca uygulamanın teknik sağlığı | Yayınlanan sürümlerde her zaman açık |
+| **TelemetryDeck** | Anonim, kategorik sinyaller: hangi sağlayıcıların kullanıldığı (değer değil, yalnızca var/yok) ve kaç widget eklendiği | Popover menüsünden kapatılabilir |
+
+İkisine de kota yüzdesi, sıfırlanma zamanı, kredi bakiyesi, hesap kimliği veya token gönderilmez. Geliştirme sürümleri hiçbir şey göndermez.
 
 ### Token yönetimi
 

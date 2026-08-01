@@ -30,11 +30,15 @@ Please include:
 
 #### Scope
 
-This app runs entirely locally and sends no data over the network. Security concerns typically relate to:
+The app runs on your machine and has no backend of its own, but it is not offline: it
+calls each provider's own usage endpoint with that provider's own token, and sends crash
+and anonymous usage telemetry. See [Privacy & Security](../docs/PRIVACY.md) for the full
+list. Security concerns typically relate to:
 
 - Local file access (`~/.claude`, `~/.codex`, etc.)
-- macOS Keychain read operations
-- Antigravity / Gemini API token handling
+- macOS Keychain read operations, and reading the Claude desktop app's session cookie
+- Token handling for the Anthropic, ChatGPT and Google Cloud Code endpoints
+- The release pipeline (signing, notarization, the Sparkle update feed)
 
 ---
 
