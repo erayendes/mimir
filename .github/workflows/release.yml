@@ -5,15 +5,21 @@ on:
     tags:
       - 'v*'
 
+# Read-only by default; the release job elevates itself below. Anything added to this
+# workflow later starts locked down rather than inheriting a write-capable token.
+permissions:
+  contents: read
+
 jobs:
   release:
     runs-on: macos-15
     permissions:
+      # Writes the appcast + citation stamp back to main and creates the GitHub release.
       contents: write
     env:
       SIGN_IDENTITY: "Developer ID Application: Eray Endes (926AC5V2UG)"
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           fetch-depth: 0
 
@@ -24,7 +30,7 @@ jobs:
         run: echo "VERSION=${REF#v}" >> "$GITHUB_OUTPUT"
 
       - name: Cache SwiftPM
-        uses: actions/cache@v5
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: |
             .build

@@ -1,0 +1,16 @@
+version: 2
+updates:
+  # The workflows pin actions to commit SHAs (supply-chain hardening), which would otherwise
+  # freeze them on whatever version was current when they were pinned. Dependabot rewrites the
+  # SHA and its trailing version comment together, so pinning stays honest without going stale.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: ci
+    groups:
+      # One PR per week for all action bumps rather than a trickle of near-identical ones.
+      actions:
+        patterns:
+          - "*"
