@@ -6,7 +6,9 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: weekly
+      # Monthly: action updates are rarely urgent, and a solo maintainer doesn't
+      # need a PR to triage every week.
+      interval: monthly
     commit-message:
       prefix: ci
     groups:
