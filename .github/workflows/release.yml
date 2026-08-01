@@ -107,12 +107,22 @@ jobs:
           xcrun stapler staple dist/Mimir.app
           rm -f /tmp/mimir_notarize.zip /tmp/AuthKey.p8
 
+      # Fetch the sentry-cli binary at a pinned version and verify its digest before running it.
+      # The old `curl https://sentry.io/get-cli/ | bash` piped a live remote script straight into a
+      # shell that holds the Developer ID certificate and the Sparkle signing key. The universal
+      # build runs on either runner architecture. To bump: change SENTRY_CLI_VERSION and replace
+      # the digest with the new release's (shasum -a 256 on the downloaded file).
       - name: Upload dSYM to Sentry
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_CLI_VERSION: "2.46.0"
+          SENTRY_CLI_SHA256: "8b90c89cbff071230457b80344c6ac7a1d04a76debefb6d702b4509605beba23"
         run: |
-          curl -sL https://sentry.io/get-cli/ | SENTRY_CLI_VERSION=2.46.0 bash
-          sentry-cli debug-files upload --org milowda --project mimir "dist/Mimir.app.dSYM"
+          curl -fsSL --retry 3 -o /tmp/sentry-cli \
+            "https://github.com/getsentry/sentry-cli/releases/download/${SENTRY_CLI_VERSION}/sentry-cli-Darwin-universal"
+          echo "$SENTRY_CLI_SHA256  /tmp/sentry-cli" | shasum -a 256 -c -
+          chmod +x /tmp/sentry-cli
+          /tmp/sentry-cli debug-files upload --org milowda --project mimir "dist/Mimir.app.dSYM"
 
       # Zip the *stapled* app. The asset MUST be named Mimir.zip — the appcast
       # enclosure URL points at .../v${VERSION}/Mimir.zip.
