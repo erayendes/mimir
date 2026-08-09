@@ -302,7 +302,8 @@ struct ServiceCard: View {
                                        gated: family.weekly?.percent == 0)
                         }
                         if let weekly = family.weekly {
-                            weeklyRow((label: family.name, percent: weekly.percent, resetAt: weekly.resetAt))
+                            weeklyRow((label: family.name, percent: weekly.percent, resetAt: weekly.resetAt,
+                                       windowSeconds: nil))
                                 .padding(.top, family.session != nil ? 8 : 0)
                         }
                     }
@@ -328,7 +329,13 @@ struct ServiceCard: View {
         .opacity(service.isStale ? 0.66 : 1)
     }
 
-    private func weeklyRow(_ entry: (label: String, percent: Int, resetAt: Date?)) -> some View {
+    /// Badge text for a quota window, built from its REAL length ("7g", "30g"). nil when the provider
+    /// doesn't report one, so the caller keeps its plain weekly label rather than printing a guess.
+    private func windowBadge(_ seconds: TimeInterval?) -> String? {
+        quotaWindowDays(seconds).map { "\($0)\(TimeFormatter.dayUnit)" }
+    }
+
+    private func weeklyRow(_ entry: (label: String, percent: Int, resetAt: Date?, windowSeconds: TimeInterval?)) -> some View {
         // The 7g dot uses the weekly bands (amber ≥10%, red below) — at 0% it stays red here; it's the
         // 5s session that greys out to flag the lockout (see SessionRow `gated`).
         HStack(spacing: 8) {
@@ -339,7 +346,7 @@ struct ServiceCard: View {
                 .font(.system(size: 11, weight: .regular))
                 .foregroundStyle(Color.primary.opacity(0.62))
                 .lineLimit(1)
-            QuotaBadge(text: String(localized: "7g"))
+            QuotaBadge(text: windowBadge(entry.windowSeconds) ?? String(localized: "7g"))
             Spacer(minLength: 6)
             Text("%\(clampPct(entry.percent))")
                 .font(.system(size: 11, weight: .semibold).monospacedDigit())
@@ -355,22 +362,23 @@ struct ServiceCard: View {
 
     /// Weekly rows. Claude/Codex: the all-models weekly (labelled with the service name)
     /// plus any per-model weekly (e.g. Sonnet). Antigravity: its grouped weekly buckets.
-    private var weeklyEntries: [(label: String, percent: Int, resetAt: Date?)] {
+    private var weeklyEntries: [(label: String, percent: Int, resetAt: Date?, windowSeconds: TimeInterval?)] {
         if hasServiceQuotas {
-            var out: [(label: String, percent: Int, resetAt: Date?)] = []
+            var out: [(label: String, percent: Int, resetAt: Date?, windowSeconds: TimeInterval?)] = []
             // The account weekly is a row only when there IS a 5h session above it; with no session the
             // weekly is promoted into the hero block (see sessionHeroes), so don't repeat it here.
             if service.sessionRemainingPercent != nil, let weekly = service.weeklyRemainingPercent {
-                out.append((service.name, weekly, service.weeklyResetAt))
+                out.append((service.name, weekly, service.weeklyResetAt, service.weeklyWindowSeconds))
             }
+            // Per-model weeklies carry no length of their own — they keep the plain weekly badge.
             for model in service.models where model.valueText == nil {
-                out.append((model.name, model.remainingPercent, model.resetAt))
+                out.append((model.name, model.remainingPercent, model.resetAt, nil))
             }
             return out
         }
         return service.models
             .filter { $0.window == .weekly && $0.valueText == nil }
-            .map { (label: $0.name, percent: $0.remainingPercent, resetAt: $0.resetAt) }
+            .map { (label: $0.name, percent: $0.remainingPercent, resetAt: $0.resetAt, windowSeconds: nil) }
     }
 
     /// The prominent block (Claude/Codex — one each). Normally the 5-hour session; but when a service
@@ -383,7 +391,8 @@ struct ServiceCard: View {
         }
         if let weekly = service.weeklyRemainingPercent {
             return [(service.name, weekly, service.weeklyResetAt,
-                     String(localized: "7g"), 7 * 24 * 3600, false)]
+                     windowBadge(service.weeklyWindowSeconds) ?? String(localized: "7g"),
+                     service.weeklyWindowSeconds ?? 7 * 24 * 3600, false)]
         }
         return []
     }

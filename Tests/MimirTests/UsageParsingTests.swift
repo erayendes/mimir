@@ -1,4 +1,5 @@
 import XCTest
+import MimirShared
 @testable import Mimir
 
 /// Covers the pure parsing/math helpers in LiveUsageDataSource — the fragile, reverse-engineered
@@ -67,6 +68,49 @@ final class UsageParsingTests: XCTestCase {
         XCTAssertEqual(status.weeklyRemainingPercent, 99)                  // classified as weekly
         XCTAssertEqual(status.weeklyResetAt, Date(timeIntervalSince1970: 1_785_822_607))
         XCTAssertTrue(status.models.isEmpty)                              // no credits row
+    }
+
+    /// ChatGPT Go moved its quota to a ~30-day window in mid-2026. It must be kept as the window's
+    /// REAL length so the UI can label it "30d" — the old code bucketed anything over 6h as "7d".
+    func testCodexStatusKeepsMonthlyWindowLength() {
+        let root: [String: Any] = [
+            "rate_limit": [
+                "primary_window": ["used_percent": 10.0, "limit_window_seconds": 2_592_000, "reset_at": 1_785_822_607.0],
+            ],
+        ]
+        let status = ds.codexStatus(fromUsageRoot: root)
+        XCTAssertNil(status.sessionRemainingPercent)
+        XCTAssertEqual(status.weeklyRemainingPercent, 90)
+        XCTAssertEqual(status.weeklyWindowSeconds, 2_592_000)
+        XCTAssertEqual(quotaWindowDays(status.weeklyWindowSeconds), 30)
+    }
+
+    /// The weekly window's length reaches the UI for the ordinary 7-day case too.
+    func testCodexStatusKeepsWeeklyWindowLength() {
+        let root: [String: Any] = [
+            "rate_limit": [
+                "primary_window": ["used_percent": 1.0, "limit_window_seconds": 604800, "reset_at": 1_785_822_607.0],
+            ],
+        ]
+        XCTAssertEqual(quotaWindowDays(ds.codexStatus(fromUsageRoot: root).weeklyWindowSeconds), 7)
+    }
+
+    /// No length reported → nil, so the UI keeps its plain weekly badge instead of printing a guess.
+    func testCodexStatusWithoutWindowLengthLeavesItNil() {
+        let root: [String: Any] = [
+            "rate_limit": ["secondary_window": ["used_percent": 5.0, "reset_at": 1_785_822_607.0]],
+        ]
+        XCTAssertNil(ds.codexStatus(fromUsageRoot: root).weeklyWindowSeconds)
+    }
+
+    /// The badge must come from the window's total length, never from the countdown — on day 27 of a
+    /// 30-day window it still reads "30d". Session-length and unknown windows get no day badge.
+    func testQuotaWindowDaysUsesWindowLengthNotRemainingTime() {
+        XCTAssertEqual(quotaWindowDays(2_592_000), 30)      // 30d
+        XCTAssertEqual(quotaWindowDays(604800), 7)          // 7d
+        XCTAssertEqual(quotaWindowDays(3 * 86_400), 3)      // a 3-day window is "3d", not "7d"
+        XCTAssertNil(quotaWindowDays(18000))                // 5h session → no day badge
+        XCTAssertNil(quotaWindowDays(TimeInterval?.none))   // unknown → no badge
     }
 
     /// Both windows present with real durations: the 5-hour one (limit_window_seconds 18000) is the

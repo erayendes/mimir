@@ -8,6 +8,10 @@ struct ServiceStatus: Identifiable {
     let weeklyResetAt: Date?
     let sessionRemainingPercent: Int?
     let weeklyRemainingPercent: Int?
+    /// Real length of the non-session window above, when the provider reports one (Codex does).
+    /// The UI labels that window from this rather than assuming 7 days — OpenAI's Go plan uses a
+    /// ~30-day window. nil = unknown, and the UI then falls back to its plain weekly label.
+    let weeklyWindowSeconds: TimeInterval?
     let models: [ModelStatus]
     let isAvailable: Bool
     let statusNote: String?
@@ -35,6 +39,7 @@ struct ServiceStatus: Identifiable {
         weeklyResetAt: Date?,
         sessionRemainingPercent: Int? = nil,
         weeklyRemainingPercent: Int? = nil,
+        weeklyWindowSeconds: TimeInterval? = nil,
         models: [ModelStatus],
         isAvailable: Bool,
         statusNote: String?,
@@ -49,6 +54,7 @@ struct ServiceStatus: Identifiable {
         self.weeklyResetAt = weeklyResetAt
         self.sessionRemainingPercent = sessionRemainingPercent
         self.weeklyRemainingPercent = weeklyRemainingPercent
+        self.weeklyWindowSeconds = weeklyWindowSeconds
         self.models = models
         self.isAvailable = isAvailable
         self.statusNote = statusNote
@@ -89,6 +95,7 @@ struct ServiceStatus: Identifiable {
             weeklyResetAt: weeklyResetAt,
             sessionRemainingPercent: sessionRemainingPercent,
             weeklyRemainingPercent: weeklyRemainingPercent,
+            weeklyWindowSeconds: weeklyWindowSeconds,
             models: models,
             isAvailable: isAvailable,
             statusNote: statusNote ?? self.statusNote,
@@ -131,6 +138,9 @@ struct SessionWindow: Equatable {
     let sessionResetAt: Date?
     let weeklyPercent: Int?
     let weeklyResetAt: Date?
+    /// Real length of the weekly window, when known — carried to the widget so it can label a
+    /// 30-day window as such instead of "7d". nil for per-model windows and unknown providers.
+    var weeklyWindowSeconds: TimeInterval? = nil
 }
 
 extension ServiceStatus {
@@ -147,7 +157,8 @@ extension ServiceStatus {
         // nil (a service visible only on its weekly reading): kept as one window so the menu bar still
         // shows a placeholder dot, while the widget drops it (no 5h number to render).
         return [SessionWindow(label: name, sessionPercent: sessionRemainingPercent, sessionResetAt: sessionResetAt,
-                              weeklyPercent: weeklyRemainingPercent, weeklyResetAt: weeklyResetAt)]
+                              weeklyPercent: weeklyRemainingPercent, weeklyResetAt: weeklyResetAt,
+                              weeklyWindowSeconds: weeklyWindowSeconds)]
     }
 }
 

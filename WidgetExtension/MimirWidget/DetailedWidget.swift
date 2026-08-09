@@ -8,14 +8,21 @@ private let fiveHourWindow: TimeInterval = 5 * 3600
 /// (a service with no active 5h window, e.g. Codex since OpenAI's July 2026 removal).
 private let weeklyWindow: TimeInterval = 7 * 24 * 3600
 
-/// The pill text for a metric's window: "7d/7g" when it's the weekly quota, else "5h/5s".
+/// The pill text for a metric's window: "5h/5s" for the session, else the window's REAL length
+/// ("7d", "30d" — OpenAI's Go plan uses a ~30-day window). Falls back to the plain weekly label
+/// when the provider reports no length, rather than printing a guessed day count.
 private func windowPill(_ m: WindowMetric) -> String {
-    m.isWeekly ? String(localized: "widget.window.weekly") : String(localized: "widget.window.fiveHour")
+    guard m.isWeekly else { return String(localized: "widget.window.fiveHour") }
+    if let days = quotaWindowDays(m.windowSeconds) {
+        return "\(days)\(String(localized: "duration.unit.day"))"
+    }
+    return String(localized: "widget.window.weekly")
 }
 
-/// The reset countdown fallback length matching a metric's window (weekly vs 5-hour).
+/// The reset countdown fallback length matching a metric's window (its real length when known).
 private func windowFallback(_ m: WindowMetric) -> TimeInterval {
-    m.isWeekly ? weeklyWindow : fiveHourWindow
+    guard m.isWeekly else { return fiveHourWindow }
+    return m.windowSeconds ?? weeklyWindow
 }
 
 // A 5-hour metric paired with its provider's logo, flattened across providers for the Small
