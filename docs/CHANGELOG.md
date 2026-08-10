@@ -11,6 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+### [2.8] - 2026-08-09
+
+#### Fixed
+- Codex quota windows are now labelled with their real length instead of always "7d". ChatGPT Go moved its Codex allowance to a roughly monthly window while Plus and Pro stayed weekly, so Go users were told their month-long quota resets in a week. The badge now reads "30d" when the window is a month, "7d" when it's a week — and it comes from the window's full length, not the countdown, so it still says "30d" on day 27.
+
+#### Internal
+- The quota window's reported length is carried through to the popover and the widget, so any future window size labels itself correctly without a code change. When a provider reports no length, the plain weekly label is kept rather than a guessed number.
+
 ### [2.7] - 2026-07-31
 
 #### Fixed
@@ -376,6 +384,14 @@ Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
 
 ### [Yayımlanmadı]
+
+### [2.8] - 2026-08-09
+
+#### Düzeltildi
+- Codex kota pencereleri artık hep "7g" değil, gerçek uzunluğuyla etiketleniyor. ChatGPT Go, Codex hakkını kabaca aylık bir pencereye taşıdı; Plus ve Pro haftalık kaldı. Bu yüzden Go kullanıcılarına aylık kotaları bir hafta içinde sıfırlanacakmış gibi görünüyordu. Rozet artık pencere bir aylıksa "30g", bir haftalıksa "7g" yazıyor — üstelik geri sayımdan değil pencerenin tam uzunluğundan geldiği için 27. günde bile "30g" diyor.
+
+#### İçeride
+- Kota penceresinin bildirilen uzunluğu popover'a ve widget'a kadar taşınıyor; böylece ileride çıkacak herhangi bir pencere boyutu kod değişikliği olmadan doğru etiketleniyor. Sağlayıcı uzunluk bildirmiyorsa tahmini bir sayı yerine düz haftalık etiketi korunuyor.
 
 ### [2.7] - 2026-07-31
 
