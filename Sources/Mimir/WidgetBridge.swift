@@ -95,7 +95,7 @@ enum WidgetBridge {
             if let weeklyPct = w.weeklyPercent {
                 return WindowMetric(label: w.label, percent: weeklyPct, resetAt: w.weeklyResetAt,
                                     weeklyPercent: w.weeklyPercent, weeklyResetAt: w.weeklyResetAt,
-                                    isWeekly: true)
+                                    isWeekly: true, windowSeconds: w.weeklyWindowSeconds)
             }
             return nil
         }

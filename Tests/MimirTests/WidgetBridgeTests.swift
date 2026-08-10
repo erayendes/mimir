@@ -62,6 +62,34 @@ final class WidgetBridgeTests: XCTestCase {
         XCTAssertEqual(m.weeklyPercent, 72)
     }
 
+    /// The weekly window's real length reaches the widget, so a ~30-day Go-plan window renders a "30d"
+    /// pill instead of the hardcoded "7d" the widget used to print for anything longer than a session.
+    func testWeeklyWindowLengthReachesWidget() {
+        let codex = ServiceStatus(
+            name: "Codex", iconName: "codex",
+            sessionResetAt: nil, weeklyResetAt: now.addingTimeInterval(86_400),
+            sessionRemainingPercent: nil, weeklyRemainingPercent: 72,
+            weeklyWindowSeconds: 2_592_000,
+            models: [], isAvailable: true, statusNote: nil)
+
+        let m = WidgetBridge.makePayload([codex], generatedAt: now).providers.first!.fiveHour.first!
+        XCTAssertTrue(m.isWeekly)
+        XCTAssertEqual(m.windowSeconds, 2_592_000)
+        XCTAssertEqual(quotaWindowDays(m.windowSeconds), 30)
+    }
+
+    /// A payload written by an older app version has no `windowSeconds` key — it must still decode
+    /// (nil, so the widget keeps its plain weekly pill) rather than blanking the widget post-update.
+    func testOlderPayloadWithoutWindowSecondsStillDecodes() throws {
+        let json = Data("""
+        {"label":"Codex","percent":72,"isWeekly":true}
+        """.utf8)
+        let m = try JSONDecoder().decode(WindowMetric.self, from: json)
+        XCTAssertEqual(m.percent, 72)
+        XCTAssertTrue(m.isWeekly)
+        XCTAssertNil(m.windowSeconds)
+    }
+
     /// A service with neither a session nor a weekly reading produces no metric (dropped, not a zero row).
     func testNoWindowsProducesNoMetric() {
         let codex = ServiceStatus(

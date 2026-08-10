@@ -29,6 +29,7 @@ extension LiveUsageDataSource {
         var weeklyRemaining: Int?
         var sessionReset: Date?
         var weeklyReset: Date?
+        var weeklyWindow: TimeInterval?
 
         for line in lines {
             guard let data = line.data(using: .utf8),
@@ -44,7 +45,8 @@ extension LiveUsageDataSource {
             let now = Date()
             for (w, slotIsPrimary) in [(rl.primary, true), (rl.secondary, false)] {
                 guard let w, let summary = summarizeCodexWindow(w, now: now) else { continue }
-                let isSession = codexWindowIsSession(periodSeconds: w.window_minutes.map { Double($0) * 60 },
+                let periodSeconds = w.window_minutes.map { Double($0) * 60 }
+                let isSession = codexWindowIsSession(periodSeconds: periodSeconds,
                                                      resetAt: summary.resetAt,
                                                      slotIsPrimary: slotIsPrimary, now: now)
                 if isSession, sessionRemaining == nil {
@@ -53,6 +55,8 @@ extension LiveUsageDataSource {
                 } else if weeklyRemaining == nil {
                     weeklyRemaining = remainingPercent(fromUsed: summary.usedPercent)
                     weeklyReset = summary.resetAt
+                    // Keep the real length so the UI can label a 30-day (Go plan) window correctly.
+                    weeklyWindow = periodSeconds
                 }
             }
 
@@ -76,6 +80,7 @@ extension LiveUsageDataSource {
             weeklyResetAt: weeklyReset,
             sessionRemainingPercent: sessionRemaining,
             weeklyRemainingPercent: weeklyRemaining,
+            weeklyWindowSeconds: weeklyWindow,
             models: [],
             isAvailable: true,
             statusNote: statusNote
@@ -133,11 +138,13 @@ extension LiveUsageDataSource {
 
         var session: (percent: Int, resetAt: Date?)?
         var weekly: (percent: Int, resetAt: Date?)?
+        var weeklyWindow: TimeInterval?
         for (raw, slotIsPrimary) in [(rateLimit["primary_window"], true), (rateLimit["secondary_window"], false)] {
             guard let obj = raw as? [String: Any] else { continue }
             let window = codexAPIWindow(obj)
             let percent = window.usedPercent.map(remainingPercent(fromUsed:)) ?? 100
-            let isSession = codexWindowIsSession(periodSeconds: doubleValue(obj["limit_window_seconds"]),
+            let periodSeconds = doubleValue(obj["limit_window_seconds"])
+            let isSession = codexWindowIsSession(periodSeconds: periodSeconds,
                                                  resetAt: window.resetAt,
                                                  slotIsPrimary: slotIsPrimary, now: now)
             // A second window that also reads as the session lands in the weekly slot rather than
@@ -146,6 +153,8 @@ extension LiveUsageDataSource {
                 session = (percent, window.resetAt)
             } else if weekly == nil {
                 weekly = (percent, window.resetAt)
+                // Keep the real length so the UI can label a 30-day (Go plan) window correctly.
+                weeklyWindow = periodSeconds
             }
         }
 
@@ -156,6 +165,7 @@ extension LiveUsageDataSource {
             weeklyResetAt: weekly?.resetAt,
             sessionRemainingPercent: session?.percent,
             weeklyRemainingPercent: weekly?.percent,
+            weeklyWindowSeconds: weeklyWindow,
             models: codexCreditRow(root["credits"]).map { [$0] } ?? [],
             isAvailable: true,
             statusNote: "chatgpt usage api"

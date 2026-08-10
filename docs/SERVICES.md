@@ -52,7 +52,9 @@ Mimir shows session and weekly quotas for **Codex**, trying two sources in order
 
 **How the local fallback is read.** The **most recent `.jsonl` file** under `~/.codex/sessions` is scanned from the end backwards, taking the `rate_limits` field of `token_count` events.
 
-**How windows are classified.** Each window is identified by its **real length**, not by which slot it arrives in. OpenAI removed Codex's 5-hour limit in July 2026, so the single window it now returns is the *weekly* one — sitting in the `primary` slot, which used to mean "5-hour". A window of 6 hours or less is the session; anything longer is weekly. If the length is missing, Mimir falls back to how far the reset is (a 5-hour window can never reset more than 5h out), and only then to the slot. When there is no session window, the card drops that block and promotes the weekly reading rather than showing a misleading 100%.
+**How windows are classified.** Each window is identified by its **real length**, not by which slot it arrives in. OpenAI removed Codex's 5-hour limit in July 2026, so the single window it now returns is the *weekly* one — sitting in the `primary` slot, which used to mean "5-hour". A window of 6 hours or less is the session; anything longer is a longer-term quota. If the length is missing, Mimir falls back to how far the reset is (a 5-hour window can never reset more than 5h out), and only then to the slot. When there is no session window, the card drops that block and promotes the longer-term reading rather than showing a misleading 100%.
+
+**Longer-term windows are labelled by their real size, not assumed to be 7 days.** The badge ("7d", "30d") comes from the window's reported total length — ChatGPT Go moved to a ~30-day window in mid-2026, and Plus/Pro stayed weekly. The badge is derived from the window length only, never from the countdown: on day 27 of a 30-day window the badge still reads "30d". When a provider reports no length, Mimir shows its plain weekly label rather than printing a guessed number.
 
 > 📝 **Note:** If no reset time is found in the local file, the card still shows the remaining percentage, but the countdown may be omitted (the card notes this).
 
@@ -136,7 +138,9 @@ Mimir, **Codex** için seans ve haftalık kotaları gösterir. İki kaynağı s�
 
 **Yerel yedek nasıl okunur?** `~/.codex/sessions` altındaki **en güncel `.jsonl` dosyası** sondan başa taranır; `token_count` olaylarındaki `rate_limits` alanı okunur.
 
-**Pencereler nasıl sınıflandırılır?** Her pencere, geldiği slota göre değil **gerçek uzunluğuna** göre tanınır. OpenAI Temmuz 2026'da Codex'in 5 saatlik limitini kaldırdı; bu yüzden artık dönen tek pencere *haftalık* olan — üstelik eskiden "5 saatlik" anlamına gelen `primary` slotunda. 6 saat ve altı seans, daha uzunu haftalık sayılır. Uzunluk bilgisi yoksa Mimir sıfırlanmanın ne kadar uzakta olduğuna bakar (5 saatlik bir pencere asla 5 saatten uzağa sıfırlanamaz), en son çare olarak slota. Seans penceresi yoksa kart o bloğu düşürür ve yanıltıcı bir %100 göstermek yerine haftalık okumayı öne çıkarır.
+**Pencereler nasıl sınıflandırılır?** Her pencere, geldiği slota göre değil **gerçek uzunluğuna** göre tanınır. OpenAI Temmuz 2026'da Codex'in 5 saatlik limitini kaldırdı; bu yüzden artık dönen tek pencere *haftalık* olan — üstelik eskiden "5 saatlik" anlamına gelen `primary` slotunda. 6 saat ve altı seans, daha uzunu uzun vadeli kota sayılır. Uzunluk bilgisi yoksa Mimir sıfırlanmanın ne kadar uzakta olduğuna bakar (5 saatlik bir pencere asla 5 saatten uzağa sıfırlanamaz), en son çare olarak slota. Seans penceresi yoksa kart o bloğu düşürür ve yanıltıcı bir %100 göstermek yerine uzun vadeli okumayı öne çıkarır.
+
+**Uzun vadeli pencereler 7 gün varsayılmaz, gerçek boyutuyla etiketlenir.** Rozet ("7g", "30g") pencerenin bildirilen toplam uzunluğundan gelir — ChatGPT Go 2026 ortasında ~30 günlük pencereye geçti, Plus/Pro haftalık kaldı. Rozet yalnızca pencere uzunluğundan türetilir, geri sayımdan asla: 30 günlük bir pencerenin 27. gününde de rozet "30g" yazar. Sağlayıcı uzunluk bildirmiyorsa Mimir tahmini bir sayı yazmak yerine düz haftalık etiketini gösterir.
 
 > 📝 **Not:** Yerel dosyada sıfırlanma zamanı bulunamazsa kart yine kalan yüzdeyi gösterir, ancak geri sayım gösterilmeyebilir (kart bunu bir notla belirtir).
 

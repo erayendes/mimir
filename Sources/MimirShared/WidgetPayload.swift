@@ -56,6 +56,19 @@ public struct ProviderPayload: Codable, Equatable {
     }
 }
 
+/// Whole days in a non-session quota window, for labelling it by its REAL length instead of
+/// assuming "longer than a session means exactly 7 days". OpenAI's ChatGPT Go plan moved to a
+/// ~30-day window in mid-2026, which a hardcoded "7d" badge would misreport.
+///
+/// Derived from the window's total length, never from how far the reset is — on day 27 of a
+/// 30-day window the remaining time is 3 days, but the window is still a 30-day one.
+/// Returns nil for session-length (<= 6h) or unknown windows, so callers can omit the badge
+/// rather than print a wrong number.
+public func quotaWindowDays(_ windowSeconds: TimeInterval?) -> Int? {
+    guard let windowSeconds, windowSeconds > 6 * 3600 else { return nil }
+    return max(1, Int((windowSeconds / 86_400).rounded()))
+}
+
 public struct WindowMetric: Codable, Equatable {
     public var label: String         // row label: "Claude" / "Gemini" / "Claude/GPT" / "Sonnet" …
     public var percent: Int          // remaining %, drives bar width + status colour
@@ -68,23 +81,28 @@ public struct WindowMetric: Codable, Equatable {
     // i.e. this service has no active 5h window (Codex since OpenAI's July 2026 removal), so the widget
     // shows its weekly reading as the headline and labels the pill "7g" instead of "5s".
     public var isWeekly: Bool
+    // Real length of the window `percent`/`resetAt` describe, when the provider reports one. Lets the
+    // widget label it by its actual size (7d vs 30d) instead of assuming weekly. nil = unknown.
+    public var windowSeconds: TimeInterval?
 
     public init(label: String, percent: Int, resetAt: Date?,
-                weeklyPercent: Int? = nil, weeklyResetAt: Date? = nil, isWeekly: Bool = false) {
+                weeklyPercent: Int? = nil, weeklyResetAt: Date? = nil, isWeekly: Bool = false,
+                windowSeconds: TimeInterval? = nil) {
         self.label = label
         self.percent = percent
         self.resetAt = resetAt
         self.weeklyPercent = weeklyPercent
         self.weeklyResetAt = weeklyResetAt
         self.isWeekly = isWeekly
+        self.windowSeconds = windowSeconds
     }
 
     private enum CodingKeys: String, CodingKey {
-        case label, percent, resetAt, weeklyPercent, weeklyResetAt, isWeekly
+        case label, percent, resetAt, weeklyPercent, weeklyResetAt, isWeekly, windowSeconds
     }
 
-    // Custom decode so a payload written by an older app version (no `isWeekly` key) still reads —
-    // otherwise the widget would fail to decode and blank out during the post-update window.
+    // Custom decode so a payload written by an older app version (no `isWeekly`/`windowSeconds` key)
+    // still reads — otherwise the widget would fail to decode and blank out post-update.
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         label = try c.decode(String.self, forKey: .label)
@@ -93,6 +111,7 @@ public struct WindowMetric: Codable, Equatable {
         weeklyPercent = try c.decodeIfPresent(Int.self, forKey: .weeklyPercent)
         weeklyResetAt = try c.decodeIfPresent(Date.self, forKey: .weeklyResetAt)
         isWeekly = try c.decodeIfPresent(Bool.self, forKey: .isWeekly) ?? false
+        windowSeconds = try c.decodeIfPresent(TimeInterval.self, forKey: .windowSeconds)
     }
 }
 
