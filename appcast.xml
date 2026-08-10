@@ -7,7 +7,39 @@
     <link>https://github.com/erayendes/mimir</link>
     <description>Mimir update feed</description>
     <language>en</language>
-                                                                                <item>
+                                                                                    <item>
+      <title>Mimir 2.8</title>
+      <sparkle:version>2008000</sparkle:version>
+      <sparkle:shortVersionString>2.8</sparkle:shortVersionString>
+      <pubDate>Mon, 10 Aug 2026 08:47:58 +0000</pubDate>
+      <description><![CDATA[
+<p><b>Fixed</b></p>
+<ul>
+<li>Codex quota windows are now labelled with their real length instead of always "7d". ChatGPT Go moved its Codex allowance to a roughly monthly window while Plus and Pro stayed weekly, so Go users were told their month-long quota resets in a week. The badge now reads "30d" when the window is a month, "7d" when it's a week — and it comes from the window's full length, not the countdown, so it still says "30d" on day 27.</li>
+</ul>
+<p><b>Internal</b></p>
+<ul>
+<li>The quota window's reported length is carried through to the popover and the widget, so any future window size labels itself correctly without a code change. When a provider reports no length, the plain weekly label is kept rather than a guessed number.</li>
+</ul>
+<hr>
+<p><b>Düzeltildi</b></p>
+<ul>
+<li>Codex kota pencereleri artık hep "7g" değil, gerçek uzunluğuyla etiketleniyor. ChatGPT Go, Codex hakkını kabaca aylık bir pencereye taşıdı; Plus ve Pro haftalık kaldı. Bu yüzden Go kullanıcılarına aylık kotaları bir hafta içinde sıfırlanacakmış gibi görünüyordu. Rozet artık pencere bir aylıksa "30g", bir haftalıksa "7g" yazıyor — üstelik geri sayımdan değil pencerenin tam uzunluğundan geldiği için 27. günde bile "30g" diyor.</li>
+</ul>
+<p><b>İçeride</b></p>
+<ul>
+<li>Kota penceresinin bildirilen uzunluğu popover'a ve widget'a kadar taşınıyor; böylece ileride çıkacak herhangi bir pencere boyutu kod değişikliği olmadan doğru etiketleniyor. Sağlayıcı uzunluk bildirmiyorsa tahmini bir sayı yerine düz haftalık etiketi korunuyor.</li>
+</ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v2.8/Mimir.zip"
+        sparkle:edSignature="BAqb4p4NbACnjdCPaC5vIjxMmLmvWdJFx/duy39RahzdcmISEioMY/tDApsPRKc7L850tovccaBKxKVtufXaDA=="
+        length="6571186"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 2.7</title>
       <sparkle:version>2007000</sparkle:version>
       <sparkle:shortVersionString>2.7</sparkle:shortVersionString>
