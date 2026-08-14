@@ -4,8 +4,8 @@ title: "Mimir"
 abstract: "A lightweight macOS menu bar app that tracks AI tool usage limits (Claude, Codex, Gemini, Antigravity) in real time."
 type: software
 # Both fields are restamped by the release workflow from the tag — don't hand-edit.
-version: "2.8"
-date-released: "2026-08-10"
+version: "2.9"
+date-released: "2026-08-14"
 authors:
   - family-names: "Endes"
     given-names: "Eray"

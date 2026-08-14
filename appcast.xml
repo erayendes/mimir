@@ -7,7 +7,57 @@
     <link>https://github.com/erayendes/mimir</link>
     <description>Mimir update feed</description>
     <language>en</language>
-                                                                                    <item>
+                                                                                        <item>
+      <title>Mimir 2.9</title>
+      <sparkle:version>2009000</sparkle:version>
+      <sparkle:shortVersionString>2.9</sparkle:shortVersionString>
+      <pubDate>Fri, 14 Aug 2026 20:12:18 +0000</pubDate>
+      <description><![CDATA[
+<p><b>Added</b></p>
+<ul>
+<li><b>Extra credit you've bought</b> is now shown for all three providers, each under its own name — "Usage credit" for Claude, "Credit balance" for ChatGPT, "AI credit" for Antigravity. When there's no credit, the row isn't shown at all.</li>
+<li>ChatGPT also shows your <b>reset credits</b>: how many you have and how long before the first one expires. When you have none, the row isn't shown at all.</li>
+</ul>
+<p><b>Changed</b></p>
+<ul>
+<li>Visual improvements throughout: every provider now sits in its own card, so the popover is easier to read.</li>
+<li>The Codex card is now called <b>ChatGPT</b> — that's the account the quota belongs to.</li>
+<li>Window and model names now match what each provider calls them, so the rows read the way you're used to seeing them.</li>
+<li>The window badges ("5h", "7d") are gone: the remaining time already says which window you're looking at, and the row is calmer without them.</li>
+</ul>
+<p><b>Fixed</b></p>
+<ul>
+<li>Waking your Mac no longer causes a "rate limited" or "token expired" reading. The refresh that used to fire the instant the lid opened — racing the Wi-Fi reconnect and a token that expired during sleep — now waits a minute, and is skipped entirely after a short nap.</li>
+<li>Claude's spending row uses the API's own severity when it reports one, instead of always inferring "low" from 80% of the cap.</li>
+</ul>
+<hr>
+<p><b>Eklendi</b></p>
+<ul>
+<li>Satın alınan <b>ekstra kredi</b> artık üç sağlayıcı için de gösteriliyor; her biri kendi adıyla — Claude'da "Kullanım kredisi", ChatGPT'de "Kredi bakiyesi", Antigravity'de "AI kredisi". Kredi yoksa satır hiç gösterilmiyor.</li>
+<li>ChatGPT için ayrıca <b>sıfırlama hakkı</b> geldi: kaç hakkın olduğu ve ilkinin ne kadar süre sonra dolacağı yazıyor. Hak yoksa satır hiç gösterilmiyor.</li>
+</ul>
+<p><b>Değişti</b></p>
+<ul>
+<li>Görünümde iyileştirmeler yapıldı: artık her sağlayıcı kendi kartında, popover'ı okumak daha kolay.</li>
+<li>Codex kartının adı artık <b>ChatGPT</b> — kota o hesaba ait.</li>
+<li>Pencere ve model isimleri sağlayıcıların kendi kullandığı, alışık olduğunuz isimlere çevrildi.</li>
+<li>Pencere rozetleri ("5s", "7g") kaldırıldı: hangi pencereye baktığınız zaten kalan süreden belli, rozetsiz satır daha sakin.</li>
+</ul>
+<p><b>Düzeltildi</b></p>
+<ul>
+<li>Mac uykudan uyanınca artık "kota aşıldı" ya da "token süresi doldu" okuması gelmiyor. Kapak açılır açılmaz tetiklenen — Wi-Fi'ın yeniden bağlanmasıyla ve uykuda süresi dolmuş bir token'la yarışan — yenileme artık bir dakika bekliyor, kısa şekerlemelerden sonra ise hiç çalışmıyor.</li>
+<li>Claude'un harcama satırı, API kendi önem derecesini bildirdiğinde onu kullanıyor; her seferinde limitin %80'inden "düşük" çıkarımı yapmıyor.</li>
+</ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v2.9/Mimir.zip"
+        sparkle:edSignature="3ZDi+nJg99r1mNZXTk++ZQwMpKQVr7T+h6TiGFT0wljMaqe6V+1uh3M6TvdY+w81ZjUIo2jJpksHvaLvZV5cDg=="
+        length="6577755"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 2.8</title>
       <sparkle:version>2008000</sparkle:version>
       <sparkle:shortVersionString>2.8</sparkle:shortVersionString>
