@@ -213,14 +213,21 @@ struct ModelStatus: Identifiable {
     let isLow: Bool
     /// Weekly vs session window (Antigravity's grouped rows). `nil` for credit rows.
     let window: ModelWindow?
+    /// Sub-line under a `valueText` row (e.g. "first expires in 3d" under the reset credits count).
+    let caption: String?
+    /// SF Symbol drawn left of a `valueText` row's label. nil → no icon.
+    let symbol: String?
 
-    init(name: String, remainingPercent: Int, resetAt: Date?, valueText: String? = nil, isLow: Bool = false, window: ModelWindow? = nil) {
+    init(name: String, remainingPercent: Int, resetAt: Date?, valueText: String? = nil, isLow: Bool = false,
+         window: ModelWindow? = nil, caption: String? = nil, symbol: String? = nil) {
         self.name = name
         self.remainingPercent = remainingPercent
         self.resetAt = resetAt
         self.valueText = valueText
         self.isLow = isLow
         self.window = window
+        self.caption = caption
+        self.symbol = symbol
     }
 }
 

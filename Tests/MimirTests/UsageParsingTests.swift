@@ -113,6 +113,75 @@ final class UsageParsingTests: XCTestCase {
         XCTAssertNil(quotaWindowDays(TimeInterval?.none))   // unknown → no badge
     }
 
+    /// The live `wham/usage` response observed 2026-08-04 on a Plus account (identifiers redacted),
+    /// parsed through JSONSerialization so the numbers arrive as NSNumber exactly as in production.
+    func testCodexStatusFromLiveWeeklyOnlyResponse() {
+        let json = """
+        {
+          "plan_type": "plus",
+          "rate_limit": {
+            "allowed": true,
+            "limit_reached": false,
+            "primary_window": {
+              "used_percent": 40,
+              "limit_window_seconds": 604800,
+              "reset_after_seconds": 332661,
+              "reset_at": 1786161248
+            },
+            "secondary_window": null
+          },
+          "credits": { "has_credits": false, "unlimited": false }
+        }
+        """
+        let root = try! JSONSerialization.jsonObject(with: Data(json.utf8)) as! [String: Any]
+        let status = ds.codexStatus(fromUsageRoot: root)
+        XCTAssertNil(status.sessionRemainingPercent)
+        XCTAssertEqual(status.weeklyRemainingPercent, 60)
+        XCTAssertEqual(status.weeklyResetAt, Date(timeIntervalSince1970: 1_786_161_248))
+        XCTAssertEqual(status.weeklyWindowSeconds, 604_800)
+        XCTAssertTrue(status.models.isEmpty)
+    }
+
+    // MARK: Codex reset credits
+
+    private func resetCreditsRoot(_ credits: String) -> [String: Any] {
+        let json = "{\"available_count\": 2, \"credits\": [\(credits)]}"
+        return try! JSONSerialization.jsonObject(with: Data(json.utf8)) as! [String: Any]
+    }
+
+    private let credalNow = Date(timeIntervalSince1970: 1_786_000_000)
+    private func iso(_ offset: TimeInterval) -> String {
+        ISO8601DateFormatter().string(from: Date(timeIntervalSince1970: 1_786_000_000 + offset))
+    }
+
+    /// Available and unexpired credits are counted, with the nearest expiry in the caption.
+    func testCodexResetCreditsCountsAvailableOnes() {
+        let root = resetCreditsRoot("""
+        {"id": "a", "status": "available", "expires_at": "\(iso(6 * 86_400))", "title": "Reset", "description": ""},
+        {"id": "b", "status": "available", "expires_at": "\(iso(3 * 86_400))", "title": "Reset", "description": ""}
+        """)
+        let row = ds.codexResetCreditRow(fromRoot: root, now: credalNow)
+        XCTAssertEqual(row?.valueText, "2")
+        XCTAssertEqual(row?.caption, String(format: String(localized: "first expires in %@"),
+                                            TimeFormatter.duration(from: 3 * 86_400)))
+    }
+
+    /// A credit that lapsed between polls, and one that was already spent, are both dropped —
+    /// `available_count` alone would have over-reported here.
+    func testCodexResetCreditsDropsExpiredAndUsed() {
+        let root = resetCreditsRoot("""
+        {"id": "a", "status": "available", "expires_at": "\(iso(-3_600))", "title": "", "description": ""},
+        {"id": "b", "status": "used", "expires_at": "\(iso(30 * 86_400))", "title": "", "description": ""}
+        """)
+        XCTAssertNil(ds.codexResetCreditRow(fromRoot: root, now: credalNow))
+    }
+
+    /// Empty / missing payload → no row at all, so the card simply doesn't draw the section.
+    func testCodexResetCreditsEmptyPayload() {
+        XCTAssertNil(ds.codexResetCreditRow(fromRoot: ["available_count": 0, "credits": []]))
+        XCTAssertNil(ds.codexResetCreditRow(fromRoot: [:]))
+    }
+
     /// Both windows present with real durations: the 5-hour one (limit_window_seconds 18000) is the
     /// session, the 7-day one (604800) is weekly — classified by duration regardless of slot.
     func testCodexStatusClassifiesBothWindowsByDuration() {
@@ -385,7 +454,7 @@ final class UsageParsingTests: XCTestCase {
             ],
         ]
         let status = ds.buildClaudeStatus(from: root, note: "oauth usage api")
-        let billing = status.models.first { $0.name == "Billing" }
+        let billing = status.models.first { $0.valueText != nil }
         XCTAssertEqual(billing?.valueText, "5 USD / 10 USD")
     }
 

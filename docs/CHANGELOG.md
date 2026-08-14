@@ -11,6 +11,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+### [2.9] - 2026-08-14
+
+#### Added
+- **Extra credit you've bought** is now shown for all three providers, each under its own name — "Usage credit" for Claude, "Credit balance" for ChatGPT, "AI credit" for Antigravity. When there's no credit, the row isn't shown at all.
+- ChatGPT also shows your **reset credits**: how many you have and how long before the first one expires. When you have none, the row isn't shown at all.
+
+#### Changed
+- Visual improvements throughout: every provider now sits in its own card, so the popover is easier to read.
+- The Codex card is now called **ChatGPT** — that's the account the quota belongs to.
+- Window and model names now match what each provider calls them, so the rows read the way you're used to seeing them.
+- The window badges ("5h", "7d") are gone: the remaining time already says which window you're looking at, and the row is calmer without them.
+
+#### Fixed
+- Waking your Mac no longer causes a "rate limited" or "token expired" reading. The refresh that used to fire the instant the lid opened — racing the Wi-Fi reconnect and a token that expired during sleep — now waits a minute, and is skipped entirely after a short nap.
+- Claude's spending row uses the API's own severity when it reports one, instead of always inferring "low" from 80% of the cap.
+
 ### [2.8] - 2026-08-09
 
 #### Fixed
@@ -384,6 +400,22 @@ Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
 
 ### [Yayımlanmadı]
+
+### [2.9] - 2026-08-14
+
+#### Eklendi
+- Satın alınan **ekstra kredi** artık üç sağlayıcı için de gösteriliyor; her biri kendi adıyla — Claude'da "Kullanım kredisi", ChatGPT'de "Kredi bakiyesi", Antigravity'de "AI kredisi". Kredi yoksa satır hiç gösterilmiyor.
+- ChatGPT için ayrıca **sıfırlama hakkı** geldi: kaç hakkın olduğu ve ilkinin ne kadar süre sonra dolacağı yazıyor. Hak yoksa satır hiç gösterilmiyor.
+
+#### Değişti
+- Görünümde iyileştirmeler yapıldı: artık her sağlayıcı kendi kartında, popover'ı okumak daha kolay.
+- Codex kartının adı artık **ChatGPT** — kota o hesaba ait.
+- Pencere ve model isimleri sağlayıcıların kendi kullandığı, alışık olduğunuz isimlere çevrildi.
+- Pencere rozetleri ("5s", "7g") kaldırıldı: hangi pencereye baktığınız zaten kalan süreden belli, rozetsiz satır daha sakin.
+
+#### Düzeltildi
+- Mac uykudan uyanınca artık "kota aşıldı" ya da "token süresi doldu" okuması gelmiyor. Kapak açılır açılmaz tetiklenen — Wi-Fi'ın yeniden bağlanmasıyla ve uykuda süresi dolmuş bir token'la yarışan — yenileme artık bir dakika bekliyor, kısa şekerlemelerden sonra ise hiç çalışmıyor.
+- Claude'un harcama satırı, API kendi önem derecesini bildirdiğinde onu kullanıyor; her seferinde limitin %80'inden "düşük" çıkarımı yapmıyor.
 
 ### [2.8] - 2026-08-09
 

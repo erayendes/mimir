@@ -43,6 +43,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }()
     private var statusItem: NSStatusItem?
     private var timer: Timer?
+    /// Sleep/wake poll guard (see `WakeScheduling`): when the last poll ran, and when the
+    /// repeating timer was due to fire next — a fire far past that means the machine slept.
+    private var lastPoll: Date?
+    private var nextExpectedFire: Date?
+    private var wakeRefresh: DispatchWorkItem?
     private var localEventMonitor: Any?
     private var globalEventMonitor: Any?
     private var resignObserver: NSObjectProtocol?
@@ -178,8 +183,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         Telemetry.signal("app.launched")
 
-        store.refresh()
-        refreshStatusTitle()
+        poll()
         store.$services
             .receive(on: RunLoop.main)
             .sink { [weak self] services in
@@ -195,11 +199,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.noteRefreshForTelemetry(services)
             }
             .store(in: &cancellables)
-        timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+        nextExpectedFire = Date().addingTimeInterval(Self.pollInterval)
+        timer = Timer.scheduledTimer(withTimeInterval: Self.pollInterval, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                self?.store.refresh()
-                self?.refreshStatusTitle()
+                guard let self else { return }
+                let now = Date()
+                let expected = self.nextExpectedFire
+                self.nextExpectedFire = now.addingTimeInterval(Self.pollInterval)
+                // The run loop delivers one immediate catch-up fire on wake. Polling then races the
+                // half-up network and a token that expired mid-sleep, so skip it — the wake observer
+                // schedules the real refresh after its grace delay.
+                guard !WakeScheduling.isOverdueFire(now: now, expected: expected) else { return }
+                self.poll()
             }
+        }
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in self?.scheduleWakeRefresh() }
         }
 
         // Rewrite the statusLine hook script from current code when it's wired, so app upgrades take
@@ -485,6 +502,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NotificationCenter.default.removeObserver(resignObserver)
             self.resignObserver = nil
         }
+    }
+
+    static let pollInterval: TimeInterval = 60
+
+    private func poll() {
+        lastPoll = Date()
+        store.refresh()
+        refreshStatusTitle()
+    }
+
+    /// On wake, hold the first poll for `graceDelay` and only run it if the data is actually
+    /// stale — a short nap needs no off-schedule refresh.
+    private func scheduleWakeRefresh() {
+        wakeRefresh?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            Task { @MainActor in
+                guard let self else { return }
+                guard WakeScheduling.shouldRefreshAfterWake(lastPoll: self.lastPoll, now: Date(),
+                                                            pollInterval: Self.pollInterval) else { return }
+                self.poll()
+            }
+        }
+        wakeRefresh = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + WakeScheduling.graceDelay, execute: work)
     }
 
     private func refreshStatusTitle() {
