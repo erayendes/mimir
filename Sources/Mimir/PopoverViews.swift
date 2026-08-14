@@ -4,7 +4,6 @@ import SwiftUI
 
 struct PopoverView: View {
     @ObservedObject var store: UsageStore
-    @Environment(\.colorScheme) private var colorScheme
     let onDismiss: () -> Void
     /// Reports the measured content height so AppKit can size the popover.
     /// Plain callback on purpose — see the note at the construction site.
@@ -22,13 +21,9 @@ struct PopoverView: View {
                     VStack(alignment: .leading, spacing: 0) {
                         notificationBanner
                         contentView(now: context.date)
-
-                        sectionDivider
                         BrandingFooter(checkForUpdates: checkForUpdates)
                     }
-                    .padding(.vertical, 8)
-                    .background(innerPanel)
-                    .padding(10)
+                    .padding(.vertical, 4)
                     .background {
                         GeometryReader { proxy in
                             Color.clear
@@ -43,27 +38,6 @@ struct PopoverView: View {
         }
     }
 
-    /// The single panel. Kept very translucent so the frosted desktop reads through it
-    /// like glass — just a faint tint for legibility plus a hairline glass edge.
-    @ViewBuilder
-    private var innerPanel: some View {
-        let dark = colorScheme == .dark
-        RoundedRectangle(cornerRadius: 18, style: .continuous)
-            .fill((dark ? Color(hex: 0x14141C) : Color(hex: 0xFFFFFF)).opacity(dark ? 0.10 : 0.16))
-            .overlay {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(Color.primary.opacity(dark ? 0.16 : 0.12), lineWidth: 1)
-            }
-    }
-
-    /// A hairline divider between the inner panel's sections, inset from the edges.
-    private var sectionDivider: some View {
-        Rectangle()
-            .fill(Color.primary.opacity(0.06))
-            .frame(height: 1)
-            .padding(.horizontal, 13)
-    }
-
     /// Show live services and stale snapshots; hide services that have no data at all.
     /// A stale Antigravity snapshot (isStale) survives the filter so the user still sees
     /// the last-known reading when the IDE is closed, instead of the card vanishing.
@@ -74,10 +48,16 @@ struct PopoverView: View {
             .filter { ($0.isAvailable || $0.isStale) && !$0.dataUnavailable }
             .sortedByDisplayOrder()
         if !visible.isEmpty {
-            ForEach(Array(visible.enumerated()), id: \.element.id) { index, service in
-                if index > 0 { sectionDivider }
-                ServiceCard(service: service, now: now)
+            // Each provider is its own card — the card border carries the hierarchy, so there are
+            // no dividers or rails between them (design v2.9).
+            VStack(spacing: 11) {
+                ForEach(visible) { service in
+                    ServiceCard(service: service, now: now)
+                }
             }
+            .padding(.horizontal, 11)
+            .padding(.top, 11)
+            .padding(.bottom, 4)
         } else if store.isRefreshing {
             ProgressView()
                 .controlSize(.small)
@@ -141,12 +121,12 @@ struct BrandingFooter: View {
     var body: some View {
         HStack(spacing: 7) {
             Text("mimir")
-                .font(.system(size: 13, weight: .semibold))
+                .font(.system(size: 11, weight: .medium))
                 .foregroundStyle(Color.primary.opacity(0.55))
 
             Button { checkForUpdates() } label: {
                 Text(Self.version)
-                    .font(.system(size: 9, weight: .semibold).monospacedDigit())
+                    .font(.system(size: 9, weight: .medium).monospacedDigit())
                     .foregroundStyle(Color.primary.opacity(0.4))
                     .padding(.horizontal, 5)
                     .padding(.vertical, 1.5)
@@ -173,7 +153,10 @@ struct BrandingFooter: View {
             .buttonStyle(.plain)
             .pointingHandCursor()
         }
-        .padding(13)
+        // Line the footer up with the cards above it: "mimir" starts under the card's brand icon
+        // (panel inset 11 + card padding 11), and "milowda" keeps the same margin on the right.
+        .padding(.horizontal, 22)
+        .padding(.vertical, 11)
     }
 }
 
@@ -260,141 +243,186 @@ struct PopoverBackdrop: View {
     }
 }
 
+/// One provider = one card (design v2.9): brand header, its quota block(s), then any
+/// value rows (credit balance, reset credits) below a hairline.
 struct ServiceCard: View {
     let service: ServiceStatus
     let now: Date
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header: white brand glyph + service name.
-            HStack(spacing: 8) {
-                BrandIconView(iconName: service.iconName, size: 15)
-                    .foregroundStyle(Color.primary.opacity(0.92))
-                    .frame(width: 15, height: 15)
-                Text(service.name)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color.primary.opacity(0.92))
+            // Provider name as a small uppercase eyebrow — the card frame carries the emphasis,
+            // so the header stays quiet and the quota block is the loudest thing on the card.
+            HStack(spacing: 6) {
+                BrandIconView(iconName: service.iconName, size: 11)
+                    .foregroundStyle(Color.primary.opacity(0.45))
+                    .frame(width: 11, height: 11)
+                Text(cardTitle.uppercased())
+                    .font(.system(size: 10, weight: .medium))
+                    .tracking(0.9)
+                    .foregroundStyle(Color.primary.opacity(0.5))
                     .lineLimit(1)
             }
+            .padding(.bottom, 9)
 
-            if hasServiceQuotas {
-                // Claude / Codex: a single session block, then the weekly rows.
-                ForEach(Array(sessionHeroes.enumerated()), id: \.offset) { index, hero in
-                    SessionRow(label: hero.label, percent: hero.percent, resetAt: hero.resetAt, now: now,
-                               gated: hero.gated, badge: hero.badge, windowFallback: hero.fallback)
-                        .padding(.top, index == 0 ? 11 : 13)
-                }
-                if !weeklyEntries.isEmpty {
-                    VStack(spacing: 6) {
-                        ForEach(Array(weeklyEntries.enumerated()), id: \.offset) { _, entry in
-                            weeklyRow(entry)
-                        }
-                    }
-                    .padding(.top, 11)
-                }
-            } else {
-                // Antigravity: group each family's session and weekly together, so a
-                // family's weekly row sits under its own session — not the next family's.
-                ForEach(Array(antigravityFamilies.enumerated()), id: \.offset) { index, family in
-                    VStack(alignment: .leading, spacing: 0) {
-                        if let session = family.session {
-                            SessionRow(label: family.name, percent: session.percent, resetAt: session.resetAt, now: now,
-                                       gated: family.weekly?.percent == 0)
-                        }
-                        if let weekly = family.weekly {
-                            weeklyRow((label: family.name, percent: weekly.percent, resetAt: weekly.resetAt,
-                                       windowSeconds: nil))
-                                .padding(.top, family.session != nil ? 8 : 0)
-                        }
-                    }
-                    .padding(.top, index == 0 ? 11 : 13)
-                }
-            }
-
-            if let credit = creditEntry {
-                HStack {
-                    Text(credit.label)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(Color.primary.opacity(0.4))
-                    Spacer()
-                    Text(credit.value)
-                        .font(.system(size: 11, weight: .semibold).monospacedDigit())
-                        .foregroundStyle(Color.primary.opacity(0.7))
-                }
-                .padding(.top, 11)
-            }
+            cardBody
         }
-        .padding(13)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(11)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(.regularMaterial)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                )
+        )
         // Dim a stale snapshot so it reads as "last known, not live".
         .opacity(service.isStale ? 0.66 : 1)
     }
 
-    /// Badge text for a quota window, built from its REAL length ("7g", "30g"). nil when the provider
-    /// doesn't report one, so the caller keeps its plain weekly label rather than printing a guess.
-    private func windowBadge(_ seconds: TimeInterval?) -> String? {
-        quotaWindowDays(seconds).map { "\($0)\(TimeFormatter.dayUnit)" }
+    /// Everything under the header, inset from the card edge (design: 11px, no rail).
+    @ViewBuilder
+    private var cardBody: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if hasServiceQuotas {
+                // Claude / Codex: one quota block, then the per-model rows under it.
+                if let hero = sessionHero {
+                    QuotaBlock(label: hero.label, percent: hero.percent, resetAt: hero.resetAt, now: now,
+                               gated: hero.gated, windowFallback: hero.fallback)
+                }
+                if !weeklyEntries.isEmpty {
+                    VStack(spacing: 5) {
+                        ForEach(Array(weeklyEntries.enumerated()), id: \.offset) { _, entry in
+                            modelRow(entry)
+                        }
+                    }
+                    .padding(.top, 9)
+                }
+            } else {
+                // Antigravity: one card, one section per family, separated by a hairline so a
+                // family's model row sits under its own block — not the next family's.
+                ForEach(Array(antigravityFamilies.enumerated()), id: \.offset) { index, family in
+                    VStack(alignment: .leading, spacing: 0) {
+                        if index > 0 {
+                            cardDivider.padding(.top, 13).padding(.bottom, 13)
+                        }
+                        if let session = family.session {
+                            QuotaBlock(label: family.name, percent: session.percent, resetAt: session.resetAt,
+                                       now: now, gated: family.weekly?.percent == 0)
+                        }
+                        if let weekly = family.weekly {
+                            modelRow((label: family.name, percent: weekly.percent, resetAt: weekly.resetAt))
+                                .padding(.top, family.session != nil ? 9 : 0)
+                        }
+                    }
+                }
+            }
+
+            if !valueRows.isEmpty {
+                cardDivider.padding(.top, 11).padding(.bottom, 9)
+                VStack(alignment: .leading, spacing: 7) {
+                    ForEach(valueRows) { row in
+                        valueRow(row)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 11)
     }
 
-    private func weeklyRow(_ entry: (label: String, percent: Int, resetAt: Date?, windowSeconds: TimeInterval?)) -> some View {
-        // The 7g dot uses the weekly bands (amber ≥10%, red below) — at 0% it stays red here; it's the
-        // 5s session that greys out to flag the lockout (see SessionRow `gated`).
+    private var cardDivider: some View {
+        Rectangle()
+            .fill(Color.primary.opacity(0.07))
+            .frame(height: 1)
+    }
+
+    /// A secondary quota row: status dot + "Name: %X" + its remaining time on the right.
+    private func modelRow(_ entry: (label: String, percent: Int, resetAt: Date?)) -> some View {
         HStack(spacing: 8) {
             Circle()
-                .fill(quotaStatusColor(entry.percent, redBelow: 10))
+                .fill(quotaStatusColor(entry.percent))
                 .frame(width: 7, height: 7)
-            Text(entry.label)
-                .font(.system(size: 11, weight: .regular))
-                .foregroundStyle(Color.primary.opacity(0.62))
-                .lineLimit(1)
-            QuotaBadge(text: windowBadge(entry.windowSeconds) ?? String(localized: "7g"))
+            Text("\(entry.label): ").font(.system(size: 11, weight: .medium))
+                .foregroundStyle(Color.primary.opacity(0.72))
+                + Text("%\(clampPct(entry.percent))").font(.system(size: 11, weight: .medium).monospacedDigit())
+                .foregroundStyle(Color.primary.opacity(0.9))
             Spacer(minLength: 6)
-            Text("%\(clampPct(entry.percent))")
-                .font(.system(size: 11, weight: .semibold).monospacedDigit())
-                .foregroundStyle(Color.primary.opacity(0.62))
             Text(relDuration(entry.resetAt, now) ?? "—")
-                .font(.system(size: 11, weight: .regular).monospacedDigit())
-                .foregroundStyle(Color.primary.opacity(0.38))
-                .frame(width: 52, alignment: .trailing)
+                .font(.system(size: 11, weight: .medium).monospacedDigit())
+                .foregroundStyle(Color.primary.opacity(0.42))
+                .fixedSize()
         }
+        .lineLimit(1)
+    }
+
+    /// A value row (credit balance, reset credits): icon + label left, value right, optional caption.
+    private func valueRow(_ row: ModelStatus) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                HStack(spacing: 5) {
+                    if let symbol = row.symbol {
+                        Image(systemName: symbol).font(.system(size: 11, weight: .regular))
+                    }
+                    Text(row.name)
+                }
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(Color.primary.opacity(0.58))
+                Spacer(minLength: 6)
+                Text(row.valueText ?? "")
+                    .font(.system(size: 11, weight: .medium).monospacedDigit())
+                    .foregroundStyle(Color.primary.opacity(0.9))
+            }
+            if let caption = row.caption {
+                Text(caption)
+                    .font(.system(size: 10, weight: .medium).monospacedDigit())
+                    .foregroundStyle(Color.primary.opacity(0.42))
+            }
+        }
+        .lineLimit(1)
     }
 
     // MARK: Data shaping
 
-    /// Weekly rows. Claude/Codex: the all-models weekly (labelled with the service name)
-    /// plus any per-model weekly (e.g. Sonnet). Antigravity: its grouped weekly buckets.
-    private var weeklyEntries: [(label: String, percent: Int, resetAt: Date?, windowSeconds: TimeInterval?)] {
-        if hasServiceQuotas {
-            var out: [(label: String, percent: Int, resetAt: Date?, windowSeconds: TimeInterval?)] = []
-            // The account weekly is a row only when there IS a 5h session above it; with no session the
-            // weekly is promoted into the hero block (see sessionHeroes), so don't repeat it here.
-            if service.sessionRemainingPercent != nil, let weekly = service.weeklyRemainingPercent {
-                out.append((service.name, weekly, service.weeklyResetAt, service.weeklyWindowSeconds))
-            }
-            // Per-model weeklies carry no length of their own — they keep the plain weekly badge.
-            for model in service.models where model.valueText == nil {
-                out.append((model.name, model.remainingPercent, model.resetAt, nil))
-            }
-            return out
-        }
-        return service.models
-            .filter { $0.window == .weekly && $0.valueText == nil }
-            .map { (label: $0.name, percent: $0.remainingPercent, resetAt: $0.resetAt, windowSeconds: nil) }
+    /// Codex is branded "ChatGPT" on the card — that's the account the quota belongs to.
+    private var cardTitle: String {
+        service.name == "Codex" ? "ChatGPT" : service.name
     }
 
-    /// The prominent block (Claude/Codex — one each). Normally the 5-hour session; but when a service
-    /// has no 5h window (Codex since OpenAI's July 2026 removal) the weekly reading is promoted here
-    /// with a "7g" badge so the card still shows a clear number instead of a bare row.
-    private var sessionHeroes: [(label: String, percent: Int, resetAt: Date?, badge: String, fallback: TimeInterval, gated: Bool)] {
+    /// Model rows under the quota block. Claude/Codex: the account weekly ("All models") plus any
+    /// per-model weekly (e.g. Fable). Antigravity groups its own, per family.
+    private var weeklyEntries: [(label: String, percent: Int, resetAt: Date?)] {
+        var out: [(label: String, percent: Int, resetAt: Date?)] = []
+        // The account weekly is a row only when there IS a 5h block above it; with no session the
+        // weekly is promoted into the block (see sessionHero), so don't repeat it here.
+        if service.sessionRemainingPercent != nil, let weekly = service.weeklyRemainingPercent {
+            out.append((String(localized: "All models"), weekly, service.weeklyResetAt))
+        }
+        for model in service.models where model.valueText == nil {
+            out.append((model.name, model.remainingPercent, model.resetAt))
+        }
+        return out
+    }
+
+    /// The card's prominent block (Claude/Codex). Normally the 5-hour session; when a service has no
+    /// 5h window (Codex since OpenAI's July 2026 removal) the weekly reading is promoted here, under
+    /// a label that says so, rather than leaving the card without a headline number.
+    private var sessionHero: (label: String, percent: Int, resetAt: Date?, fallback: TimeInterval, gated: Bool)? {
         if let session = service.sessionRemainingPercent {
-            return [(service.name, session, service.sessionResetAt,
-                     String(localized: "5s"), 5 * 3600, service.weeklyRemainingPercent == 0)]
+            return (String(localized: "Current session"), session, service.sessionResetAt,
+                    5 * 3600, service.weeklyRemainingPercent == 0)
         }
         if let weekly = service.weeklyRemainingPercent {
-            return [(service.name, weekly, service.weeklyResetAt,
-                     windowBadge(service.weeklyWindowSeconds) ?? String(localized: "7g"),
-                     service.weeklyWindowSeconds ?? 7 * 24 * 3600, false)]
+            return (String(localized: "Usage limits"), weekly, service.weeklyResetAt,
+                    service.weeklyWindowSeconds ?? 7 * 24 * 3600, false)
         }
-        return []
+        return nil
+    }
+
+    /// Credit / reset-credit rows, in provider order. Empty → the whole section is skipped.
+    private var valueRows: [ModelStatus] {
+        service.models.filter { $0.valueText != nil }
     }
 
     /// Antigravity grouped by family, preserving first-seen order, each family carrying
@@ -418,12 +446,6 @@ struct ServiceCard: View {
         }
     }
 
-    private var creditEntry: (label: String, value: String)? {
-        guard let model = service.models.first(where: { $0.valueText != nil }),
-              let value = model.valueText else { return nil }
-        return (String(localized: "Usage credit"), value)
-    }
-
     private var hasServiceQuotas: Bool {
         service.name == "Claude" || service.name == "Codex"
     }
@@ -443,27 +465,9 @@ func relDuration(_ resetAt: Date?, _ now: Date) -> String? {
     return TimeFormatter.duration(from: resetAt.timeIntervalSince(now))
 }
 
-/// A small grey pill badge (e.g. "5s" for the 5-hour session, "7g" for the weekly window).
-struct QuotaBadge: View {
-    let text: String
-    var prominent = false
-
-    var body: some View {
-        Text(text)
-            .font(.system(size: prominent ? 10 : 9.5, weight: .semibold))
-            .foregroundStyle(Color.primary.opacity(0.34))
-            .padding(.horizontal, prominent ? 5 : 4.5)
-            .padding(.vertical, prominent ? 1.5 : 1)
-            .background(
-                RoundedRectangle(cornerRadius: prominent ? 5 : 4, style: .continuous)
-                    .fill(Color.primary.opacity(0.06))
-            )
-    }
-}
-
-/// The prominent session block: model name + "5s" badge + big status-coloured percent,
-/// a thin status-coloured bar, then remaining time (left) and reset clock (right).
-struct SessionRow: View {
+/// A quota block: window label + status-coloured percent on one line, a thin status-coloured
+/// bar, then remaining time (left) and reset clock (right).
+struct QuotaBlock: View {
     let label: String
     let percent: Int
     let resetAt: Date?
@@ -471,9 +475,6 @@ struct SessionRow: View {
     /// True when this model's weekly quota is spent — grey the figure + bar so a full 5h window
     /// can't masquerade as usable while the week is locked.
     var gated: Bool = false
-    /// Window badge — "5s" for the 5-hour session, "7g" when a weekly reading is promoted here
-    /// (a service with no 5h window, e.g. Codex since the July 2026 removal).
-    var badge: String = String(localized: "5s")
     /// Reset-countdown fallback length shown when there's no `resetAt`, matching this window (5h vs 7d).
     var windowFallback: TimeInterval = 5 * 3600
 
@@ -483,20 +484,19 @@ struct SessionRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
+            HStack(spacing: 8) {
                 Text(label)
-                    .font(.system(size: 12.5, weight: .semibold))
-                    .foregroundStyle(Color.primary.opacity(0.88))
+                    .font(.system(size: 13.5, weight: .medium))
+                    .foregroundStyle(Color.primary.opacity(0.9))
                     .lineLimit(1)
-                QuotaBadge(text: badge, prominent: true)
                 Spacer(minLength: 6)
                 Text("%\(clampPct(percent))")
-                    .font(.system(size: 18, weight: .semibold).monospacedDigit())
+                    .font(.system(size: 13.5, weight: .medium).monospacedDigit())
                     .foregroundStyle(gated ? lockedQuotaColor : quotaStatusColor(percent))
             }
 
             QuotaBar(percent: percent, colorOverride: gated ? lockedQuotaColor : nil)
-                .padding(.top, 9)
+                .padding(.top, 8)
 
             HStack(spacing: 8) {
                 Label {
@@ -504,7 +504,7 @@ struct SessionRow: View {
                     // full window length rather than a bare dash.
                     Text(relDuration(resetAt, now) ?? TimeFormatter.duration(from: windowFallback))
                 } icon: {
-                    Image(systemName: "gauge.medium")
+                    Image(systemName: "hourglass")
                 }
                 Spacer(minLength: 4)
                 if let resetClock {
@@ -516,9 +516,9 @@ struct SessionRow: View {
                 }
             }
             .font(.system(size: 11, weight: .medium).monospacedDigit())
-            .foregroundStyle(Color.primary.opacity(0.42))
+            .foregroundStyle(Color.primary.opacity(0.5))
             .labelStyle(.titleAndIcon)
-            .padding(.top, 6)
+            .padding(.top, 7)
         }
     }
 
@@ -547,16 +547,15 @@ struct QuotaBar: View {
     }
 }
 
-/// Status colour for a remaining-quota level: green ≥50%, amber down to `redBelow`, red under it.
-/// The amber→red boundary differs by window — 15% for the 5-hour session, 10% for the weekly (7g)
-/// window (its lower band is intentionally looser). Returns a dynamic colour that darkens in light
-/// mode so it stays legible on the light panel.
-func quotaStatusColor(_ percent: Int, redBelow: Int = 15) -> Color {
+/// Status colour for a remaining-quota level, per the design spec's thresholds: green ≥50%,
+/// amber 15–49%, red ≤14% — one set of bands for every window. Returns a dynamic colour that
+/// darkens in light mode so it stays legible on the light panel.
+func quotaStatusColor(_ percent: Int) -> Color {
     let darkHex: UInt32, lightHex: UInt32
     switch clampPct(percent) {
-    case 50...100:                  darkHex = 0x3FB984; lightHex = 0x1F9E63  // green
-    case let p where p >= redBelow: darkHex = 0xE0A93C; lightHex = 0xB07E1C  // amber
-    default:                        darkHex = 0xE5564E; lightHex = 0xCF3A33  // red
+    case 50...100: darkHex = 0x3FB984; lightHex = 0x1FA45E  // green
+    case 15...49:  darkHex = 0xE0A93C; lightHex = 0xB07D0A  // amber
+    default:       darkHex = 0xE5564E; lightHex = 0xC9403A  // red
     }
     return Color(nsColor: NSColor(name: nil) { appearance in
         let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua

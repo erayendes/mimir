@@ -181,10 +181,24 @@ extension LiveUsageDataSource {
             let one = credits.first { ($0["creditType"] as? String)?.contains("GOOGLE_ONE") == true } ?? credits[0]
             guard let amount = num(one["creditAmount"]) else { return nil }
             let minimum = num(one["minimumCreditAmountForUsage"]) ?? 0
-            return ModelStatus(name: String(localized: "Google One credits"), remainingPercent: 0, resetAt: nil,
-                               valueText: String(Int(amount)), isLow: amount < minimum)
+            return ModelStatus(name: antigravityCreditLabel(one["creditType"] as? String),
+                               remainingPercent: 0, resetAt: nil,
+                               valueText: String(Int(amount)), isLow: amount < minimum, symbol: "sparkles")
         }
         return nil
+    }
+
+    /// Label for the credit row. Google One is the only type seen in the wild, so it gets the
+    /// designed "AI credit" name; anything else is titled from the raw type (GEMINI_ULTRA →
+    /// "Gemini Ultra") rather than being mislabelled as Google One.
+    func antigravityCreditLabel(_ creditType: String?) -> String {
+        guard let creditType, !creditType.isEmpty, !creditType.contains("GOOGLE_ONE") else {
+            return String(localized: "AI credit")
+        }
+        return creditType
+            .split(whereSeparator: { $0 == "_" || $0 == "-" })
+            .map(\.capitalized)
+            .joined(separator: " ")
     }
 
     /// Flatten `groups[].buckets[]` into one row per (group × window), ordered 5h then

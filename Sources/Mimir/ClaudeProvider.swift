@@ -245,8 +245,11 @@ extension LiveUsageDataSource {
         }
         let text = limit.map { "\(money(used)) / \(money($0))" } ?? money(used)
         let util = doubleValue(spend["percent"]) ?? (limit.map { $0 > 0 ? used / $0 * 100 : 0 } ?? 0)
-        return ModelStatus(name: String(localized: "Billing"), remainingPercent: 0, resetAt: nil,
-                           valueText: text, isLow: util >= 80)
+        // Prefer the API's own judgement when it ships one; otherwise the 80%-of-cap heuristic.
+        let low = (spend["severity"] as? String)
+            .map { !["none", "normal", "ok"].contains($0.lowercased()) } ?? (util >= 80)
+        return ModelStatus(name: String(localized: "Usage credit"), remainingPercent: 0, resetAt: nil,
+                           valueText: text, isLow: low, symbol: "dollarsign.circle")
     }
 
     private func claudeLegacyBillingRow(_ raw: Any?) -> ModelStatus? {
@@ -260,8 +263,8 @@ extension LiveUsageDataSource {
         }
         let text = limit.map { "\(money(used)) / \(money($0))" } ?? money(used)
         let util = doubleValue(e["utilization"]) ?? (limit.map { $0 > 0 ? used / $0 * 100 : 0 } ?? 0)
-        return ModelStatus(name: String(localized: "Billing"), remainingPercent: 0, resetAt: nil,
-                           valueText: text, isLow: util >= 80)
+        return ModelStatus(name: String(localized: "Usage credit"), remainingPercent: 0, resetAt: nil,
+                           valueText: text, isLow: util >= 80, symbol: "dollarsign.circle")
     }
     private func mergeClaudeWindows(root: [String: Any], baseKey: String) -> (utilization: Double, resetAt: Date?) {
         var bestUtil = 0.0

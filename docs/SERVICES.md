@@ -58,7 +58,9 @@ Mimir shows session and weekly quotas for **Codex**, trying two sources in order
 
 > 📝 **Note:** If no reset time is found in the local file, the card still shows the remaining percentage, but the countdown may be omitted (the card notes this).
 
-**What's shown.** Session (5-hour) and weekly remaining percentages with reset times. When available, value rows such as a **credit balance** (for these non-percentage rows, Mimir triggers the low-quota badge when they fall below their threshold).
+**Reset credits.** Alongside the balance, Codex can hold **reset credits** — one-shot passes that clear a spent rate-limit window. Mimir reads them from the ChatGPT API and shows how many you have, plus how long until the first one expires. Only credits that are both still available and not yet expired are counted (one can lapse between polls), and the row is omitted entirely when there are none. This is a bonus reading: if the request fails, the rest of the Codex card is unaffected.
+
+**What's shown.** Session (5-hour) and weekly remaining percentages with reset times. When available, value rows such as the **credit balance** and **reset credits** (for these non-percentage rows, Mimir triggers the low-quota badge when they fall below their threshold).
 
 | Symptom | Likely cause / fix |
 |---|---|
@@ -144,7 +146,9 @@ Mimir, **Codex** için seans ve haftalık kotaları gösterir. İki kaynağı s�
 
 > 📝 **Not:** Yerel dosyada sıfırlanma zamanı bulunamazsa kart yine kalan yüzdeyi gösterir, ancak geri sayım gösterilmeyebilir (kart bunu bir notla belirtir).
 
-**Gösterilen bilgiler.** Seans (5 saatlik) ve haftalık kalan yüzdeleri ile sıfırlanma zamanları. Uygun olduğunda **kredi bakiyesi** gibi değer satırları (yüzde olmayan bu satırlar için Mimir, eşik altına inildiğinde düşük-kota rozetini tetikler).
+**Sıfırlama hakkı.** Bakiyenin yanında Codex'te **sıfırlama hakkı** olabilir — dolan bir kota penceresini temizleyen tek kullanımlık haklar. Mimir bunları ChatGPT API'sinden okur; kaç tane olduğunu ve ilkinin ne kadar süre sonra dolacağını gösterir. Yalnızca hem hâlâ kullanılabilir hem de süresi dolmamış haklar sayılır (bir hak iki sorgu arasında süresini doldurabilir); hiç yoksa satır hiç çizilmez. Bu ek bir okumadır: istek başarısız olursa Codex kartının geri kalanı etkilenmez.
+
+**Gösterilen bilgiler.** Seans (5 saatlik) ve haftalık kalan yüzdeleri ile sıfırlanma zamanları. Uygun olduğunda **kredi bakiyesi** ve **sıfırlama hakkı** gibi değer satırları (yüzde olmayan bu satırlar için Mimir, eşik altına inildiğinde düşük-kota rozetini tetikler).
 
 | Belirti | Olası neden / çözüm |
 |---|---|

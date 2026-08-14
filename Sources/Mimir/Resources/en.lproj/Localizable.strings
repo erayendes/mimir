@@ -18,6 +18,11 @@
 "5h session · %@" = "5h session · %@";
 "All models" = "All models";
 "Usage credit" = "Usage credit";
+"Usage limits" = "Usage limits";
+"Credit balance" = "Credit balance";
+"Reset credits" = "Reset credits";
+"first expires in %@" = "first expires in %@";
+"AI credit" = "AI credit";
 "Resets at %@" = "Resets at %@";
 
 /* Tooltip / status */
@@ -54,9 +59,6 @@
 "no local source" = "no local source";
 
 /* Credit / billing labels */
-"Google One credits" = "Google One credits";
-"Billing" = "Billing";
-"Credits" = "Credits";
 "Unlimited" = "Unlimited";
 "%@ credits" = "%@ credits";
 

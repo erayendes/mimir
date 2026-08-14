@@ -120,7 +120,8 @@ extension LiveUsageDataSource {
                   root["rate_limit"] is [String: Any] else {
                 return nil
             }
-            return codexStatus(fromUsageRoot: root)
+            let resetRow = await fetchCodexResetCredits(accessToken: accessToken, accountID: accountID)
+            return codexStatus(fromUsageRoot: root, extraRows: resetRow.map { [$0] } ?? [])
         } catch {
             return nil
         }
@@ -133,7 +134,7 @@ extension LiveUsageDataSource {
     /// longer implies "5-hour". A window of <= 6h is the 5-hour session, anything longer is the weekly
     /// one; see `codexWindowIsSession` for what happens when the period field is missing. An absent
     /// window stays nil (no misleading "100%"). If the 5h window returns later, it's the session again.
-    func codexStatus(fromUsageRoot root: [String: Any], now: Date = Date()) -> ServiceStatus {
+    func codexStatus(fromUsageRoot root: [String: Any], now: Date = Date(), extraRows: [ModelStatus] = []) -> ServiceStatus {
         let rateLimit = root["rate_limit"] as? [String: Any] ?? [:]
 
         var session: (percent: Int, resetAt: Date?)?
@@ -166,7 +167,7 @@ extension LiveUsageDataSource {
             sessionRemainingPercent: session?.percent,
             weeklyRemainingPercent: weekly?.percent,
             weeklyWindowSeconds: weeklyWindow,
-            models: codexCreditRow(root["credits"]).map { [$0] } ?? [],
+            models: (codexCreditRow(root["credits"]).map { [$0] } ?? []) + extraRows,
             isAvailable: true,
             statusNote: "chatgpt usage api"
         )
@@ -176,15 +177,57 @@ extension LiveUsageDataSource {
     /// Returns nil for free/Plus accounts with no credits, so the row is simply omitted.
     private func codexCreditRow(_ raw: Any?) -> ModelStatus? {
         guard let c = raw as? [String: Any] else { return nil }
+        let label = String(localized: "Credit balance")
         if c["unlimited"] as? Bool == true {
-            return ModelStatus(name: String(localized: "Credits"), remainingPercent: 0, resetAt: nil, valueText: String(localized: "Unlimited"))
+            return ModelStatus(name: label, remainingPercent: 0, resetAt: nil,
+                               valueText: String(localized: "Unlimited"), symbol: "dollarsign.circle")
         }
         guard c["has_credits"] as? Bool == true else { return nil }
         let amount = (c["balance"] as? String).flatMap(Double.init) ?? doubleValue(c["balance"]) ?? 0
         guard amount > 0 else { return nil }
         let text = amount.truncatingRemainder(dividingBy: 1) == 0 ? String(Int(amount)) : String(amount)
-        return ModelStatus(name: String(localized: "Credits"), remainingPercent: 0, resetAt: nil,
-                           valueText: String(format: String(localized: "%@ credits"), text), isLow: amount < 5)
+        return ModelStatus(name: label, remainingPercent: 0, resetAt: nil,
+                           valueText: String(format: String(localized: "%@ credits"), text), isLow: amount < 5,
+                           symbol: "dollarsign.circle")
+    }
+
+    /// Reset credits ("sıfırlama hakkı") from `wham/rate-limit-reset-credits`: one-shot passes that
+    /// clear a spent rate-limit window. Only credits still available AND not yet expired count — a
+    /// credit can lapse between polls, and `available_count` doesn't re-check that.
+    /// Returns nil when there are none, so the row is simply omitted.
+    func codexResetCreditRow(fromRoot root: [String: Any], now: Date = Date()) -> ModelStatus? {
+        let credits = (root["credits"] as? [[String: Any]] ?? []).compactMap { item -> Date? in
+            guard (item["status"] as? String)?.lowercased() == "available",
+                  let raw = item["expires_at"] as? String,
+                  let expiresAt = parseISO8601(raw), expiresAt > now else { return nil }
+            return expiresAt
+        }
+        guard !credits.isEmpty else { return nil }
+        let caption = credits.min().map {
+            String(format: String(localized: "first expires in %@"), TimeFormatter.duration(from: $0.timeIntervalSince(now)))
+        }
+        return ModelStatus(name: String(localized: "Reset credits"), remainingPercent: 0, resetAt: nil,
+                           valueText: String(credits.count), caption: caption, symbol: "arrow.clockwise")
+    }
+
+    /// GET the reset-credit endpoint with the same auth as `wham/usage`. Failure returns nil and the
+    /// row is dropped — this is a bonus reading, never a reason to fail the whole Codex fetch.
+    private func fetchCodexResetCredits(accessToken: String, accountID: String?) async -> ModelStatus? {
+        var req = URLRequest(url: URL(string: "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits")!,
+                             timeoutInterval: 10)
+        req.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/json", forHTTPHeaderField: "Accept")
+        req.setValue("Mimir", forHTTPHeaderField: "User-Agent")
+        if let accountID, !accountID.isEmpty {
+            req.setValue(accountID, forHTTPHeaderField: "ChatGPT-Account-Id")
+        }
+
+        guard let (data, response) = try? await URLSession.shared.data(for: req),
+              (response as? HTTPURLResponse).map({ 200 ... 299 ~= $0.statusCode }) == true,
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        return codexResetCreditRow(fromRoot: root)
     }
     private func summarizeCodexWindow(_ window: CodexRateWindow?, now: Date) -> CodexWindowSummary? {
         guard let window else { return nil }
