@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+### [2.10] - 2026-08-16
+
+#### Fixed
+- Anonymous usage telemetry was being sent to the wrong destination since 2.5.3, so none of it ever arrived. The signals themselves were unchanged — categorical only, no quota values, no account data — they simply went nowhere. Opting out still works exactly as before.
+
 ### [2.9] - 2026-08-14
 
 #### Added
@@ -400,6 +405,11 @@ Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
 
 ### [Yayımlanmadı]
+
+### [2.10] - 2026-08-16
+
+#### Düzeltildi
+- Anonim kullanım telemetrisi 2.5.3'ten beri yanlış hedefe gönderiliyordu, dolayısıyla hiçbiri ulaşmadı. Gönderilen sinyaller değişmedi — yalnızca kategorik, kota değeri veya hesap bilgisi içermiyor — sadece hiçbir yere gitmiyorlardı. Kapatma tercihi eskisi gibi çalışıyor.
 
 ### [2.9] - 2026-08-14
 
