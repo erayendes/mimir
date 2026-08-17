@@ -7,7 +7,33 @@
     <link>https://github.com/erayendes/mimir</link>
     <description>Mimir update feed</description>
     <language>en</language>
-                                                                                        <item>
+                                                                                            <item>
+      <title>Mimir 2.10</title>
+      <sparkle:version>2010000</sparkle:version>
+      <sparkle:shortVersionString>2.10</sparkle:shortVersionString>
+      <pubDate>Mon, 17 Aug 2026 05:57:03 +0000</pubDate>
+      <description><![CDATA[
+<p><b>Fixed</b></p>
+<ul>
+<li>Antigravity's quota could stop updating when more than one Antigravity language server was running — the desktop app and the IDE each start their own, and a server that has just launched answers with an auth error while its sibling is serving fine. Mimir asked only the first one it found and gave up if that one didn't answer. It now tries each running server until one responds, so the card keeps updating.</li>
+<li>Anonymous usage telemetry was being sent to the wrong destination since 2.5.3, so none of it ever arrived. The signals themselves were unchanged — categorical only, no quota values, no account data — they simply went nowhere. Opting out still works exactly as before.</li>
+</ul>
+<hr>
+<p><b>Düzeltildi</b></p>
+<ul>
+<li>Birden fazla Antigravity dil sunucusu çalışırken Antigravity kotası güncellenmeyi bırakabiliyordu — masaüstü uygulaması ve IDE ayrı ayrı kendi sunucusunu başlatıyor, yeni başlamış olan bir kimlik doğrulama hatası döndürürken diğeri sorunsuz cevap verebiliyor. Mimir yalnızca bulduğu ilkine soruyor, o cevap vermeyince pes ediyordu. Artık cevap alana kadar çalışan tüm sunucuları sırayla deniyor; kart güncellenmeye devam ediyor.</li>
+<li>Anonim kullanım telemetrisi 2.5.3'ten beri yanlış hedefe gönderiliyordu, dolayısıyla hiçbiri ulaşmadı. Gönderilen sinyaller değişmedi — yalnızca kategorik, kota değeri veya hesap bilgisi içermiyor — sadece hiçbir yere gitmiyorlardı. Kapatma tercihi eskisi gibi çalışıyor.</li>
+</ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v2.10/Mimir.zip"
+        sparkle:edSignature="yBATG6gBOnq3gEyf+tQIF0pYAN0nLAXEBOGNYkDXVc18lj0+ZOmLhZ9DJCwSdBKtCguIrlJs2JmkXMfNko/sBw=="
+        length="6578170"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 2.9</title>
       <sparkle:version>2009000</sparkle:version>
       <sparkle:shortVersionString>2.9</sparkle:shortVersionString>
