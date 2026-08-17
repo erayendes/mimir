@@ -99,50 +99,61 @@ extension LiveUsageDataSource {
     /// Locate the running Antigravity language server and return its CSRF token plus the
     /// localhost ports it listens on. Shared by every local-gRPC fetch so the process /
     /// port discovery (and its lsof gotcha) lives in one place.
-    private func antigravityLanguageServerEndpoint() -> (csrf: String, ports: [Int])? {
-        let processRows = runShell("ps -ax -o pid=,command= | grep 'bin/language_server' | grep antigravity | grep -v grep")
+    private func antigravityLanguageServerEndpoints() -> [(csrf: String, ports: [Int])] {
+        runShell("ps -ax -o pid=,command= | grep 'bin/language_server' | grep antigravity | grep -v grep")
             .split(separator: "\n")
-        guard let row = processRows.first else {
-            return nil
-        }
-        let command = String(row)
-        guard let pidStr = command.split(separator: " ").first.map(String.init),
-              let pidInt = Int(pidStr),
-              let csrf = extractFlag("--csrf_token", from: command) else {
-            return nil
-        }
+            .compactMap { row in
+                let command = String(row)
+                guard let pidStr = command.split(separator: " ").first.map(String.init),
+                      let pidInt = Int(pidStr),
+                      let csrf = extractFlag("--csrf_token", from: command) else {
+                    return nil
+                }
 
-        // -a ANDs the filters; without it lsof ORs -iTCP and -p, returning every
-        // listening port on the system and forcing dozens of curl probes that blow the timeout.
-        let ports = runShell("lsof -a -nP -iTCP -sTCP:LISTEN -p \(pidInt) | awk '{print $9}' | sed -E 's/.*:([0-9]+)->?.*/\\1/' | sed -E 's/.*:([0-9]+)$/\\1/' | sort -u")
-            .split(separator: "\n")
-            .compactMap { Int($0) }
-        guard !ports.isEmpty else {
-            return nil
+                // -a ANDs the filters; without it lsof ORs -iTCP and -p, returning every
+                // listening port on the system and forcing dozens of curl probes that blow the timeout.
+                let ports = runShell("lsof -a -nP -iTCP -sTCP:LISTEN -p \(pidInt) | awk '{print $9}' | sed -E 's/.*:([0-9]+)->?.*/\\1/' | sed -E 's/.*:([0-9]+)$/\\1/' | sort -u")
+                    .split(separator: "\n")
+                    .compactMap { Int($0) }
+                return ports.isEmpty ? nil : (csrf, ports)
+            }
+    }
+
+    /// Ask every running language server, on each of its ports, until one returns a response
+    /// `accept` recognises. Returns the payload plus the endpoint it came from, since the credit
+    /// row is fetched from that same server.
+    ///
+    /// Several servers can run at once — Antigravity.app and Antigravity IDE.app both ship one and
+    /// report the *same* account quota — and a freshly started one answers
+    /// `"error getting token source"` while its sibling is serving fine. Trying only the first
+    /// process would drop the whole live source while a working server sat right next to it.
+    private func antigravityProbe(path: String,
+                                  accept: ([String: Any]) -> Bool) -> (json: [String: Any], csrf: String, ports: [Int])? {
+        let body = "{\"metadata\":{\"ideName\":\"antigravity\",\"extensionName\":\"antigravity\",\"locale\":\"en\",\"ideVersion\":\"unknown\"}}"
+        for (csrf, ports) in antigravityLanguageServerEndpoints() {
+            for p in ports {
+                let out = antigravityCurl(port: p, path: path, body: body, csrf: csrf)
+                guard let data = out.data(using: .utf8),
+                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      accept(json) else { continue }
+                return (json, csrf, ports)
+            }
         }
-        return (csrf, ports)
+        return nil
     }
 
     /// Call the grouped quota summary RPC the IDE's Model Quota page uses. Each group
     /// (Gemini, Claude+GPT) carries a weekly and a 5-hour bucket — flattened to one row each.
     private func fetchAntigravityQuotaSummary() -> ServiceStatus? {
-        guard let (csrf, ports) = antigravityLanguageServerEndpoint() else {
+        guard let hit = antigravityProbe(path: "RetrieveUserQuotaSummary", accept: { json in
+            let g = (json["response"] as? [String: Any])?["groups"] as? [[String: Any]]
+            return !(g?.isEmpty ?? true)
+        }) else {
             return nil
         }
-
-        let body = "{\"metadata\":{\"ideName\":\"antigravity\",\"extensionName\":\"antigravity\",\"locale\":\"en\",\"ideVersion\":\"unknown\"}}"
-        var groups: [[String: Any]]?
-        for p in ports {
-            let out = antigravityCurl(port: p, path: "RetrieveUserQuotaSummary", body: body, csrf: csrf)
-            if let data = out.data(using: .utf8),
-               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let response = json["response"] as? [String: Any],
-               let g = response["groups"] as? [[String: Any]], !g.isEmpty {
-                groups = g
-                break
-            }
-        }
-        guard let groups else {
+        let (csrf, ports) = (hit.csrf, hit.ports)
+        guard let response = hit.json["response"] as? [String: Any],
+              let groups = response["groups"] as? [[String: Any]] else {
             return nil
         }
 
@@ -236,22 +247,8 @@ extension LiveUsageDataSource {
     }
 
     private func fetchAntigravityLocalLanguageServer(models defaults: [String]) -> ServiceStatus? {
-        guard let (csrf, ports) = antigravityLanguageServerEndpoint() else {
-            return nil
-        }
-
-        let body = "{\"metadata\":{\"ideName\":\"antigravity\",\"extensionName\":\"antigravity\",\"locale\":\"en\",\"ideVersion\":\"unknown\"}}"
-        var payload: [String: Any]?
-        for p in ports {
-            let out = antigravityCurl(port: p, path: "GetUserStatus", body: body, csrf: csrf)
-            if let data = out.data(using: .utf8),
-               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               json["userStatus"] != nil {
-                payload = json
-                break
-            }
-        }
-        guard let payload else {
+        guard let payload = antigravityProbe(path: "GetUserStatus",
+                                             accept: { $0["userStatus"] != nil })?.json else {
             return nil
         }
 
