@@ -238,8 +238,12 @@ struct LiveUsageDataSource {
         let sessionReset = (root["sessionResetAt"] as? String).flatMap { parseISO8601($0) }
         let weeklyReset = (root["weeklyResetAt"] as? String).flatMap { parseISO8601($0) }
         // Absent in snapshots written before this key existed — nil then, and the callers fall back
-        // to the 7-day default exactly as they did before.
-        let weeklyWindow = (root["weeklyWindowSeconds"] as? NSNumber)?.doubleValue
+        // to the 7-day default exactly as they did before. Bounds-checked because the on-disk value
+        // is untrusted: a corrupt/hand-edited number outside (6h, 366d] would trap in the
+        // Double→Int of quotaWindowDays (e.g. 1e300) or hang rollForward's stepping loop (≤0).
+        let weeklyWindow = (root["weeklyWindowSeconds"] as? NSNumber)
+            .map(\.doubleValue)
+            .flatMap { $0.isFinite && $0 > 6 * 3600 && $0 <= 366 * 86_400 ? $0 : nil }
 
         // Live source unreachable long enough (>4.5 h — just under the 5-hour session window, beyond
         // which the last-known session reading is from a window that has already rotated, so it's
