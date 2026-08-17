@@ -340,6 +340,38 @@ final class UsageParsingTests: XCTestCase {
         XCTAssertGreaterThan(card!.models.first!.resetAt!, Date())
     }
 
+    /// A lapsed reset is rolled forward by the window's REAL length. With a ~30-day window (ChatGPT Go)
+    /// and a reset 40 days old, stepping by 30 days lands 20 days out; the old hardcoded 7-day step
+    /// would have landed within a week — a boundary that window never has.
+    func testStaleCardRollsResetForwardByRealWindowLength() {
+        let month: TimeInterval = 30 * 86_400
+        let past = Date(timeIntervalSinceNow: -40 * 86_400)
+        let card = ds.staleClassifiedCard(
+            name: "Codex", iconName: "codex",
+            sessionPct: nil, sessionReset: nil,
+            weeklyPct: 12, weeklyReset: past,
+            weeklyWindowSeconds: month,
+            models: [], freshNote: "fresh", staleNote: "stale")
+        let rolled = try! XCTUnwrap(card?.weeklyResetAt)
+        XCTAssertGreaterThan(rolled, Date())
+        // 40 days past + two 30-day steps = 20 days out, not the ~2 days a 7-day step would give.
+        XCTAssertEqual(rolled.timeIntervalSince(past), 60 * 86_400, accuracy: 60)
+        XCTAssertEqual(card?.weeklyWindowSeconds, month)            // survives into the restored card
+    }
+
+    /// No reported length → the 7-day default, exactly as before this field existed.
+    func testStaleCardFallsBackToSevenDaysWithoutWindowLength() {
+        let past = Date(timeIntervalSinceNow: -10 * 86_400)
+        let card = ds.staleClassifiedCard(
+            name: "Claude", iconName: "claude",
+            sessionPct: nil, sessionReset: nil,
+            weeklyPct: 30, weeklyReset: past,
+            models: [], freshNote: "fresh", staleNote: "stale")
+        let rolled = try! XCTUnwrap(card?.weeklyResetAt)
+        XCTAssertEqual(rolled.timeIntervalSince(past), 14 * 86_400, accuracy: 60)
+        XCTAssertNil(card?.weeklyWindowSeconds)
+    }
+
     /// A card with even ONE refilled window is an estimate → `isStale`, so it's excluded from the reset
     /// notification path (which fires on `!isStale`). This stops the false "weekly quota refilled" spam
     /// when a stale card bounces its weekly to a refilled 100 while the session is still live.
