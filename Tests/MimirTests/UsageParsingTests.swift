@@ -340,6 +340,82 @@ final class UsageParsingTests: XCTestCase {
         XCTAssertGreaterThan(card!.models.first!.resetAt!, Date())
     }
 
+    /// A lapsed reset is rolled forward by the window's REAL length. With a ~30-day window (ChatGPT Go)
+    /// and a reset 40 days old, stepping by 30 days lands 20 days out; the old hardcoded 7-day step
+    /// would have landed within a week — a boundary that window never has.
+    func testStaleCardRollsResetForwardByRealWindowLength() {
+        let month: TimeInterval = 30 * 86_400
+        let past = Date(timeIntervalSinceNow: -40 * 86_400)
+        let card = ds.staleClassifiedCard(
+            name: "Codex", iconName: "codex",
+            sessionPct: nil, sessionReset: nil,
+            weeklyPct: 12, weeklyReset: past,
+            weeklyWindowSeconds: month,
+            models: [], freshNote: "fresh", staleNote: "stale")
+        let rolled = try! XCTUnwrap(card?.weeklyResetAt)
+        XCTAssertGreaterThan(rolled, Date())
+        // 40 days past + two 30-day steps = 20 days out, not the ~2 days a 7-day step would give.
+        XCTAssertEqual(rolled.timeIntervalSince(past), 60 * 86_400, accuracy: 60)
+        XCTAssertEqual(card?.weeklyWindowSeconds, month)            // survives into the restored card
+    }
+
+    /// No reported length → the 7-day default, exactly as before this field existed.
+    func testStaleCardFallsBackToSevenDaysWithoutWindowLength() {
+        let past = Date(timeIntervalSinceNow: -10 * 86_400)
+        let card = ds.staleClassifiedCard(
+            name: "Claude", iconName: "claude",
+            sessionPct: nil, sessionReset: nil,
+            weeklyPct: 30, weeklyReset: past,
+            models: [], freshNote: "fresh", staleNote: "stale")
+        let rolled = try! XCTUnwrap(card?.weeklyResetAt)
+        XCTAssertEqual(rolled.timeIntervalSince(past), 14 * 86_400, accuracy: 60)
+        XCTAssertNil(card?.weeklyWindowSeconds)
+    }
+
+    /// The window length survives the real save→load JSON round trip (not just the in-memory path)
+    /// and drives the reset rollover on restore. A save/load key mismatch would fail here where the
+    /// direct staleClassifiedCard tests above would still pass. Uses a made-up service name so the
+    /// file never collides with a real provider's snapshot.
+    func testSnapshotRoundTripPreservesWindowLengthAndRollsReset() throws {
+        let month: TimeInterval = 30 * 86_400
+        let past = Date(timeIntervalSinceNow: -40 * 86_400)
+        let status = ServiceStatus(
+            name: "RoundTrip", iconName: "codex",
+            sessionResetAt: nil, weeklyResetAt: past,
+            weeklyRemainingPercent: 12, weeklyWindowSeconds: month,
+            models: [], isAvailable: true, statusNote: nil)
+        ds.saveSnapshot(status)
+        defer { try? FileManager.default.removeItem(at: ds.snapshotURL(for: "RoundTrip")) }
+
+        let card = try XCTUnwrap(ds.loadSnapshot(for: "RoundTrip", iconName: "codex"))
+        XCTAssertEqual(card.weeklyWindowSeconds, month)
+        // 40 days past + two 30-day steps = 20 days out — proof the persisted length, not the
+        // 7-day default, stepped the lapsed reset.
+        let rolled = try XCTUnwrap(card.weeklyResetAt)
+        XCTAssertEqual(rolled.timeIntervalSince(past), 60 * 86_400, accuracy: 60)
+    }
+
+    /// An absurd on-disk window length (corrupt or hand-edited snapshot) is dropped at load instead
+    /// of reaching quotaWindowDays' Double→Int conversion, where 1e300 would trap and crash the app
+    /// on every launch until the file is deleted.
+    func testSnapshotLoadDropsOutOfRangeWindowLength() throws {
+        let iso = ISO8601DateFormatter()
+        let past = iso.string(from: Date(timeIntervalSinceNow: -10 * 86_400))
+        let json = """
+        {"version":1,"savedAt":"\(iso.string(from: Date()))","weeklyRemainingPercent":30,\
+        "weeklyResetAt":"\(past)","weeklyWindowSeconds":1e300}
+        """
+        let url = ds.snapshotURL(for: "RoundTrip")
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try json.data(using: .utf8)!.write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let card = try XCTUnwrap(ds.loadSnapshot(for: "RoundTrip", iconName: "codex"))
+        XCTAssertNil(card.weeklyWindowSeconds)          // out-of-range → dropped
+        XCTAssertNil(quotaWindowDays(card.weeklyWindowSeconds))   // and the badge stays off
+    }
+
     /// A card with even ONE refilled window is an estimate → `isStale`, so it's excluded from the reset
     /// notification path (which fires on `!isStale`). This stops the false "weekly quota refilled" spam
     /// when a stale card bounces its weekly to a refilled 100 while the session is still live.
