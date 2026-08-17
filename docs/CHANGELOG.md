@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### [2.10] - 2026-08-16
 
 #### Fixed
+- Antigravity's quota could stop updating when more than one Antigravity language server was running — the desktop app and the IDE each start their own, and a server that has just launched answers with an auth error while its sibling is serving fine. Mimir asked only the first one it found and gave up if that one didn't answer. It now tries each running server until one responds, so the card keeps updating.
 - Anonymous usage telemetry was being sent to the wrong destination since 2.5.3, so none of it ever arrived. The signals themselves were unchanged — categorical only, no quota values, no account data — they simply went nowhere. Opting out still works exactly as before.
 
 ### [2.9] - 2026-08-14
@@ -409,6 +410,7 @@ sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) k
 ### [2.10] - 2026-08-16
 
 #### Düzeltildi
+- Birden fazla Antigravity dil sunucusu çalışırken Antigravity kotası güncellenmeyi bırakabiliyordu — masaüstü uygulaması ve IDE ayrı ayrı kendi sunucusunu başlatıyor, yeni başlamış olan bir kimlik doğrulama hatası döndürürken diğeri sorunsuz cevap verebiliyor. Mimir yalnızca bulduğu ilkine soruyor, o cevap vermeyince pes ediyordu. Artık cevap alana kadar çalışan tüm sunucuları sırayla deniyor; kart güncellenmeye devam ediyor.
 - Anonim kullanım telemetrisi 2.5.3'ten beri yanlış hedefe gönderiliyordu, dolayısıyla hiçbiri ulaşmadı. Gönderilen sinyaller değişmedi — yalnızca kategorik, kota değeri veya hesap bilgisi içermiyor — sadece hiçbir yere gitmiyorlardı. Kapatma tercihi eskisi gibi çalışıyor.
 
 ### [2.9] - 2026-08-14
