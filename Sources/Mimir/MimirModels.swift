@@ -176,12 +176,17 @@ struct MenuBarDot: Equatable {
 /// The menu-bar dots, ordered to match the popover: `serviceDisplayOrder`, then each service's
 /// families in row order (Antigravity shows one dot per family, not a collapsed worst). A service is
 /// included on the popover's own rule (`isAvailable || isStale`), so a visible one is never silently
-/// dotless. Pure (no AppKit) → unit-testable.
-func menuBarDots(from services: [ServiceStatus]) -> [MenuBarDot] {
+/// dotless — except a service whose unavailable-notice the user dismissed, which is hidden in both
+/// places at once. Pure (no AppKit) → unit-testable.
+func menuBarDots(from services: [ServiceStatus], dismissed: Set<String> = []) -> [MenuBarDot] {
     var dots: [MenuBarDot] = []
     for name in serviceDisplayOrder {
         guard let svc = services.first(where: { $0.name == name }),
               svc.isAvailable || svc.isStale else { continue }
+        // Dismissing the "couldn't fetch" banner hides the service everywhere, dots included —
+        // a grey dot with no notice explaining it reads as a bug. The dismissal is dropped as soon
+        // as the service reports data again, so the dot returns with it.
+        if svc.dataUnavailable, dismissed.contains(name) { continue }
         dots.append(contentsOf: svc.sessionWindows.map {
             // When a window has no 5h reading (Codex since OpenAI's July 2026 removal of the 5-hour
             // limit), colour the dot by the weekly quota instead of greying out — the weekly cap is the
