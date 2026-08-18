@@ -68,3 +68,28 @@ final class DismissBannerTests: XCTestCase {
         XCTAssertEqual(store.dismissedUnavailable, ["Antigravity"])
     }
 }
+
+/// Dismissing the banner must hide the service's menu-bar dots too. A grey dot with no notice
+/// explaining it is indistinguishable from a bug.
+extension DismissBannerTests {
+    private func downService(_ name: String) -> ServiceStatus {
+        ServiceStatus(name: name, iconName: name.lowercased(),
+                      sessionResetAt: nil, weeklyResetAt: nil,
+                      sessionRemainingPercent: 40, weeklyRemainingPercent: 50,
+                      models: [], isAvailable: false, statusNote: nil,
+                      isStale: true, dataUnavailable: true)
+    }
+
+    func testDismissedServiceLosesItsMenuBarDots() {
+        let services = [downService("Antigravity"), service("Codex", down: false)]
+        XCTAssertEqual(menuBarDots(from: services).count, 2)                       // both dotted
+        let kept = menuBarDots(from: services, dismissed: ["Antigravity"])
+        XCTAssertEqual(kept.count, 1)                                             // Antigravity gone
+    }
+
+    /// A dismissal only hides a service that is actually down — it can't blank a healthy one.
+    func testDismissalDoesNotHideAHealthyService() {
+        let services = [service("Codex", down: false)]
+        XCTAssertEqual(menuBarDots(from: services, dismissed: ["Codex"]).count, 1)
+    }
+}

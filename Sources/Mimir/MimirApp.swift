@@ -545,7 +545,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// (no 5h reading yet, or the fetch hasn't landed) → a neutral grey placeholder. It recolours on
     /// the next refresh.
     private func menuBarDotColors() -> [NSColor] {
-        menuBarDots(from: store.services).map { dot in
+        menuBarDots(from: store.services, dismissed: store.dismissedUnavailable).map { dot in
             // Data unavailable (source down too long) or 7g spent → grey lockout, matching the
             // widget/popover; else the 5h status colour, or the neutral grey with no 5h reading yet.
             if dot.unavailable || dot.weeklyExhausted { return Self.noDataDotColor }
