@@ -73,6 +73,7 @@
 "widget.unavailable.app" = "%@ appears to be closed";
 "widget.unavailable.action" = "Tap to open";
 "popover.unavailable" = "%@ data unavailable — tap to open";
+"popover.unavailable.dismiss" = "Dismiss";
 "widget.empty" = "Open Mimir to load quota.";
 "widget.config.model" = "Model";
 "widget.config.description" = "Choose which model the small widget shows.";
