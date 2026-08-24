@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 #### Added
 - The "couldn't fetch" notice at the top of the panel can now be dismissed with the × in its corner. Its menu-bar dots go with it, so nothing is left behind unexplained. Both come back when that provider reports data again, so a later outage is still announced.
 
+#### Fixed
+- A quota card restored from its saved copy — after a restart, or while the live source is unreachable — lost track of how long its window was and fell back to assuming a week. On a monthly window that showed the wrong label and counted down to a reset date that window never has.
+
 ### [2.10] - 2026-08-16
 
 #### Fixed
@@ -412,6 +415,9 @@ sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) k
 
 #### Eklendi
 - Panelin üstündeki "veri alınamadı" uyarısı artık köşesindeki × ile kapatılabiliyor. Menü çubuğundaki noktaları da onunla birlikte gidiyor, geride açıklamasız bir şey kalmıyor. O sağlayıcı tekrar veri verince ikisi de geri geliyor; sonraki bir kesinti yine bildiriliyor.
+
+#### Düzeltildi
+- Kayıtlı kopyasından geri yüklenen bir kota kartı — yeniden başlatmadan sonra ya da canlı kaynağa ulaşılamazken — penceresinin ne kadar uzun olduğunu unutup bir hafta varsayıyordu. Aylık bir pencerede bu, yanlış etiket ve o pencerenin hiç görmediği bir sıfırlanma tarihine geri sayım demekti.
 
 ### [2.10] - 2026-08-16
 
