@@ -73,17 +73,33 @@ struct PopoverView: View {
     @ViewBuilder
     private var notificationBanner: some View {
         let down = store.services
-            .filter(\.dataUnavailable)
+            .filter { $0.dataUnavailable && !store.dismissedUnavailable.contains($0.name) }
             .sortedByDisplayOrder()
         if !down.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
                 ForEach(down) { svc in
-                    Text(String(format: String(localized: "popover.unavailable"), svc.name))
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(Color.primary.opacity(0.7))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .contentShape(Rectangle())
-                        .onTapGesture { AppTarget.open(svc.name) }
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text(String(format: String(localized: "popover.unavailable"), svc.name))
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(Color.primary.opacity(0.7))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                            .onTapGesture { AppTarget.open(svc.name) }
+                        // Dismissing is per-service and lasts only until that service reports data
+                        // again (see UsageStore.forgetRecoveredDismissals), so hiding this notice
+                        // can't permanently mute a provider that is genuinely broken.
+                        Button { store.dismissUnavailable(svc.name) } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(Color.primary.opacity(0.45))
+                                .frame(width: 16, height: 16)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .pointingHandCursor()
+                        .help(String(localized: "popover.unavailable.dismiss"))
+                        .accessibilityLabel(String(localized: "popover.unavailable.dismiss"))
+                    }
                 }
             }
             .padding(.horizontal, 12).padding(.vertical, 9)

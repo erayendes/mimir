@@ -11,6 +11,19 @@ final class UsageStore: ObservableObject {
     /// token; cleared on the next live success). Stops Mimir hammering a failing endpoint.
     private var cooldownUntil: [String: Date] = [:]
 
+    /// Services whose "couldn't fetch" banner the user dismissed. Persisted so it survives a
+    /// relaunch, but cleared as soon as the service reports data again — otherwise one dismissal
+    /// would silence every future outage for that provider.
+    @Published private(set) var dismissedUnavailable: Set<String> =
+        Set(UserDefaults.standard.stringArray(forKey: UsageStore.dismissedKey) ?? [])
+
+    private static let dismissedKey = "popover.dismissedUnavailable"
+
+    func dismissUnavailable(_ name: String) {
+        guard dismissedUnavailable.insert(name).inserted else { return }
+        UserDefaults.standard.set(Array(dismissedUnavailable), forKey: Self.dismissedKey)
+    }
+
     /// `userInitiated` is forwarded to the Claude fetch so it knows whether it may read Claude
     /// Code's own keychain item (the prompt-triggering source). The 60s background timer passes
     /// `false`; opening the menu-bar panel passes `true`. See `fetchClaude(userInitiated:)`.
@@ -25,9 +38,19 @@ final class UsageStore: ObservableObject {
                 await source.fetchAll(skip: skip, userInitiated: userInitiated).sorted { $0.name < $1.name }
             }.value
             for status in result { self.applyCooldownOutcome(status) }
+            self.forgetRecoveredDismissals(result)
             self.services = result
             self.isRefreshing = false
         }
+    }
+
+    /// Drop dismissals for services that are no longer down, so the banner returns on the next
+    /// genuine outage instead of staying hidden forever.
+    func forgetRecoveredDismissals(_ result: [ServiceStatus]) {
+        let stillDown = Set(result.filter(\.dataUnavailable).map(\.name))
+        guard !dismissedUnavailable.isSubset(of: stillDown) else { return }
+        dismissedUnavailable.formIntersection(stillDown)
+        UserDefaults.standard.set(Array(dismissedUnavailable), forKey: Self.dismissedKey)
     }
 
     /// Translate a fetch result's `cooldownHint` into the cooldown map: `nil` leaves it unchanged,
