@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+### [2.11] - 2026-08-24
+
 #### Added
 - The "couldn't fetch" notice at the top of the panel can now be dismissed with the × in its corner. Its menu-bar dots go with it, so nothing is left behind unexplained. Both come back when that provider reports data again, so a later outage is still announced.
 
@@ -412,6 +414,8 @@ Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
 
 ### [Yayımlanmadı]
+
+### [2.11] - 2026-08-24
 
 #### Eklendi
 - Panelin üstündeki "veri alınamadı" uyarısı artık köşesindeki × ile kapatılabiliyor. Menü çubuğundaki noktaları da onunla birlikte gidiyor, geride açıklamasız bir şey kalmıyor. O sağlayıcı tekrar veri verince ikisi de geri geliyor; sonraki bir kesinti yine bildiriliyor.
