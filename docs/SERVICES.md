@@ -79,7 +79,7 @@ Mimir shows group-based quotas for **Antigravity**. Antigravity no longer manage
 1. **Group quota summary** — the grouped weekly + 5-hour summary that backs the IDE's "Model Quota" page (primary live source).
 2. **Cloud Code authorized API** — a `fetchAvailableModels` call with your Cockpit account's token.
 3. **Cockpit cache** — the last authorized data stored locally.
-4. **Local language server** data.
+4. **Local language server** data. Several can be running at once — the desktop app and the IDE each start their own, and both report the same account quota — so Mimir asks each in turn until one answers. A server that has just launched can reply with an auth error while its sibling serves fine, and stopping at the first one would drop the whole source.
 5. **Last snapshot** — when the IDE/Cockpit is closed, valid until its reset time passes.
 
 **The menu bar dot.** Since Antigravity has **two session groups** (Gemini, Claude/GPT), the single Antigravity dot shows the color of the **most constrained** group. When the IDE or Cockpit is closed, Mimir shows the **last snapshot**; if there is no account info at all, the card shows **open Antigravity or Cockpit**.
@@ -167,7 +167,7 @@ Mimir, **Antigravity** için grup bazlı kotaları gösterir. Antigravity kotay�
 1. **Grup kota özeti** — IDE'nin "Model Quota" sayfasını besleyen, gruplanmış haftalık + 5 saatlik özet (birincil canlı kaynak).
 2. **Cloud Code yetkili API'si** — Cockpit hesabınızın token'ıyla `fetchAvailableModels` çağrısı.
 3. **Cockpit önbelleği** — yerel olarak saklanan son yetkili veri.
-4. **Yerel dil sunucusu** (language server) verisi.
+4. **Yerel dil sunucusu** (language server) verisi. Aynı anda birden fazlası çalışıyor olabilir — masaüstü uygulaması ve IDE ayrı ayrı kendi sunucusunu başlatır, ikisi de aynı hesap kotasını bildirir — bu yüzden Mimir cevap alana kadar hepsini sırayla dener. Yeni başlamış bir sunucu kimlik doğrulama hatası döndürürken diğeri sorunsuz cevap verebilir; ilkinde durmak kaynağın tamamını düşürürdü.
 5. **Son anlık görüntü** (snapshot) — IDE/Cockpit kapalıysa, sıfırlanma zamanı geçene kadar geçerli.
 
 **Menü çubuğundaki nokta.** Antigravity'nin **iki seans grubu** olduğundan (Gemini, Claude/GPT), tek Antigravity noktası **en kısıtlı** grubun rengini gösterir. IDE veya Cockpit kapalıyken Mimir **son anlık görüntüyü** gösterir; hiç hesap bilgisi yoksa kart **Antigravity veya Cockpit'i aç** notunu verir.
