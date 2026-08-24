@@ -7,7 +7,39 @@
     <link>https://github.com/erayendes/mimir</link>
     <description>Mimir update feed</description>
     <language>en</language>
-                                                                                            <item>
+                                                                                                <item>
+      <title>Mimir 2.11</title>
+      <sparkle:version>2011000</sparkle:version>
+      <sparkle:shortVersionString>2.11</sparkle:shortVersionString>
+      <pubDate>Mon, 24 Aug 2026 06:48:49 +0000</pubDate>
+      <description><![CDATA[
+<p><b>Added</b></p>
+<ul>
+<li>The "couldn't fetch" notice at the top of the panel can now be dismissed with the × in its corner. Its menu-bar dots go with it, so nothing is left behind unexplained. Both come back when that provider reports data again, so a later outage is still announced.</li>
+</ul>
+<p><b>Fixed</b></p>
+<ul>
+<li>A quota card restored from its saved copy — after a restart, or while the live source is unreachable — lost track of how long its window was and fell back to assuming a week. On a monthly window that showed the wrong label and counted down to a reset date that window never has.</li>
+</ul>
+<hr>
+<p><b>Eklendi</b></p>
+<ul>
+<li>Panelin üstündeki "veri alınamadı" uyarısı artık köşesindeki × ile kapatılabiliyor. Menü çubuğundaki noktaları da onunla birlikte gidiyor, geride açıklamasız bir şey kalmıyor. O sağlayıcı tekrar veri verince ikisi de geri geliyor; sonraki bir kesinti yine bildiriliyor.</li>
+</ul>
+<p><b>Düzeltildi</b></p>
+<ul>
+<li>Kayıtlı kopyasından geri yüklenen bir kota kartı — yeniden başlatmadan sonra ya da canlı kaynağa ulaşılamazken — penceresinin ne kadar uzun olduğunu unutup bir hafta varsayıyordu. Aylık bir pencerede bu, yanlış etiket ve o pencerenin hiç görmediği bir sıfırlanma tarihine geri sayım demekti.</li>
+</ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v2.11/Mimir.zip"
+        sparkle:edSignature="mvqqsLPXlelvHT8+WIy1kaUb1T3JuTnYlpDfz/dL9873Z/0B7r3dWOm24ipHlHChWeDMheBP8GOG/LiBH1EPCg=="
+        length="6590428"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 2.10</title>
       <sparkle:version>2010000</sparkle:version>
       <sparkle:shortVersionString>2.10</sparkle:shortVersionString>
