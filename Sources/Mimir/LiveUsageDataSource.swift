@@ -150,6 +150,10 @@ struct LiveUsageDataSource {
         if let p = status.weeklyRemainingPercent { payload["weeklyRemainingPercent"] = p }
         if let d = status.sessionResetAt { payload["sessionResetAt"] = iso.string(from: d) }
         if let d = status.weeklyResetAt { payload["weeklyResetAt"] = iso.string(from: d) }
+        // Without the window's real length a restored snapshot falls back to "7 days", which both
+        // mislabels a longer window (ChatGPT Go's ~30-day one) and rolls a lapsed reset forward by
+        // the wrong step.
+        if let s = status.weeklyWindowSeconds { payload["weeklyWindowSeconds"] = s }
         if !status.models.isEmpty {
             payload["models"] = status.models.map { m -> [String: Any] in
                 var dict: [String: Any] = ["name": m.name, "remainingPercent": m.remainingPercent]
@@ -233,6 +237,13 @@ struct LiveUsageDataSource {
         }
         let sessionReset = (root["sessionResetAt"] as? String).flatMap { parseISO8601($0) }
         let weeklyReset = (root["weeklyResetAt"] as? String).flatMap { parseISO8601($0) }
+        // Absent in snapshots written before this key existed — nil then, and the callers fall back
+        // to the 7-day default exactly as they did before. Bounds-checked because the on-disk value
+        // is untrusted: a corrupt/hand-edited number outside (6h, 366d] would trap in the
+        // Double→Int of quotaWindowDays (e.g. 1e300) or hang rollForward's stepping loop (≤0).
+        let weeklyWindow = (root["weeklyWindowSeconds"] as? NSNumber)
+            .map(\.doubleValue)
+            .flatMap { $0.isFinite && $0 > 6 * 3600 && $0 <= 366 * 86_400 ? $0 : nil }
 
         // Live source unreachable long enough (>4.5 h — just under the 5-hour session window, beyond
         // which the last-known session reading is from a window that has already rotated, so it's
@@ -254,6 +265,7 @@ struct LiveUsageDataSource {
                 sessionResetAt: sessionReset, weeklyResetAt: weeklyReset,
                 sessionRemainingPercent: root["sessionRemainingPercent"] as? Int,
                 weeklyRemainingPercent: root["weeklyRemainingPercent"] as? Int,
+                weeklyWindowSeconds: weeklyWindow,
                 models: allModels, isAvailable: false, statusNote: staleNote,
                 isStale: true, dataUnavailable: true)
         }
@@ -262,6 +274,7 @@ struct LiveUsageDataSource {
             name: service, iconName: iconName,
             sessionPct: root["sessionRemainingPercent"] as? Int, sessionReset: sessionReset,
             weeklyPct: root["weeklyRemainingPercent"] as? Int, weeklyReset: weeklyReset,
+            weeklyWindowSeconds: weeklyWindow,
             models: allModels, freshNote: freshNote, staleNote: staleNote)
     }
 
@@ -282,10 +295,14 @@ struct LiveUsageDataSource {
     func staleClassifiedCard(name: String, iconName: String,
                                      sessionPct: Int?, sessionReset: Date?,
                                      weeklyPct: Int?, weeklyReset: Date?,
+                                     weeklyWindowSeconds: TimeInterval? = nil,
                                      models: [ModelStatus],
                                      freshNote: String, staleNote: String) -> ServiceStatus? {
         guard sessionPct != nil || weeklyPct != nil || !models.isEmpty else { return nil }
         let now = Date()
+        // Roll a lapsed reset forward by the window's REAL length. Assuming 7 days would land a
+        // ~30-day window (ChatGPT Go) on a boundary it never has.
+        let weeklyPeriod = weeklyWindowSeconds ?? Self.weeklyResetPeriod
 
         // Advance a passed reset to the next future boundary so a refilled window still shows a live
         // countdown instead of a stale/blank one.
@@ -303,14 +320,14 @@ struct LiveUsageDataSource {
         }
 
         let s = window(sessionPct, sessionReset, Self.sessionResetPeriod)
-        let w = window(weeklyPct, weeklyReset, Self.weeklyResetPeriod)
+        let w = window(weeklyPct, weeklyReset, weeklyPeriod)
         // Keep every model row: an in-window one as-is, a lapsed (refilled) one at 100% with its weekly
         // reset rolled forward. Value rows (billing) carry no resetting percent — pass them through.
         let rows = models.map { m -> (row: ModelStatus, live: Bool) in
             if m.valueText != nil { return (m, true) }
             let live = m.resetAt.map { now < $0 } ?? true
             if live { return (m, true) }
-            return (ModelStatus(name: m.name, remainingPercent: 100, resetAt: rollForward(m.resetAt, Self.weeklyResetPeriod)), false)
+            return (ModelStatus(name: m.name, remainingPercent: 100, resetAt: rollForward(m.resetAt, weeklyPeriod)), false)
         }
 
         let anyLive = s.live || w.live || rows.contains { $0.live }
@@ -324,6 +341,7 @@ struct LiveUsageDataSource {
             name: name, iconName: iconName,
             sessionResetAt: s.reset, weeklyResetAt: w.reset,
             sessionRemainingPercent: s.pct, weeklyRemainingPercent: w.pct,
+            weeklyWindowSeconds: weeklyWindowSeconds,
             models: rows.map(\.row),
             isAvailable: true,
             statusNote: anyLive ? freshNote : staleNote,
