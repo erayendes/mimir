@@ -24,13 +24,14 @@ enum Telemetry {
     /// The single gate every transmission passes through. Pure → unit-tested.
     static func shouldSend(isDev: Bool, enabled: Bool) -> Bool { !isDev && enabled }
 
-    /// Which providers are in use (available or showing stale data) — boolean only, never a value.
-    static func providerParameters(from services: [ServiceStatus]) -> [String: String] {
-        func active(_ name: String) -> String {
-            (services.first { $0.name == name }.map { $0.isAvailable || $0.isStale } ?? false)
-                ? "true" : "false"
-        }
-        return ["claude": active("Claude"), "codex": active("Codex"), "antigravity": active("Antigravity")]
+    /// The providers in use (available, or showing stale data) — names only, never a value.
+    ///
+    /// One `provider.active` signal is sent per name rather than a single signal carrying a flag
+    /// per provider, so `service` is one dimension the dashboard can slice into a share chart. A
+    /// provider added later becomes another value of that dimension: neither this function nor any
+    /// saved query has to change.
+    static func activeProviderNames(from services: [ServiceStatus]) -> [String] {
+        services.filter { $0.isAvailable || $0.isStale }.map(\.name)
     }
 
     /// Count of placed widgets per supported family (from WidgetCenter family raw names).

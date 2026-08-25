@@ -389,7 +389,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         refreshCount += 1
         guard refreshCount >= 3 else { return }
         sentProviderSignal = true
-        Telemetry.signal("provider.active", parameters: Telemetry.providerParameters(from: services))
+        for name in Telemetry.activeProviderNames(from: services) {
+            Telemetry.signal("provider.active", parameters: ["service": name])
+        }
     }
 
     @objc private func togglePopover(_ sender: Any?) {
