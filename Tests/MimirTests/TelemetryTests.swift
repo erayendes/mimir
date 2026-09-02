@@ -12,7 +12,7 @@ final class TelemetryTests: XCTestCase {
         XCTAssertFalse(Telemetry.shouldSend(isDev: true, enabled: false))
     }
 
-    func testProviderParametersAreCategoricalOnly() {
+    func testActiveProviderNamesCoverInUseProvidersOnly() {
         let svcs = [
             ServiceStatus(name: "Claude", iconName: "claude", sessionResetAt: nil, weeklyResetAt: nil,
                           sessionRemainingPercent: 9, weeklyRemainingPercent: 11, models: [],
@@ -22,13 +22,12 @@ final class TelemetryTests: XCTestCase {
             ServiceStatus(name: "Antigravity", iconName: "antigravity", sessionResetAt: nil,
                           weeklyResetAt: nil, models: [], isAvailable: false, statusNote: nil),
         ]
-        let p = Telemetry.providerParameters(from: svcs)
-        XCTAssertEqual(p["claude"], "true")
-        XCTAssertEqual(p["codex"], "true")          // stale still counts as in-use
-        XCTAssertEqual(p["antigravity"], "false")
+        let names = Telemetry.activeProviderNames(from: svcs)
+        XCTAssertEqual(names, ["Claude", "Codex"])  // stale still counts as in-use
+        XCTAssertFalse(names.contains("Antigravity"))
         // No quota value may leak into the payload.
-        XCTAssertFalse(p.values.contains("9"))
-        XCTAssertFalse(p.values.contains("11"))
+        XCTAssertFalse(names.contains("9"))
+        XCTAssertFalse(names.contains("11"))
     }
 
     func testWidgetParametersCountFamilies() {

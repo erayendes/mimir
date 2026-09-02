@@ -38,7 +38,7 @@ Two services do receive data, and neither gets anything about your usage:
 | Service | What it receives | Control |
 |---|---|---|
 | **Sentry** | Crash and error reports — technical app health only | Always on in released builds |
-| **TelemetryDeck** | Anonymous, categorical signals: which providers are in use (a yes/no, never a value) and how many widgets are placed | Opt-out from the popover menu |
+| **TelemetryDeck** | Anonymous, categorical signals: which providers are in use (the provider name, never a value) and how many widgets are placed | Opt-out from the popover menu |
 
 No quota percentages, reset times, credit balances, account ids or tokens are ever sent to either. Development builds send nothing at all.
 
@@ -92,7 +92,7 @@ Bu istekler, aracın kendisinin yapacağı isteklerle aynı niteliktedir. **Mimi
 | Servis | Ne alır | Denetim |
 |---|---|---|
 | **Sentry** | Çökme ve hata raporları — yalnızca uygulamanın teknik sağlığı | Yayınlanan sürümlerde her zaman açık |
-| **TelemetryDeck** | Anonim, kategorik sinyaller: hangi sağlayıcıların kullanıldığı (değer değil, yalnızca var/yok) ve kaç widget eklendiği | Popover menüsünden kapatılabilir |
+| **TelemetryDeck** | Anonim, kategorik sinyaller: hangi sağlayıcıların kullanıldığı (yalnızca sağlayıcının adı, hiçbir değer değil) ve kaç widget eklendiği | Popover menüsünden kapatılabilir |
 
 İkisine de kota yüzdesi, sıfırlanma zamanı, kredi bakiyesi, hesap kimliği veya token gönderilmez. Geliştirme sürümleri hiçbir şey göndermez.
 
