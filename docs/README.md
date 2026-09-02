@@ -57,7 +57,7 @@ Full guide → **[Installation](INSTALLATION.md)**
 
 ### Reading the menu bar
 
-Mimir's entire UI lives in the menu bar: a small **Mimir glyph** and a vertical **column of colored dots**, one per service (Claude, Codex, Antigravity — Antigravity's dot reflects its most-constrained group). Each dot follows that service's session window, falling back to its weekly quota when there is no session window — which is the case for Codex since OpenAI removed its 5-hour limit. OpenAI has announced the 5-hour window returns for Plus accounts; when it does, Codex's dot follows it again automatically. A dot appears only for services with an active reading, so the count matches the LLMs you actually use.
+Mimir's entire UI lives in the menu bar: a small **Mimir glyph** and a vertical **column of colored dots**, one per service (Claude, Codex, Antigravity — Antigravity's dot reflects its most-constrained group). Each dot follows that service's session window, falling back to its weekly quota when there is no session window — which was the case for Codex while OpenAI's 5-hour limit was withdrawn. Since August 2026 Plus accounts report it again and the dot follows it; Pro accounts still fall back to the weekly quota. A dot appears only for services with an active reading, so the count matches the LLMs you actually use.
 
 **Dot colors** — based on the remaining percentage in the window the dot is tracking:
 
@@ -155,7 +155,7 @@ Ayrıntılı rehber → **[Kurulum](INSTALLATION.md)**
 
 ### Menü çubuğunu okuma
 
-Mimir'in tüm arayüzü menü çubuğunda yaşar: küçük bir **Mimir simgesi** ve yanında dikey bir **renkli nokta sütunu** — her servis için bir nokta (Claude, Codex, Antigravity — Antigravity noktası en kısıtlı grubunu yansıtır). Her nokta o servisin seans penceresini izler; seans penceresi yoksa haftalık kotaya düşer — OpenAI 5 saatlik limiti kaldırdığından beri Codex'te durum budur. OpenAI 5 saatlik pencereyi Plus hesaplar için geri getireceğini duyurdu; geldiğinde Codex noktası yeniden onu izleyecek. Nokta yalnızca aktif okuması olan servisler için görünür; yani nokta sayısı kullandığınız LLM sayısına eşittir.
+Mimir'in tüm arayüzü menü çubuğunda yaşar: küçük bir **Mimir simgesi** ve yanında dikey bir **renkli nokta sütunu** — her servis için bir nokta (Claude, Codex, Antigravity — Antigravity noktası en kısıtlı grubunu yansıtır). Her nokta o servisin seans penceresini izler; seans penceresi yoksa haftalık kotaya düşer — OpenAI 5 saatlik limiti kaldırdığı dönemde Codex'te durum buydu. Ağustos 2026'dan beri Plus hesaplar bu pencereyi yeniden bildiriyor ve nokta onu izliyor; Pro hesaplarda hâlâ haftalık kotaya düşülüyor. Nokta yalnızca aktif okuması olan servisler için görünür; yani nokta sayısı kullandığınız LLM sayısına eşittir.
 
 **Nokta renkleri** — noktanın izlediği penceredeki kalan yüzdeye göre:
 
