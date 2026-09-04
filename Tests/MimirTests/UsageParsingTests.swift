@@ -563,3 +563,36 @@ final class UsageParsingTests: XCTestCase {
         return "header.\(b64url).signature"
     }
 }
+
+/// The cache-freshness rule: age decides on its own for the deep fallbacks, but a caller choosing
+/// whether to fetch also demands the entry was written by the running process — otherwise a freshly
+/// updated app would show the previous version's numbers until the interval lapsed.
+final class ClaudeCacheFreshnessTests: XCTestCase {
+    private let launch = Date(timeIntervalSince1970: 1_000_000)
+
+    func testEntryFromThisSessionIsFresh() {
+        let written = launch.addingTimeInterval(30)
+        XCTAssertTrue(LiveUsageDataSource.claudeCacheCountsAsFresh(
+            modifiedAt: written, now: written.addingTimeInterval(60), maxAge: 300,
+            launchedAt: launch, writtenThisSession: true))
+    }
+
+    func testEntryFromAnEarlierSessionNeverSkipsTheFetch() {
+        // Young enough by age, but written before launch — the just-updated-app case.
+        let written = launch.addingTimeInterval(-60)
+        XCTAssertFalse(LiveUsageDataSource.claudeCacheCountsAsFresh(
+            modifiedAt: written, now: launch.addingTimeInterval(10), maxAge: 300,
+            launchedAt: launch, writtenThisSession: true))
+        // The deep fallbacks still accept it: they are judged by age alone.
+        XCTAssertTrue(LiveUsageDataSource.claudeCacheCountsAsFresh(
+            modifiedAt: written, now: launch.addingTimeInterval(10), maxAge: 300,
+            launchedAt: launch, writtenThisSession: false))
+    }
+
+    func testAgeStillWins() {
+        let written = launch.addingTimeInterval(30)
+        XCTAssertFalse(LiveUsageDataSource.claudeCacheCountsAsFresh(
+            modifiedAt: written, now: written.addingTimeInterval(301), maxAge: 300,
+            launchedAt: launch, writtenThisSession: true))
+    }
+}

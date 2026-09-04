@@ -50,6 +50,8 @@ extension LiveUsageDataSource {
                 return nil
             }
 
+            // Before trusting anything cached, make sure it belongs to this account.
+            noteClaudeAccount(uuid)
             writeClaudeUsageCache(usageData)
             let status = buildClaudeStatus(from: root, note: "claude.ai desktop")
             saveSnapshot(status)
