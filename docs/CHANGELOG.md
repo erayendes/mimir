@@ -9,10 +9,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-### [Unreleased]
+### [2.12] - 2026-09-04
 
 #### Added
 - ChatGPT's **reset credits** now warn you before they lapse: a notification 1 day, 5 hours and 1 hour before the first one expires. A reset credit clears a spent limit window, but it expires on its own if unused — and it is worth most late in a window that won't reset for days. A newly granted credit starts a fresh set of warnings.
+
+#### Fixed
+- Claude's card no longer shows a previous run's numbers. A cached reading was judged by age alone, so right after an update the new version could keep showing the old one's figures until the 5-minute window lapsed. The card still fills instantly at launch — it just can't skip its first live refresh any more.
+- Switching Claude accounts left the previous account's percentages on the card: the cache showed them until it aged out, and the saved copy could show them for up to a day whenever a live reading failed. Mimir now notices the account changed and drops both. (A switch made purely through Claude Code's CLI is still missed — its token changes on every refresh, so there's no stable identity to compare.)
 
 #### Removed
 - The Medium widget is gone; the Small one stays. Usage data showed no one had ever placed a Medium widget, while its fixed four-row layout would have silently dropped a fifth quota row had one ever been added.
@@ -419,10 +423,14 @@ Bu projedeki tüm önemli değişiklikler bu dosyada belgelenecektir.
 Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
 
-### [Yayımlanmadı]
+### [2.12] - 2026-09-04
 
 #### Eklendi
 - ChatGPT'nin **sıfırlama hakları** artık yanmadan önce haber veriyor: ilkinin süresi dolmasına 1 gün, 5 saat ve 1 saat kala birer bildirim. Sıfırlama hakkı tükenmiş bir kota penceresini temizler, ama kullanılmazsa kendiliğinden yanar — ve en çok, günlerce sıfırlanmayacak bir pencerenin sonunda işe yarar. Yeni bir hak geldiğinde uyarılar baştan başlar.
+
+#### Düzeltildi
+- Claude kartı artık önceki çalıştırmanın sayılarını göstermiyor. Önbellekteki okuma yalnızca yaşına göre değerlendiriliyordu; bu yüzden güncellemeden hemen sonra yeni sürüm, 5 dakikalık pencere dolana kadar eski sürümün rakamlarını gösterebiliyordu. Kart açılışta yine anında doluyor — sadece ilk canlı yenilemeyi artık atlayamıyor.
+- Claude hesabı değiştirildiğinde kartta önceki hesabın yüzdeleri kalıyordu: önbellek onları eskiyene kadar, kayıtlı kopya ise canlı okuma her başarısız olduğunda bir güne kadar gösterebiliyordu. Mimir artık hesabın değiştiğini fark edip ikisini de siliyor. (Yalnızca Claude Code komut satırından yapılan hesap değişikliği hâlâ yakalanmıyor — token her yenilemede değiştiği için karşılaştırılacak sabit bir kimlik yok.)
 
 #### Kaldırıldı
 - Medium widget kaldırıldı, Small kalmaya devam ediyor. Kullanım verisi kimsenin Medium widget eklememiş olduğunu gösterdi; üstelik dört satırla sınırlı düzeni, beşinci bir kota satırı eklenseydi onu sessizce düşürecekti.
