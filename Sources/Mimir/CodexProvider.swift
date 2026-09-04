@@ -137,13 +137,16 @@ extension LiveUsageDataSource {
     func codexStatus(fromUsageRoot root: [String: Any], now: Date = Date(), extraRows: [ModelStatus] = []) -> ServiceStatus {
         let rateLimit = root["rate_limit"] as? [String: Any] ?? [:]
 
-        var session: (percent: Int, resetAt: Date?)?
-        var weekly: (percent: Int, resetAt: Date?)?
+        var session: (percent: Int?, resetAt: Date?)?
+        var weekly: (percent: Int?, resetAt: Date?)?
         var weeklyWindow: TimeInterval?
         for (raw, slotIsPrimary) in [(rateLimit["primary_window"], true), (rateLimit["secondary_window"], false)] {
             guard let obj = raw as? [String: Any] else { continue }
             let window = codexAPIWindow(obj)
-            let percent = window.usedPercent.map(remainingPercent(fromUsed:)) ?? 100
+            // A window returned without `used_percent` has an UNKNOWN percent, not a full one. Reading it
+            // as 100 made a partial response look like a fresh reset, which fired "quota refilled" in the
+            // middle of a 30-day (Go) window. nil keeps the countdown and drops only the number.
+            let percent = window.usedPercent.map(remainingPercent(fromUsed:))
             let periodSeconds = doubleValue(obj["limit_window_seconds"])
             let isSession = codexWindowIsSession(periodSeconds: periodSeconds,
                                                  resetAt: window.resetAt,
@@ -164,8 +167,8 @@ extension LiveUsageDataSource {
             iconName: "codex",
             sessionResetAt: session?.resetAt,
             weeklyResetAt: weekly?.resetAt,
-            sessionRemainingPercent: session?.percent,
-            weeklyRemainingPercent: weekly?.percent,
+            sessionRemainingPercent: session.flatMap(\.percent),
+            weeklyRemainingPercent: weekly.flatMap(\.percent),
             weeklyWindowSeconds: weeklyWindow,
             models: (codexCreditRow(root["credits"]).map { [$0] } ?? []) + extraRows,
             isAvailable: true,

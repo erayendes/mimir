@@ -53,11 +53,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var resignObserver: NSObjectProtocol?
     private var cancellables: Set<AnyCancellable> = []
     private var updaterController: SPUStandardUpdaterController?
-    // Per-window notification state, keyed "<service>-5h" / "<service>-weekly".
-    private var lowNotified: Set<String> = []     // window is below its low threshold (until it resets)
-    private var depleted5h: Set<String> = []      // service's 5h window hit 0% since its last refill
-    private var depletedWeekly: Set<String> = []  // service's weekly ran below its low threshold since refill
-    private var lastWindowPercent: [String: Int] = [:]  // previous reading, for refill edge detection
+    // Per-window notification state lives in UserDefaults (see `notifState`), keyed
+    // "<service>-5h" / "<service>-weekly" — a relaunch must not re-fire an alert already sent.
     private var iconSource: NSImage?
     private var refreshCount = 0              // refreshes seen this session (for the provider signal)
     private var sentProviderSignal = false   // provider.active is emitted once per session
@@ -641,15 +638,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func checkNotifications() {
         // Only the account-level 5h + weekly windows of genuinely LIVE services notify here. The
         // `!isStale` guard is load-bearing: a card served from a snapshot / a refilled estimate is
-        // `isStale`, so it never fires a low/refill alert on inferred numbers — otherwise a card
-        // bouncing between a live reading and a refilled 100 would spam false "quota refilled" alerts.
-        // A genuine reset is still caught: a LIVE fetch (which never reset-classifies) reports the real
-        // 100. Antigravity is excluded by name (no service-level windows; it uses per-group model rows).
+        // `isStale`, so a low alert is never raised off an inferred number. Refills fire off the
+        // window's reset clock (see `fireRefillIfDue`), so a reading flickering back to 100 can't
+        // announce one. Antigravity is excluded by name (no service-level windows; per-group rows).
         for service in store.services where service.isAvailable && !service.isStale && service.name != "Antigravity" {
             evaluateWindow(service: service, window: .fiveHour,
                            percent: service.sessionRemainingPercent, resetAt: service.sessionResetAt)
             evaluateWindow(service: service, window: .weekly,
-                           percent: service.weeklyRemainingPercent, resetAt: service.weeklyResetAt)
+                           percent: service.weeklyRemainingPercent, resetAt: service.weeklyResetAt,
+                           windowSeconds: service.weeklyWindowSeconds)
         }
         checkAntigravityWeeklyRefill()
         checkResetCreditExpiry()
@@ -687,9 +684,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private static let resetCreditThresholds: [TimeInterval] = [3_600, 5 * 3_600, 86_400]
     private static let resetCreditNotifiedKey = "codexResetCreditNotified"
 
-    private static let agyResetTargetKey = "agyWeeklyResetTarget"      // armed reset we're waiting on
-    private static let agyResetNotifiedKey = "agyWeeklyResetNotified"  // reset we've already announced
-
     /// HH:mm for the 5-hour low notification's reset clock.
     private static let clockFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -697,128 +691,155 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return f
     }()
 
+    // MARK: - Persisted per-window notification state
+
+    /// One `UserDefaults` number per field, namespaced by the window key ("Codex-weekly.armed").
+    /// Fields: `armed` (the reset we're waiting to announce), `announced` (the one already announced),
+    /// `low` (the reset whose low alert already went out), `depleted` (1 once the window was really
+    /// run down). Kept on disk because these alerts are once-per-window, not once-per-launch: in
+    /// memory, every relaunch re-sent the same "running out" notice.
+    private func notifState(_ key: String, _ field: String) -> Double {
+        UserDefaults.standard.double(forKey: "notif.\(key).\(field)")
+    }
+
+    private func setNotifState(_ key: String, _ field: String, _ value: Double) {
+        UserDefaults.standard.set(value, forKey: "notif.\(key).\(field)")
+    }
+
+    /// Announce a refill when the armed reset has passed, then disarm so the next one can arm cleanly.
+    /// `requireDepleted` is false only for Antigravity, whose usage can't be observed while its IDE is
+    /// closed — there the reset clock is all we have.
+    private func fireRefillIfDue(key: String, bucket: String, requireDepleted: Bool,
+                                 title: String, body: String) {
+        let armed = notifState(key, "armed")
+        guard refillIsDue(armed: armed, announced: notifState(key, "announced"),
+                          now: Date().timeIntervalSince1970) else { return }
+        if !requireDepleted || notifState(key, "depleted") == 1 {
+            sendNotification(identifier: "\(key)-refilled", window: bucket, title: title, body: body)
+        }
+        setNotifState(key, "announced", armed)
+        setNotifState(key, "depleted", 0)
+        setNotifState(key, "armed", 0)
+    }
+
+    private func armNextReset(key: String, resetAt: Date?) {
+        guard let stamp = nextArmedReset(armed: notifState(key, "armed"),
+                                         announced: notifState(key, "announced"),
+                                         resetAt: resetAt, now: Date()) else { return }
+        setNotifState(key, "armed", stamp)
+    }
+
     /// Antigravity's one reliable notification: the weekly quota refill. Its weekly reset time is
     /// deterministic and known in advance, and the quota can't be spent while the IDE is closed —
     /// so once we've seen the reset time, we can fire "refilled" exactly when it passes, with no
     /// live data. (Low / 5h alerts stay off: those depend on usage we can't observe reliably.)
     private func checkAntigravityWeeklyRefill() {
-        let defaults = UserDefaults.standard
-        let now = Date()
+        let key = "Antigravity-weekly"
+        fireRefillIfDue(
+            key: key, bucket: "weekly", requireDepleted: false,
+            title: String(format: String(localized: "🚀 %@ weekly quota refilled."), "Antigravity"),
+            body: String(localized: "Your weekly quota is back to 100%. Pick up where you left off.")
+        )
 
-        // Fire when the armed reset has passed, then disarm so the next reset can arm cleanly.
-        let armed = defaults.double(forKey: Self.agyResetTargetKey)
-        if armed > 0, now.timeIntervalSince1970 >= armed {
-            if defaults.double(forKey: Self.agyResetNotifiedKey) != armed {
-                sendNotification(
-                    identifier: "Antigravity-weekly-refilled",
-                    title: String(format: String(localized: "🚀 %@ weekly quota refilled."), "Antigravity"),
-                    body: String(localized: "Your weekly quota is back to 100%. Pick up where you left off.")
-                )
-                defaults.set(armed, forKey: Self.agyResetNotifiedKey)
-            }
-            defaults.removeObject(forKey: Self.agyResetTargetKey)
-        }
-
-        // Arm the next future weekly reset (both weekly buckets share one time → take the earliest).
-        // Only when nothing is armed and only a reset we haven't already announced, so the data
-        // jumping to next week at reset time can't clobber the reset we still owe a notification for.
-        guard defaults.double(forKey: Self.agyResetTargetKey) == 0,
-              let antigravity = store.services.first(where: { $0.name == "Antigravity" }) else {
-            return
-        }
-        let upcoming = antigravity.models
+        guard let antigravity = store.services.first(where: { $0.name == "Antigravity" }) else { return }
+        // Both weekly buckets share one reset time → take the earliest still ahead of us.
+        armNextReset(key: key, resetAt: antigravity.models
             .filter { $0.window == .weekly }
             .compactMap(\.resetAt)
-            .filter { $0 > now }
-            .min()
-        if let upcoming, upcoming.timeIntervalSince1970 != defaults.double(forKey: Self.agyResetNotifiedKey) {
-            defaults.set(upcoming.timeIntervalSince1970, forKey: Self.agyResetTargetKey)
-        }
+            .filter { $0 > Date() }
+            .min())
     }
 
-    private func evaluateWindow(service: ServiceStatus, window: QuotaWindow, percent: Int?, resetAt: Date?) {
+    private func evaluateWindow(service: ServiceStatus, window: QuotaWindow, percent: Int?, resetAt: Date?,
+                                windowSeconds: TimeInterval? = nil) {
         guard let percent else { return }
         let key = "\(service.name)-\(window.suffix)"
-        let previous = lastWindowPercent[key]
-        lastWindowPercent[key] = percent
+        // A window longer than a week is the ChatGPT Go monthly quota, not a weekly one — say so, and
+        // report it as its own telemetry bucket rather than folding it into "weekly".
+        let isMonthly = window == .weekly && (windowSeconds ?? 0) > 8 * 86_400
+        let bucket = isMonthly ? "monthly" : window.suffix
+        // The 5h window keeps its flat 20%; a longer one scales its threshold by length (see
+        // `lowQuotaThreshold`) so a 30-day quota doesn't warn on day three.
+        let lowThreshold = window == .fiveHour
+            ? window.lowThreshold
+            : lowQuotaThreshold(windowSeconds: windowSeconds, base: window.lowThreshold)
 
-        // A refill notice is only meaningful (and only trustworthy) if the window was actually run down
-        // first — mirror the 5h `== 0` guard for the weekly, using its low threshold. Without this, a
-        // momentary blip to 100 (a stale-refill estimate, or a partial/late read) on a window sitting at
-        // 76% would announce a "refill" that never happened.
-        if window == .fiveHour, percent == 0 {
-            depleted5h.insert(service.name)
-        }
-        if window == .weekly, percent < window.lowThreshold {
-            depletedWeekly.insert(service.name)
+        // A refill notice is only meaningful on a window that was actually run down first: spent for
+        // the 5h one, below its low threshold for the longer one.
+        if percent < (window == .fiveHour ? 1 : lowThreshold) {
+            setNotifState(key, "depleted", 1)
         }
 
-        // Refill: the window jumped back to 100 (a reset). Edge-triggered on the <100 → 100 crossing so
-        // it fires once per reset, never on the first reading (previous == nil), and only when the
-        // window had genuinely been depleted since its last refill.
-        if percent == 100, let previous, previous < 100 {
-            switch window {
-            case .fiveHour:
-                if depleted5h.contains(service.name) {
-                    sendNotification(
-                        identifier: "\(key)-refilled",
-                        title: String(format: String(localized: "🔋 %@ ready for a new sprint."), service.name),
-                        body: String(localized: "Your 5-hour session is back to 100%. Pick up where you left off.")
-                    )
-                }
-                depleted5h.remove(service.name)
-            case .weekly:
-                if depletedWeekly.contains(service.name) {
-                    sendNotification(
-                        identifier: "\(key)-refilled",
-                        title: String(format: String(localized: "🚀 %@ weekly quota refilled."), service.name),
-                        body: String(localized: "Your weekly quota is back to 100%. Pick up where you left off.")
-                    )
-                }
-                depletedWeekly.remove(service.name)
+        // Refill: the window's reset came round. Fires once per reset, on the clock rather than on the
+        // percent — a reading flickering back to 100 is not a reset.
+        switch window {
+        case .fiveHour:
+            fireRefillIfDue(
+                key: key, bucket: bucket, requireDepleted: true,
+                title: String(format: String(localized: "🔋 %@ ready for a new sprint."), service.name),
+                body: String(localized: "Your 5-hour session is back to 100%. Pick up where you left off.")
+            )
+        case .weekly:
+            fireRefillIfDue(
+                key: key, bucket: bucket, requireDepleted: true,
+                title: String(format: isMonthly
+                              ? String(localized: "🚀 %@ monthly quota refilled.")
+                              : String(localized: "🚀 %@ weekly quota refilled."), service.name),
+                body: isMonthly
+                    ? String(localized: "Your monthly quota is back to 100%. Pick up where you left off.")
+                    : String(localized: "Your weekly quota is back to 100%. Pick up where you left off.")
+            )
+        }
+        armNextReset(key: key, resetAt: resetAt)
+
+        // Low: crossed below the threshold. Warn once per window — the stored stamp is the reset the
+        // warning belongs to, so the next window warns again and a relaunch inside this one doesn't.
+        // A service that reports no reset at all stores 0 and so warns only once, until one appears.
+        let lowKey = "notif.\(key).low"
+        let resetStamp = resetAt?.timeIntervalSince1970 ?? 0
+        guard percent < lowThreshold,
+              UserDefaults.standard.object(forKey: lowKey) as? Double != resetStamp else { return }
+        UserDefaults.standard.set(resetStamp, forKey: lowKey)
+
+        let duration = resetAt.map { TimeFormatter.duration(from: $0.timeIntervalSinceNow) }
+        switch window {
+        case .fiveHour:
+            // 5h includes the reset clock (it's today) plus the countdown.
+            let body: String
+            if let resetAt, let duration {
+                body = String(format: String(localized: "Resets at %@. ~%@ to go."),
+                              Self.clockFormatter.string(from: resetAt), duration)
+            } else {
+                body = String(localized: "Your 5-hour limit is running out.")
             }
-            lowNotified.remove(key)
-            return
-        }
-
-        // Low: crossed below the threshold. Warn once, then stay quiet until the window resets.
-        if percent < window.lowThreshold, !lowNotified.contains(key) {
-            let duration = resetAt.map { TimeFormatter.duration(from: $0.timeIntervalSinceNow) }
-            switch window {
-            case .fiveHour:
-                // 5h includes the reset clock (it's today) plus the countdown.
-                let body: String
-                if let resetAt, let duration {
-                    body = String(format: String(localized: "Resets at %@. ~%@ to go."),
-                                  Self.clockFormatter.string(from: resetAt), duration)
-                } else {
-                    body = String(localized: "Your 5-hour limit is running out.")
-                }
-                sendNotification(
-                    identifier: key,
-                    title: String(format: String(localized: "🪫 %@ 5-hour quota running out — %d%%"), service.name, percent),
-                    body: body
-                )
-            case .weekly:
-                // Weekly is days out, so just the countdown (no clock).
-                let body = duration.map { String(format: String(localized: "Renews in ~%@."), $0) }
-                    ?? String(localized: "Your weekly limit is running out.")
-                sendNotification(
-                    identifier: key,
-                    title: String(format: String(localized: "🚨 %@ weekly quota running out — %d%%"), service.name, percent),
-                    body: body
-                )
-            }
-            lowNotified.insert(key)
+            sendNotification(
+                identifier: key,
+                window: bucket,
+                title: String(format: String(localized: "🪫 %@ 5-hour quota running out — %d%%"), service.name, percent),
+                body: body
+            )
+        case .weekly:
+            // Weekly/monthly is days out, so just the countdown (no clock).
+            let body = duration.map { String(format: String(localized: "Renews in ~%@."), $0) }
+                ?? (isMonthly ? String(localized: "Your monthly limit is running out.")
+                              : String(localized: "Your weekly limit is running out."))
+            sendNotification(
+                identifier: key,
+                window: bucket,
+                title: String(format: isMonthly
+                              ? String(localized: "🚨 %@ monthly quota running out — %d%%")
+                              : String(localized: "🚨 %@ weekly quota running out — %d%%"), service.name, percent),
+                body: body
+            )
         }
     }
 
-    private func sendNotification(identifier: String, title: String, body: String) {
+    private func sendNotification(identifier: String, window: String? = nil, title: String, body: String) {
         // Derive a categorical type from the identifier: "Claude-5h", "Codex-weekly-refilled", etc.
         let parts = identifier.split(separator: "-")
         let service = parts.first.map(String.init) ?? "unknown"
         let isRefill = identifier.hasSuffix("-refilled")
-        let window = identifier.contains("weekly") ? "weekly" : "5h"
+        let window = window ?? (identifier.contains("weekly") ? "weekly" : "5h")
         let kind = identifier.contains("resetcredit") ? "resetcredit" : (isRefill ? "refilled" : "low")
         Telemetry.signal("notification.sent", parameters: [
             "service": service, "window": window, "kind": kind

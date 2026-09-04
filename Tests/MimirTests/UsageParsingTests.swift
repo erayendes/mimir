@@ -268,6 +268,60 @@ final class UsageParsingTests: XCTestCase {
         XCTAssertTrue(status.isAvailable)
     }
 
+    /// A window present but WITHOUT `used_percent` reads as unknown, not full. Pinning it to 100 made a
+    /// partial response look like a fresh reset, which fired "quota refilled" mid-month on the 30-day
+    /// (ChatGPT Go) window. The reset time is still kept, so the countdown survives.
+    func testCodexStatusLeavesPercentNilWhenUsedPercentMissing() {
+        let root: [String: Any] = [
+            "rate_limit": [
+                "primary_window": ["limit_window_seconds": 2_592_000, "reset_at": 1_785_822_607.0],
+            ],
+        ]
+        let status = ds.codexStatus(fromUsageRoot: root)
+        XCTAssertNil(status.weeklyRemainingPercent)                        // unknown, not 100
+        XCTAssertEqual(status.weeklyResetAt, Date(timeIntervalSince1970: 1_785_822_607))
+        XCTAssertEqual(status.weeklyWindowSeconds, 2_592_000)
+    }
+
+    /// The refill alert runs off the window's reset clock, not off the percent: fire once the armed
+    /// reset has passed, and never twice for the same one (the stamp survives a relaunch).
+    func testRefillFiresOncePerArmedReset() {
+        let t: Double = 1_785_000_000
+        XCTAssertTrue(refillIsDue(armed: t, announced: 0, now: t))              // reset came round
+        XCTAssertTrue(refillIsDue(armed: t, announced: t - 1, now: t + 60))     // a later reset
+        XCTAssertFalse(refillIsDue(armed: t, announced: 0, now: t - 1))         // not yet
+        XCTAssertFalse(refillIsDue(armed: t, announced: t, now: t + 60))        // already announced
+        XCTAssertFalse(refillIsDue(armed: 0, announced: 0, now: t))             // nothing armed
+    }
+
+    /// Arming takes the next future reset, once, and refuses the one we already announced — otherwise
+    /// the data rolling forward at reset time would clobber a refill still owed.
+    func testNextArmedResetTakesTheNextFutureResetOnly() {
+        let now = Date(timeIntervalSince1970: 1_785_000_000)
+        let next = now.addingTimeInterval(30 * 86_400)
+        XCTAssertEqual(nextArmedReset(armed: 0, announced: 0, resetAt: next, now: now),
+                       next.timeIntervalSince1970)
+        XCTAssertNil(nextArmedReset(armed: 123, announced: 0, resetAt: next, now: now))   // already armed
+        XCTAssertNil(nextArmedReset(armed: 0, announced: 0, resetAt: nil, now: now))      // no reset reported
+        XCTAssertNil(nextArmedReset(armed: 0, announced: 0,
+                                    resetAt: now.addingTimeInterval(-60), now: now))      // already past
+        XCTAssertNil(nextArmedReset(armed: 0, announced: next.timeIntervalSince1970,
+                                    resetAt: next, now: now))                             // already announced
+    }
+
+    /// The low-quota threshold scales with the window: a flat 10% warns on day three of a 30-day
+    /// ChatGPT Go quota. Anything at or under a week keeps the base, and the floor stops the scaling
+    /// from tightening past a usable warning.
+    func testLowQuotaThresholdScalesWithWindowLength() {
+        XCTAssertEqual(lowQuotaThreshold(windowSeconds: nil), 10)             // unknown → base
+        XCTAssertEqual(lowQuotaThreshold(windowSeconds: 7 * 86_400), 10)      // the week itself
+        XCTAssertEqual(lowQuotaThreshold(windowSeconds: 5 * 86_400), 10)      // shorter → still base
+        XCTAssertEqual(lowQuotaThreshold(windowSeconds: 14 * 86_400), 5)      // scaled to the floor
+        XCTAssertEqual(lowQuotaThreshold(windowSeconds: 2_592_000), 5)        // 30d Go window
+        // Without the floor a 30-day window would warn at 2% — too late to spend the remainder.
+        XCTAssertEqual(lowQuotaThreshold(windowSeconds: 2_592_000, floor: 0), 2)
+    }
+
     /// Credit-only account with neither window → "Codex" shows just the credit balance; both window
     /// readings stay nil (no misleading 100%).
     func testCodexStatusCreditOnly() {
