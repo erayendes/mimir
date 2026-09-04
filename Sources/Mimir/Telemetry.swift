@@ -34,10 +34,9 @@ enum Telemetry {
         services.filter { $0.isAvailable || $0.isStale }.map(\.name)
     }
 
-    /// Count of placed widgets per supported family (from WidgetCenter family raw names).
+    /// Count of placed widgets for the one supported family (from WidgetCenter family raw names).
     static func widgetParameters(families: [String]) -> [String: String] {
-        func count(_ raw: String) -> String { String(families.filter { $0 == raw }.count) }
-        return ["small": count("systemSmall"), "medium": count("systemMedium")]
+        ["small": String(families.filter { $0 == "systemSmall" }.count)]
     }
 
     // Touched only from the main thread (launch, the services sink, menu actions). The worst a

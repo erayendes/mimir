@@ -24,7 +24,7 @@ Gemini, Claude and GPT) — without leaving your workflow.
 
 - **Menu bar at a glance** — all your AI service statuses in a single popover
 - **Live limits** — session and weekly quotas, per-model rows and credit balances, updated in real time
-- **Desktop widgets** — Small and Medium widgets that track the popover
+- **Desktop widget** — a Small widget that tracks the popover
 - **Reset countdowns** — know exactly when each limit refreshes
 - **Color status dots** — green / amber / red based on remaining quota
 - **Minimalist design** — monochrome icon, full macOS light/dark mode support
@@ -122,7 +122,7 @@ anlık olarak gösteren hafif bir uygulamadır.
 
 - **Menü çubuğunda tek bakış** — tüm AI servislerinizin durumu tek bir popover'da
 - **Anlık limitler** — seans ve haftalık kotalar, model bazlı satırlar ve kredi bakiyeleri gerçek zamanlı güncellenir
-- **Masaüstü widget'ları** — popover'ı takip eden Small ve Medium boyutlar
+- **Masaüstü widget'ı** — popover'ı takip eden Small boyut
 - **Geri sayım** — her limitin tam olarak ne zaman yenileneceğini gösterir
 - **Renkli durum noktaları** — kalan kotaya göre yeşil / amber / kırmızı
 - **Minimalist tasarım** — monokrom ikon, macOS açık/koyu tema desteği

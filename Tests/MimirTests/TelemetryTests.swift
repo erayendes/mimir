@@ -31,10 +31,11 @@ final class TelemetryTests: XCTestCase {
     }
 
     func testWidgetParametersCountFamilies() {
-        // Only the supported families (small, medium) are reported; others are ignored.
+        // Small is the only supported family; every other one is ignored, medium included — it was
+        // dropped once telemetry showed no user had ever placed one.
         let p = Telemetry.widgetParameters(families: ["systemSmall", "systemSmall", "systemMedium", "systemLarge"])
         XCTAssertEqual(p["small"], "2")
-        XCTAssertEqual(p["medium"], "1")
+        XCTAssertNil(p["medium"])
         XCTAssertNil(p["large"])
         XCTAssertNil(p["extraLarge"])
     }
