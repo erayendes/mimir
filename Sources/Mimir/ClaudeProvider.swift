@@ -9,7 +9,7 @@ extension LiveUsageDataSource {
     /// and stays on prompt-free sources (usage cache, the on-disk credential file, Mimir's own token
     /// cache); only a real user action — opening Mimir — passes `true` and may read that item.
     func fetchClaude(userInitiated: Bool) async -> ServiceStatus {
-        if let cached = readClaudeUsageCache(maxAge: 5 * 60) {
+        if let cached = readClaudeUsageCache(maxAge: 5 * 60, writtenThisSession: true) {
             return buildClaudeStatus(from: cached, note: "oauth usage cache").withCooldownHint(0)
         }
 
@@ -421,14 +421,65 @@ extension LiveUsageDataSource {
         return parseClaudeToken(raw)
     }
 
-    private func readClaudeUsageCache(maxAge: TimeInterval) -> [String: Any]? {
+    /// When this process started. A cache entry older than this was written by a previous run —
+    /// see `claudeCacheCountsAsFresh`.
+    private static let launchedAt = Date()
+
+    /// Is a cache entry fresh enough to skip a live fetch?
+    ///
+    /// Age alone isn't the whole rule. An entry written by an *earlier* run still loads instantly
+    /// (that's what keeps the card from flashing placeholders at launch), but it must never let the
+    /// app skip its first refresh: right after an update the user would otherwise stare at the
+    /// previous version's numbers until the interval lapsed. `writtenThisSession` marks the callers
+    /// that decide whether to fetch; the deep fallbacks pass false and keep trusting age alone.
+    ///
+    /// Pure so the rule can be unit-tested without touching the filesystem.
+    static func claudeCacheCountsAsFresh(
+        modifiedAt: Date, now: Date, maxAge: TimeInterval,
+        launchedAt: Date, writtenThisSession: Bool
+    ) -> Bool {
+        guard now.timeIntervalSince(modifiedAt) <= maxAge else { return false }
+        return writtenThisSession ? modifiedAt >= launchedAt : true
+    }
+
+    private func readClaudeUsageCache(maxAge: TimeInterval, writtenThisSession: Bool = false) -> [String: Any]? {
         let url = claudeUsageCacheURL()
         guard let values = try? url.resourceValues(forKeys: [.contentModificationDateKey]),
               let modifiedAt = values.contentModificationDate,
-              Date().timeIntervalSince(modifiedAt) <= maxAge else {
+              Self.claudeCacheCountsAsFresh(modifiedAt: modifiedAt, now: Date(), maxAge: maxAge,
+                                            launchedAt: Self.launchedAt,
+                                            writtenThisSession: writtenThisSession) else {
             return nil
         }
         return readClaudeUsageCacheRaw()
+    }
+
+    /// Drop the cached usage and the saved snapshot when the account that produced them is not the
+    /// one we just read. Without this the previous account's percentages survive the switch: the
+    /// 5-minute cache shows them until it ages out, and the snapshot can show them for up to a day
+    /// whenever a live fetch fails.
+    ///
+    /// Only the desktop path knows an account id (the organization UUID). Claude Code's OAuth token
+    /// rotates on refresh, so it is not a stable identity and that path records nothing — a switch
+    /// made purely through the CLI is still missed. Recording what we do know beats recording
+    /// nothing, and the desktop session is the path most accounts arrive on.
+    func noteClaudeAccount(_ accountID: String) {
+        let url = claudeAccountFileURL()
+        let previous = try? String(contentsOf: url, encoding: .utf8)
+        if let previous, previous != accountID {
+            try? FileManager.default.removeItem(at: claudeUsageCacheURL())
+            try? FileManager.default.removeItem(at: snapshotURL(for: "Claude"))
+        }
+        if previous != accountID {
+            try? FileManager.default.createDirectory(
+                at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? accountID.write(to: url, atomically: true, encoding: .utf8)
+        }
+    }
+
+    private func claudeAccountFileURL() -> URL {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/Mimir/claude_account")
     }
 
     /// The cached usage JSON regardless of age — used as a deep fallback that is trusted not by
