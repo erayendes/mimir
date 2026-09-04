@@ -652,7 +652,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                            percent: service.weeklyRemainingPercent, resetAt: service.weeklyResetAt)
         }
         checkAntigravityWeeklyRefill()
+        checkResetCreditExpiry()
     }
+
+    /// A reset credit lapses unused if it isn't spent, and it's worth most on a window that's spent
+    /// but not about to reset on its own — so warn while there's still time to use one: 1 day, 5 hours
+    /// and 1 hour before the FIRST credit expires. The last-fired stamp pins the expiry it belongs to,
+    /// so a newly granted credit starts a fresh set of three and a relaunch doesn't re-fire the same one.
+    private func checkResetCreditExpiry() {
+        let row = store.services
+            .filter { $0.isAvailable && !$0.isStale }
+            .flatMap(\.models)
+            .first { $0.valueText != nil && $0.resetAt != nil }
+        guard let row, let expiresAt = row.resetAt else { return }
+
+        let remaining = expiresAt.timeIntervalSinceNow
+        guard remaining > 0,
+              let threshold = Self.resetCreditThresholds.first(where: { remaining <= $0 }) else { return }
+
+        let stamp = "\(Int(expiresAt.timeIntervalSince1970))-\(Int(threshold))"
+        guard UserDefaults.standard.string(forKey: Self.resetCreditNotifiedKey) != stamp else { return }
+        UserDefaults.standard.set(stamp, forKey: Self.resetCreditNotifiedKey)
+
+        sendNotification(
+            identifier: "Codex-resetcredit-\(Int(threshold))",
+            title: String(format: String(localized: "⏳ Reset credit expires in %@"),
+                          TimeFormatter.duration(from: remaining)),
+            body: String(format: String(localized: "You have %@ waiting. Spend one now and it clears a used-up window — unused, it just lapses."),
+                         row.valueText ?? "1")
+        )
+    }
+
+    /// Ascending, so `first(where:)` picks the tightest bracket the countdown has entered.
+    private static let resetCreditThresholds: [TimeInterval] = [3_600, 5 * 3_600, 86_400]
+    private static let resetCreditNotifiedKey = "codexResetCreditNotified"
 
     private static let agyResetTargetKey = "agyWeeklyResetTarget"      // armed reset we're waiting on
     private static let agyResetNotifiedKey = "agyWeeklyResetNotified"  // reset we've already announced
@@ -786,7 +819,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let service = parts.first.map(String.init) ?? "unknown"
         let isRefill = identifier.hasSuffix("-refilled")
         let window = identifier.contains("weekly") ? "weekly" : "5h"
-        let kind = isRefill ? "refilled" : "low"
+        let kind = identifier.contains("resetcredit") ? "resetcredit" : (isRefill ? "refilled" : "low")
         Telemetry.signal("notification.sent", parameters: [
             "service": service, "window": window, "kind": kind
         ])

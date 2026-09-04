@@ -164,6 +164,8 @@ final class UsageParsingTests: XCTestCase {
         XCTAssertEqual(row?.valueText, "2")
         XCTAssertEqual(row?.caption, String(format: String(localized: "first expires in %@"),
                                             TimeFormatter.duration(from: 3 * 86_400)))
+        // The expiry warning reads the nearest expiry off `resetAt`, not the formatted caption.
+        XCTAssertEqual(row?.resetAt, credalNow.addingTimeInterval(3 * 86_400))
     }
 
     /// A credit that lapsed between polls, and one that was already spent, are both dropped —
