@@ -54,7 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### [2.8] - 2026-08-09
 
 #### Fixed
-- Codex quota windows are now labelled with their real length instead of always "7d". ChatGPT Go moved its Codex allowance to a roughly monthly window while Plus and Pro stayed weekly, so Go users were told their month-long quota resets in a week. The badge now reads "30d" when the window is a month, "7d" when it's a week — and it comes from the window's full length, not the countdown, so it still says "30d" on day 27.
+- Codex quota windows are now labelled with their real length instead of always "7d". Some accounts report a single month-long window where others still get a weekly one, so a month-long quota was being shown as resetting in a week. The badge now reads whatever length the API reports — "30d" for a month, "7d" for a week — taken from the window's full length, not the countdown, so it still says "30d" on day 27.
 
 #### Internal
 - The quota window's reported length is carried through to the popover and the widget, so any future window size labels itself correctly without a code change. When a provider reports no length, the plain weekly label is kept rather than a guessed number.
@@ -468,7 +468,7 @@ sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) k
 ### [2.8] - 2026-08-09
 
 #### Düzeltildi
-- Codex kota pencereleri artık hep "7g" değil, gerçek uzunluğuyla etiketleniyor. ChatGPT Go, Codex hakkını kabaca aylık bir pencereye taşıdı; Plus ve Pro haftalık kaldı. Bu yüzden Go kullanıcılarına aylık kotaları bir hafta içinde sıfırlanacakmış gibi görünüyordu. Rozet artık pencere bir aylıksa "30g", bir haftalıksa "7g" yazıyor — üstelik geri sayımdan değil pencerenin tam uzunluğundan geldiği için 27. günde bile "30g" diyor.
+- Codex kota pencereleri artık hep "7g" değil, gerçek uzunluğuyla etiketleniyor. Bazı hesaplarda tek bir aylık pencere görülüyor, bazılarında haftalık pencere duruyor; aylık kota bir hafta içinde sıfırlanacakmış gibi gösteriliyordu. Rozet artık API hangi uzunluğu bildiriyorsa onu yazıyor — aylıksa "30g", haftalıksa "7g" — üstelik geri sayımdan değil pencerenin tam uzunluğundan geldiği için 27. günde bile "30g" diyor.
 
 #### İçeride
 - Kota penceresinin bildirilen uzunluğu popover'a ve widget'a kadar taşınıyor; böylece ileride çıkacak herhangi bir pencere boyutu kod değişikliği olmadan doğru etiketleniyor. Sağlayıcı uzunluk bildirmiyorsa tahmini bir sayı yerine düz haftalık etiketi korunuyor.

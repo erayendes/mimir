@@ -81,6 +81,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        #if DEBUG
+        if let shot = ProcessInfo.processInfo.environment["MIMIR_DEMO_SHOT"] {
+            DemoShot.render(to: shot)
+            NSApp.terminate(nil)
+            return
+        }
+        #endif
         // Dev builds (com.erayendes.mimir.dev) must not report to the production
         // Sentry project — their crashes/hangs are just local development noise (MIMIR-7).
         let isDevBuild = Bundle.main.bundleIdentifier?.hasSuffix(".dev") ?? false
@@ -657,11 +664,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// and 1 hour before the FIRST credit expires. The last-fired stamp pins the expiry it belongs to,
     /// so a newly granted credit starts a fresh set of three and a relaunch doesn't re-fire the same one.
     private func checkResetCreditExpiry() {
-        let row = store.services
+        let rows = store.services
             .filter { $0.isAvailable && !$0.isStale }
             .flatMap(\.models)
-            .first { $0.valueText != nil && $0.resetAt != nil }
-        guard let row, let expiresAt = row.resetAt else { return }
+            .filter { $0.valueText != nil && $0.resetAt != nil }
+        guard let expiresAt = rows.compactMap(\.resetAt).min() else { return }
 
         let remaining = expiresAt.timeIntervalSinceNow
         guard remaining > 0,
@@ -676,7 +683,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             title: String(format: String(localized: "⏳ Reset credit expires in %@"),
                           TimeFormatter.duration(from: remaining)),
             body: String(format: String(localized: "You have %@ waiting. Spend one now and it clears a used-up window — unused, it just lapses."),
-                         row.valueText ?? "1")
+                         String(rows.count))
         )
     }
 

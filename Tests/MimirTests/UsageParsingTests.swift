@@ -154,18 +154,23 @@ final class UsageParsingTests: XCTestCase {
         ISO8601DateFormatter().string(from: Date(timeIntervalSince1970: 1_786_000_000 + offset))
     }
 
-    /// Available and unexpired credits are counted, with the nearest expiry in the caption.
-    func testCodexResetCreditsCountsAvailableOnes() {
+    /// One row per available credit, soonest expiry first, each carrying its own expiry so the popover
+    /// can draw a live countdown and the warning can pick the nearest one.
+    func testCodexResetCreditsRowPerCredit() {
         let root = resetCreditsRoot("""
         {"id": "a", "status": "available", "expires_at": "\(iso(6 * 86_400))", "title": "Reset", "description": ""},
         {"id": "b", "status": "available", "expires_at": "\(iso(3 * 86_400))", "title": "Reset", "description": ""}
         """)
-        let row = ds.codexResetCreditRow(fromRoot: root, now: credalNow)
-        XCTAssertEqual(row?.valueText, "2")
-        XCTAssertEqual(row?.caption, String(format: String(localized: "first expires in %@"),
-                                            TimeFormatter.duration(from: 3 * 86_400)))
-        // The expiry warning reads the nearest expiry off `resetAt`, not the formatted caption.
-        XCTAssertEqual(row?.resetAt, credalNow.addingTimeInterval(3 * 86_400))
+        let rows = ds.codexResetCreditRows(fromRoot: root, now: credalNow)
+        XCTAssertEqual(rows.count, 2)
+        XCTAssertEqual(rows.map(\.resetAt), [credalNow.addingTimeInterval(3 * 86_400),
+                                             credalNow.addingTimeInterval(6 * 86_400)])
+        // Each line is labelled by the date it lapses, in the locale's own short format.
+        XCTAssertEqual(rows[0].name, LiveUsageDataSource.creditDateFormatter
+            .string(from: credalNow.addingTimeInterval(3 * 86_400)))
+        XCTAssertEqual(rows[1].name, LiveUsageDataSource.creditDateFormatter
+            .string(from: credalNow.addingTimeInterval(6 * 86_400)))
+        XCTAssertEqual(rows[0].valueText, TimeFormatter.duration(from: 3 * 86_400))
     }
 
     /// A credit that lapsed between polls, and one that was already spent, are both dropped —
@@ -175,13 +180,13 @@ final class UsageParsingTests: XCTestCase {
         {"id": "a", "status": "available", "expires_at": "\(iso(-3_600))", "title": "", "description": ""},
         {"id": "b", "status": "used", "expires_at": "\(iso(30 * 86_400))", "title": "", "description": ""}
         """)
-        XCTAssertNil(ds.codexResetCreditRow(fromRoot: root, now: credalNow))
+        XCTAssertTrue(ds.codexResetCreditRows(fromRoot: root, now: credalNow).isEmpty)
     }
 
-    /// Empty / missing payload → no row at all, so the card simply doesn't draw the section.
+    /// Empty / missing payload → no rows at all, so the card simply doesn't draw the section.
     func testCodexResetCreditsEmptyPayload() {
-        XCTAssertNil(ds.codexResetCreditRow(fromRoot: ["available_count": 0, "credits": []]))
-        XCTAssertNil(ds.codexResetCreditRow(fromRoot: [:]))
+        XCTAssertTrue(ds.codexResetCreditRows(fromRoot: ["available_count": 0, "credits": []]).isEmpty)
+        XCTAssertTrue(ds.codexResetCreditRows(fromRoot: [:]).isEmpty)
     }
 
     /// Both windows present with real durations: the 5-hour one (limit_window_seconds 18000) is the

@@ -335,11 +335,24 @@ struct ServiceCard: View {
                 }
             }
 
-            if !valueRows.isEmpty {
+            if !valueRows.isEmpty || !creditRows.isEmpty {
                 cardDivider.padding(.top, 11).padding(.bottom, 9)
                 VStack(alignment: .leading, spacing: 7) {
                     ForEach(valueRows) { row in
                         valueRow(row)
+                    }
+                    if !creditRows.isEmpty {
+                        // One heading for the whole group, then a line per credit — repeating the icon
+                        // and the label on every line read as noise.
+                        HStack(spacing: 5) {
+                            Image(systemName: "arrow.clockwise").font(.system(size: 11, weight: .regular))
+                            Text(String(localized: "Renewal credits"))
+                        }
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Color.primary.opacity(0.58))
+                        ForEach(creditRows) { row in
+                            creditRow(row)
+                        }
                     }
                 }
             }
@@ -399,6 +412,21 @@ struct ServiceCard: View {
         .lineLimit(1)
     }
 
+    /// One renewal credit: the date it lapses, and how long that is from now.
+    private func creditRow(_ row: ModelStatus) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Text(row.name)
+                .font(.system(size: 11, weight: .medium).monospacedDigit())
+                .foregroundStyle(Color.primary.opacity(0.58))
+            Spacer(minLength: 6)
+            // Same quiet grey as a model row's countdown — the date is the content here, not the clock.
+            Text(relDuration(row.resetAt, now) ?? row.valueText ?? "")
+                .font(.system(size: 11, weight: .medium).monospacedDigit())
+                .foregroundStyle(Color.primary.opacity(0.42))
+        }
+        .lineLimit(1)
+    }
+
     // MARK: Data shaping
 
     /// Codex is branded "ChatGPT" on the card — that's the account the quota belongs to.
@@ -413,7 +441,8 @@ struct ServiceCard: View {
         // The account weekly is a row only when there IS a 5h block above it; with no session the
         // weekly is promoted into the block (see sessionHero), so don't repeat it here.
         if service.sessionRemainingPercent != nil, let weekly = service.weeklyRemainingPercent {
-            out.append((String(localized: "All models"), weekly, service.weeklyResetAt))
+            let label = (labelsByWindow ? longWindowLabel : nil) ?? String(localized: "All models")
+            out.append((label, weekly, service.weeklyResetAt))
         }
         for model in service.models where model.valueText == nil {
             out.append((model.name, model.remainingPercent, model.resetAt))
@@ -426,19 +455,27 @@ struct ServiceCard: View {
     /// a label that says so, rather than leaving the card without a headline number.
     private var sessionHero: (label: String, percent: Int, resetAt: Date?, fallback: TimeInterval, gated: Bool)? {
         if let session = service.sessionRemainingPercent {
-            return (String(localized: "Current session"), session, service.sessionResetAt,
+            let label = labelsByWindow ? sessionWindowLabel : String(localized: "Current session")
+            return (label, session, service.sessionResetAt,
                     5 * 3600, service.weeklyRemainingPercent == 0)
         }
         if let weekly = service.weeklyRemainingPercent {
-            return (String(localized: "Usage limits"), weekly, service.weeklyResetAt,
+            let label = (labelsByWindow ? longWindowLabel : nil) ?? String(localized: "Usage limits")
+            return (label, weekly, service.weeklyResetAt,
                     service.weeklyWindowSeconds ?? 7 * 24 * 3600, false)
         }
         return nil
     }
 
     /// Credit / reset-credit rows, in provider order. Empty → the whole section is skipped.
+    /// Value rows that stand on their own (the credit balance): a labelled row with its own icon.
     private var valueRows: [ModelStatus] {
-        service.models.filter { $0.valueText != nil }
+        service.models.filter { $0.valueText != nil && $0.resetAt == nil }
+    }
+
+    /// Renewal credits: a `valueText` row that also carries an expiry. Grouped under one heading.
+    private var creditRows: [ModelStatus] {
+        service.models.filter { $0.valueText != nil && $0.resetAt != nil }
     }
 
     /// Antigravity grouped by family, preserving first-seen order, each family carrying
@@ -464,6 +501,25 @@ struct ServiceCard: View {
 
     private var hasServiceQuotas: Bool {
         service.name == "Claude" || service.name == "Codex"
+    }
+
+    /// ChatGPT's blocks are labelled by the window they describe — "5h session", "7d session", or
+    /// "30d session" on a ChatGPT Go account — because that account has no per-model rows to name
+    /// instead. Claude keeps "Current session" / "All models": there the model names carry the meaning.
+    private var labelsByWindow: Bool { service.name == "Codex" }
+
+    /// "5h session". The session window is whatever the provider reports, but it's only ever
+    /// classified as one at 6h or below (see `codexWindowIsSession`), so 5 is the honest label.
+    private var sessionWindowLabel: String {
+        String(format: String(localized: "%@ session"), "5\(TimeFormatter.hourUnit)")
+    }
+
+    /// "7d session" / "30d session", from the window's REAL length. nil when the provider didn't
+    /// report one — then the caller keeps its generic label rather than printing a guess.
+    private var longWindowLabel: String? {
+        quotaWindowDays(service.weeklyWindowSeconds).map {
+            String(format: String(localized: "%@ session"), "\($0)\(TimeFormatter.dayUnit)")
+        }
     }
 }
 
