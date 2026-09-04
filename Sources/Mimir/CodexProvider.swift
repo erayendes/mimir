@@ -120,8 +120,8 @@ extension LiveUsageDataSource {
                   root["rate_limit"] is [String: Any] else {
                 return nil
             }
-            let resetRow = await fetchCodexResetCredits(accessToken: accessToken, accountID: accountID)
-            return codexStatus(fromUsageRoot: root, extraRows: resetRow.map { [$0] } ?? [])
+            let resetRows = await fetchCodexResetCredits(accessToken: accessToken, accountID: accountID)
+            return codexStatus(fromUsageRoot: root, extraRows: resetRows)
         } catch {
             return nil
         }
@@ -137,13 +137,16 @@ extension LiveUsageDataSource {
     func codexStatus(fromUsageRoot root: [String: Any], now: Date = Date(), extraRows: [ModelStatus] = []) -> ServiceStatus {
         let rateLimit = root["rate_limit"] as? [String: Any] ?? [:]
 
-        var session: (percent: Int, resetAt: Date?)?
-        var weekly: (percent: Int, resetAt: Date?)?
+        var session: (percent: Int?, resetAt: Date?)?
+        var weekly: (percent: Int?, resetAt: Date?)?
         var weeklyWindow: TimeInterval?
         for (raw, slotIsPrimary) in [(rateLimit["primary_window"], true), (rateLimit["secondary_window"], false)] {
             guard let obj = raw as? [String: Any] else { continue }
             let window = codexAPIWindow(obj)
-            let percent = window.usedPercent.map(remainingPercent(fromUsed:)) ?? 100
+            // A window returned without `used_percent` has an UNKNOWN percent, not a full one. Reading it
+            // as 100 made a partial response look like a fresh reset, which fired "quota refilled" in the
+            // middle of a 30-day (Go) window. nil keeps the countdown and drops only the number.
+            let percent = window.usedPercent.map(remainingPercent(fromUsed:))
             let periodSeconds = doubleValue(obj["limit_window_seconds"])
             let isSession = codexWindowIsSession(periodSeconds: periodSeconds,
                                                  resetAt: window.resetAt,
@@ -164,8 +167,8 @@ extension LiveUsageDataSource {
             iconName: "codex",
             sessionResetAt: session?.resetAt,
             weeklyResetAt: weekly?.resetAt,
-            sessionRemainingPercent: session?.percent,
-            weeklyRemainingPercent: weekly?.percent,
+            sessionRemainingPercent: session.flatMap(\.percent),
+            weeklyRemainingPercent: weekly.flatMap(\.percent),
             weeklyWindowSeconds: weeklyWindow,
             models: (codexCreditRow(root["credits"]).map { [$0] } ?? []) + extraRows,
             isAvailable: true,
@@ -191,31 +194,42 @@ extension LiveUsageDataSource {
                            symbol: "dollarsign.circle")
     }
 
-    /// Reset credits ("sıfırlama hakkı") from `wham/rate-limit-reset-credits`: one-shot passes that
-    /// clear a spent rate-limit window. Only credits still available AND not yet expired count — a
-    /// credit can lapse between polls, and `available_count` doesn't re-check that.
-    /// Returns nil when there are none, so the row is simply omitted.
-    func codexResetCreditRow(fromRoot root: [String: Any], now: Date = Date()) -> ModelStatus? {
-        let credits = (root["credits"] as? [[String: Any]] ?? []).compactMap { item -> Date? in
+    /// Reset credits ("yenileme hakkı") from `wham/rate-limit-reset-credits`: one-shot passes that
+    /// clear a spent rate-limit window. One row per credit, soonest expiry first — a count alone hid
+    /// the fact that credits expire on their own dates, and the "first expires in …" caption read
+    /// oddly when there was only one. Only credits still available AND not yet expired count: a credit
+    /// can lapse between polls, and `available_count` doesn't re-check that. Empty → no rows at all.
+    func codexResetCreditRows(fromRoot root: [String: Any], now: Date = Date()) -> [ModelStatus] {
+        let expiries = (root["credits"] as? [[String: Any]] ?? []).compactMap { item -> Date? in
             guard (item["status"] as? String)?.lowercased() == "available",
                   let raw = item["expires_at"] as? String,
                   let expiresAt = parseISO8601(raw), expiresAt > now else { return nil }
             return expiresAt
+        }.sorted()
+
+        // One line per credit, labelled by the date it lapses; the popover groups them under a single
+        // "Renewal credits" heading, so neither the icon nor the label repeats. `resetAt` carries the
+        // expiry: the line draws a live countdown off it, and the expiry warning reads it from here
+        // rather than from the formatted text.
+        return expiries.map { expiresAt in
+            ModelStatus(name: Self.creditDateFormatter.string(from: expiresAt),
+                        remainingPercent: 0, resetAt: expiresAt,
+                        valueText: TimeFormatter.duration(from: expiresAt.timeIntervalSince(now)))
         }
-        guard !credits.isEmpty else { return nil }
-        let earliest = credits.min()
-        let caption = earliest.map {
-            String(format: String(localized: "first expires in %@"), TimeFormatter.duration(from: $0.timeIntervalSince(now)))
-        }
-        // `resetAt` carries the earliest expiry: the value row doesn't draw it, but the expiry
-        // warning reads it from here rather than the row's already-formatted caption.
-        return ModelStatus(name: String(localized: "Reset credits"), remainingPercent: 0, resetAt: earliest,
-                           valueText: String(credits.count), caption: caption, symbol: "arrow.clockwise")
     }
+
+    /// Locale's own short date ("19.10.2026" in tr, "10/19/2026" in en) — a credit's expiry is a
+    /// calendar date, not a countdown, so it reads as one.
+    static let creditDateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateStyle = .short
+        f.timeStyle = .none
+        return f
+    }()
 
     /// GET the reset-credit endpoint with the same auth as `wham/usage`. Failure returns nil and the
     /// row is dropped — this is a bonus reading, never a reason to fail the whole Codex fetch.
-    private func fetchCodexResetCredits(accessToken: String, accountID: String?) async -> ModelStatus? {
+    private func fetchCodexResetCredits(accessToken: String, accountID: String?) async -> [ModelStatus] {
         var req = URLRequest(url: URL(string: "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits")!,
                              timeoutInterval: 10)
         req.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
@@ -228,9 +242,9 @@ extension LiveUsageDataSource {
         guard let (data, response) = try? await URLSession.shared.data(for: req),
               (response as? HTTPURLResponse).map({ 200 ... 299 ~= $0.statusCode }) == true,
               let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return nil
+            return []
         }
-        return codexResetCreditRow(fromRoot: root)
+        return codexResetCreditRows(fromRoot: root)
     }
     private func summarizeCodexWindow(_ window: CodexRateWindow?, now: Date) -> CodexWindowSummary? {
         guard let window else { return nil }

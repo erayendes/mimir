@@ -20,8 +20,6 @@
 "Usage credit" = "Kullanım kredisi";
 "Usage limits" = "Kullanım limitleri";
 "Credit balance" = "Kredi bakiyesi";
-"Reset credits" = "Sıfırlama hakkı";
-"first expires in %@" = "ilki %@ sonra doluyor";
 "AI credit" = "AI kredisi";
 "Resets at %@" = "%@'da sıfırlanır";
 
@@ -43,6 +41,8 @@
 /* Notifications */
 "🚀 %@ weekly quota refilled." = "🚀 %@ haftalık kota yenilendi.";
 "Your weekly quota is back to 100%. Pick up where you left off." = "Haftalık kotanız %100 oldu. Kaldığınız yerden devam edebilirsiniz.";
+"🚀 %@ monthly quota refilled." = "🚀 %@ aylık kota yenilendi.";
+"Your monthly quota is back to 100%. Pick up where you left off." = "Aylık kotanız %100 oldu. Kaldığınız yerden devam edebilirsiniz.";
 "🔋 %@ ready for a new sprint." = "🔋 %@ yeni sprint için hazır.";
 "Your 5-hour session is back to 100%. Pick up where you left off." = "5 saatlik oturum %100 oldu. Kaldığınız yerden devam edebilirsiniz.";
 "🪫 %@ 5-hour quota running out — %d%%" = "🪫 %@ 5 saatlik kota tükeniyor. — %%%d";
@@ -51,6 +51,8 @@
 "🚨 %@ weekly quota running out — %d%%" = "🚨 %@ haftalık kota tükeniyor. — %%%d";
 "Renews in ~%@." = "~%@ sonra yenilenecek.";
 "Your weekly limit is running out." = "Haftalık limitin tükeniyor.";
+"🚨 %@ monthly quota running out — %d%%" = "🚨 %@ aylık kota tükeniyor. — %%%d";
+"Your monthly limit is running out." = "Aylık limitin tükeniyor.";
 
 /* Status notes */
 "out of date" = "güncel değil";
@@ -90,5 +92,7 @@
 "Enable" = "Etkinleştir";
 "~/.claude/settings.json is not valid JSON" = "~/.claude/settings.json geçerli bir JSON değil";
 "couldn't write to ~/.claude" = "~/.claude klasörüne yazılamadı";
-"⏳ Reset credit expires in %@" = "⏳ Sıfırlama hakkı %@ sonra doluyor";
+"%@ session" = "%@ oturum";
+"Renewal credits" = "Yenileme hakları";
+"⏳ Reset credit expires in %@" = "⏳ Yenileme hakkı %@ sonra doluyor";
 "You have %@ waiting. Spend one now and it clears a used-up window — unused, it just lapses." = "Bekleyen %@ hakkın var. Şimdi kullanırsan tükenmiş pencereyi sıfırlar; kullanmazsan yanar.";

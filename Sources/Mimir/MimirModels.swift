@@ -267,3 +267,35 @@ enum TimeFormatter {
         return "\(max(minutes, 1))\(minute)"
     }
 }
+
+/// Has the reset we armed come round? A refill is announced off the window's own reset CLOCK rather
+/// than off a percent jumping back to 100 — a reading can flicker to full for reasons that aren't a
+/// reset (a partial response, the local session file standing in for the usage API), which is what
+/// announced "quota refilled" mid-month on a 30-day ChatGPT Go window. `announced` pins the reset we
+/// already told the user about, so a relaunch can't repeat it.
+func refillIsDue(armed: Double, announced: Double, now: Double) -> Bool {
+    armed > 0 && now >= armed && announced != armed
+}
+
+/// The reset to arm next, or nil to leave the current arming alone: only when nothing is armed, the
+/// reset is still in the future, and it isn't the one already announced (so the data rolling forward
+/// at reset time can't clobber a refill we still owe).
+func nextArmedReset(armed: Double, announced: Double, resetAt: Date?, now: Date) -> Double? {
+    guard armed == 0, let resetAt else { return nil }
+    let stamp = resetAt.timeIntervalSince1970
+    guard stamp > now.timeIntervalSince1970, stamp != announced else { return nil }
+    return stamp
+}
+
+/// Remaining-percent at which a long quota window counts as "running out". Anchored on the 7-day
+/// week's 10%: a flat percent warns far too early on a longer window — 10% of a 30-day ChatGPT Go
+/// quota is three days' worth of budget still in hand, announced as if the month were over. Scaling
+/// by length puts the warning at a comparable time-to-empty instead, with a 5% floor so it can never
+/// tighten to the point of arriving too late to act on. Windows at or under the base keep the base.
+func lowQuotaThreshold(windowSeconds: TimeInterval?,
+                       base: Int = 10,
+                       baseWindow: TimeInterval = 7 * 86_400,
+                       floor: Int = 5) -> Int {
+    guard let windowSeconds, windowSeconds > baseWindow else { return base }
+    return max(floor, Int((Double(base) * baseWindow / windowSeconds).rounded()))
+}

@@ -154,18 +154,23 @@ final class UsageParsingTests: XCTestCase {
         ISO8601DateFormatter().string(from: Date(timeIntervalSince1970: 1_786_000_000 + offset))
     }
 
-    /// Available and unexpired credits are counted, with the nearest expiry in the caption.
-    func testCodexResetCreditsCountsAvailableOnes() {
+    /// One row per available credit, soonest expiry first, each carrying its own expiry so the popover
+    /// can draw a live countdown and the warning can pick the nearest one.
+    func testCodexResetCreditsRowPerCredit() {
         let root = resetCreditsRoot("""
         {"id": "a", "status": "available", "expires_at": "\(iso(6 * 86_400))", "title": "Reset", "description": ""},
         {"id": "b", "status": "available", "expires_at": "\(iso(3 * 86_400))", "title": "Reset", "description": ""}
         """)
-        let row = ds.codexResetCreditRow(fromRoot: root, now: credalNow)
-        XCTAssertEqual(row?.valueText, "2")
-        XCTAssertEqual(row?.caption, String(format: String(localized: "first expires in %@"),
-                                            TimeFormatter.duration(from: 3 * 86_400)))
-        // The expiry warning reads the nearest expiry off `resetAt`, not the formatted caption.
-        XCTAssertEqual(row?.resetAt, credalNow.addingTimeInterval(3 * 86_400))
+        let rows = ds.codexResetCreditRows(fromRoot: root, now: credalNow)
+        XCTAssertEqual(rows.count, 2)
+        XCTAssertEqual(rows.map(\.resetAt), [credalNow.addingTimeInterval(3 * 86_400),
+                                             credalNow.addingTimeInterval(6 * 86_400)])
+        // Each line is labelled by the date it lapses, in the locale's own short format.
+        XCTAssertEqual(rows[0].name, LiveUsageDataSource.creditDateFormatter
+            .string(from: credalNow.addingTimeInterval(3 * 86_400)))
+        XCTAssertEqual(rows[1].name, LiveUsageDataSource.creditDateFormatter
+            .string(from: credalNow.addingTimeInterval(6 * 86_400)))
+        XCTAssertEqual(rows[0].valueText, TimeFormatter.duration(from: 3 * 86_400))
     }
 
     /// A credit that lapsed between polls, and one that was already spent, are both dropped —
@@ -175,13 +180,13 @@ final class UsageParsingTests: XCTestCase {
         {"id": "a", "status": "available", "expires_at": "\(iso(-3_600))", "title": "", "description": ""},
         {"id": "b", "status": "used", "expires_at": "\(iso(30 * 86_400))", "title": "", "description": ""}
         """)
-        XCTAssertNil(ds.codexResetCreditRow(fromRoot: root, now: credalNow))
+        XCTAssertTrue(ds.codexResetCreditRows(fromRoot: root, now: credalNow).isEmpty)
     }
 
-    /// Empty / missing payload → no row at all, so the card simply doesn't draw the section.
+    /// Empty / missing payload → no rows at all, so the card simply doesn't draw the section.
     func testCodexResetCreditsEmptyPayload() {
-        XCTAssertNil(ds.codexResetCreditRow(fromRoot: ["available_count": 0, "credits": []]))
-        XCTAssertNil(ds.codexResetCreditRow(fromRoot: [:]))
+        XCTAssertTrue(ds.codexResetCreditRows(fromRoot: ["available_count": 0, "credits": []]).isEmpty)
+        XCTAssertTrue(ds.codexResetCreditRows(fromRoot: [:]).isEmpty)
     }
 
     /// Both windows present with real durations: the 5-hour one (limit_window_seconds 18000) is the
@@ -266,6 +271,60 @@ final class UsageParsingTests: XCTestCase {
         XCTAssertEqual(status.weeklyRemainingPercent, 90)     // weekly still shown
         XCTAssertEqual(status.models.first?.valueText?.contains("42"), true)
         XCTAssertTrue(status.isAvailable)
+    }
+
+    /// A window present but WITHOUT `used_percent` reads as unknown, not full. Pinning it to 100 made a
+    /// partial response look like a fresh reset, which fired "quota refilled" mid-month on the 30-day
+    /// (ChatGPT Go) window. The reset time is still kept, so the countdown survives.
+    func testCodexStatusLeavesPercentNilWhenUsedPercentMissing() {
+        let root: [String: Any] = [
+            "rate_limit": [
+                "primary_window": ["limit_window_seconds": 2_592_000, "reset_at": 1_785_822_607.0],
+            ],
+        ]
+        let status = ds.codexStatus(fromUsageRoot: root)
+        XCTAssertNil(status.weeklyRemainingPercent)                        // unknown, not 100
+        XCTAssertEqual(status.weeklyResetAt, Date(timeIntervalSince1970: 1_785_822_607))
+        XCTAssertEqual(status.weeklyWindowSeconds, 2_592_000)
+    }
+
+    /// The refill alert runs off the window's reset clock, not off the percent: fire once the armed
+    /// reset has passed, and never twice for the same one (the stamp survives a relaunch).
+    func testRefillFiresOncePerArmedReset() {
+        let t: Double = 1_785_000_000
+        XCTAssertTrue(refillIsDue(armed: t, announced: 0, now: t))              // reset came round
+        XCTAssertTrue(refillIsDue(armed: t, announced: t - 1, now: t + 60))     // a later reset
+        XCTAssertFalse(refillIsDue(armed: t, announced: 0, now: t - 1))         // not yet
+        XCTAssertFalse(refillIsDue(armed: t, announced: t, now: t + 60))        // already announced
+        XCTAssertFalse(refillIsDue(armed: 0, announced: 0, now: t))             // nothing armed
+    }
+
+    /// Arming takes the next future reset, once, and refuses the one we already announced — otherwise
+    /// the data rolling forward at reset time would clobber a refill still owed.
+    func testNextArmedResetTakesTheNextFutureResetOnly() {
+        let now = Date(timeIntervalSince1970: 1_785_000_000)
+        let next = now.addingTimeInterval(30 * 86_400)
+        XCTAssertEqual(nextArmedReset(armed: 0, announced: 0, resetAt: next, now: now),
+                       next.timeIntervalSince1970)
+        XCTAssertNil(nextArmedReset(armed: 123, announced: 0, resetAt: next, now: now))   // already armed
+        XCTAssertNil(nextArmedReset(armed: 0, announced: 0, resetAt: nil, now: now))      // no reset reported
+        XCTAssertNil(nextArmedReset(armed: 0, announced: 0,
+                                    resetAt: now.addingTimeInterval(-60), now: now))      // already past
+        XCTAssertNil(nextArmedReset(armed: 0, announced: next.timeIntervalSince1970,
+                                    resetAt: next, now: now))                             // already announced
+    }
+
+    /// The low-quota threshold scales with the window: a flat 10% warns on day three of a 30-day
+    /// ChatGPT Go quota. Anything at or under a week keeps the base, and the floor stops the scaling
+    /// from tightening past a usable warning.
+    func testLowQuotaThresholdScalesWithWindowLength() {
+        XCTAssertEqual(lowQuotaThreshold(windowSeconds: nil), 10)             // unknown → base
+        XCTAssertEqual(lowQuotaThreshold(windowSeconds: 7 * 86_400), 10)      // the week itself
+        XCTAssertEqual(lowQuotaThreshold(windowSeconds: 5 * 86_400), 10)      // shorter → still base
+        XCTAssertEqual(lowQuotaThreshold(windowSeconds: 14 * 86_400), 5)      // scaled to the floor
+        XCTAssertEqual(lowQuotaThreshold(windowSeconds: 2_592_000), 5)        // 30d Go window
+        // Without the floor a 30-day window would warn at 2% — too late to spend the remainder.
+        XCTAssertEqual(lowQuotaThreshold(windowSeconds: 2_592_000, floor: 0), 2)
     }
 
     /// Credit-only account with neither window → "Codex" shows just the credit balance; both window
