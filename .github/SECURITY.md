@@ -32,7 +32,7 @@ Please include:
 
 The app runs on your machine and has no backend of its own, but it is not offline: it
 calls each provider's own usage endpoint with that provider's own token, and sends crash
-and anonymous usage telemetry. See [Privacy & Security](../docs/PRIVACY.md) for the full
+and anonymous usage telemetry. See [Privacy & Security](../docs/README.md#privacy--security) for the full
 list. Security concerns typically relate to:
 
 - Local file access (`~/.claude`, `~/.codex`, etc.)
