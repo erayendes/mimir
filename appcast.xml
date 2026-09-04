@@ -7,7 +7,45 @@
     <link>https://github.com/erayendes/mimir</link>
     <description>Mimir update feed</description>
     <language>en</language>
-                                                                                                    <item>
+                                                                                                        <item>
+      <title>Mimir 2.13</title>
+      <sparkle:version>2013000</sparkle:version>
+      <sparkle:shortVersionString>2.13</sparkle:shortVersionString>
+      <pubDate>Fri, 04 Sep 2026 21:44:18 +0000</pubDate>
+      <description><![CDATA[
+<p><b>Changed</b></p>
+<ul>
+<li>ChatGPT's <b>reset credits</b> are listed one per line under a "Renewal credits" heading — the date each one lapses, and how long that is. The old row showed a count with "first expires in …" underneath.</li>
+<li>The ChatGPT card names its blocks by window: "5h session" above, "7d session" or "30d session" below, from whatever length the service reports.</li>
+<li>New colour bands: green from 40%, amber 10–39%, red below 10%. Every low-quota notification now arrives as the reading turns red.</li>
+</ul>
+<p><b>Fixed</b></p>
+<ul>
+<li>The monthly ChatGPT quota announced refills and warnings that had nothing to do with where the month was. Refills now follow the window's own reset time, a reply that omits the percentage no longer reads as 100%, and the warning threshold scales with the window's length.</li>
+<li>A "running out" warning is no longer repeated after every restart.</li>
+</ul>
+<hr>
+<p><b>Değiştirildi</b></p>
+<ul>
+<li>ChatGPT'nin <b>yenileme hakları</b> "Yenileme hakları" başlığı altında tek tek listeleniyor — her hakkın yandığı tarih ve ne kadar kaldığı. Eski satır adet gösterip altına "ilki … sonra doluyor" yazıyordu.</li>
+<li>ChatGPT kartı bloklarını penceresine göre adlandırıyor: üstte "5s oturum", altta servisin bildirdiği uzunluğa göre "7g oturum" ya da "30g oturum".</li>
+<li>Yeni renk aralıkları: %40'tan itibaren yeşil, %10–39 amber, %10 altı kırmızı. Bütün "kota tükeniyor" bildirimleri artık okuma kırmızıya dönerken geliyor.</li>
+</ul>
+<p><b>Düzeltildi</b></p>
+<ul>
+<li>Aylık ChatGPT kotası, ayın neresinde olduğuyla ilgisi olmayan yenilenme ve tükenme bildirimleri gönderiyordu. Yenilenme artık pencerenin kendi sıfırlanma saatinden duyuruluyor, yüzdeyi bildirmeyen cevap %100 sayılmıyor ve uyarı eşiği pencerenin uzunluğuna göre ölçekleniyor.</li>
+<li>"Kota tükeniyor" uyarısı her açılışta tekrar gelmiyor.</li>
+</ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v2.13/Mimir.zip"
+        sparkle:edSignature="3s7aVT54jImhYpe/U/eLxCVm60CavJiTIoYu4vIYmASUWTcP3897CVFklsL835yKhD1JySbrrQdSnY0upaA6Cg=="
+        length="6622924"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 2.12</title>
       <sparkle:version>2012000</sparkle:version>
       <sparkle:shortVersionString>2.12</sparkle:shortVersionString>
