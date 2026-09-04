@@ -28,7 +28,7 @@ struct ServiceStatus: Identifiable {
     let cooldownHint: TimeInterval?
     /// True when the live source has been unreachable long enough (>15 min) that the last-known data
     /// is no longer trustworthy — the UI shows an actionable "couldn't fetch" state (small widget
-    /// message / medium "—" / popover banner) instead of stale numbers. The model labels are kept so
+    /// message / popover banner) instead of stale numbers. The model labels are kept so
     /// those surfaces still know which rows to render.
     let dataUnavailable: Bool
 

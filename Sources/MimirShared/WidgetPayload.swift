@@ -23,7 +23,7 @@ public struct ProviderPayload: Codable, Equatable {
     public var isAvailable: Bool
     public var fiveHour: [WindowMetric]   // the prominent 5h windows (1 for Claude/Codex, 2 for AG)
     // The live source has been unreachable too long to trust the last reading: the widget renders an
-    // actionable "couldn't fetch" state (small message / medium "—") instead of stale numbers. The
+    // actionable "couldn't fetch" state (a message in place of the numbers) instead of stale ones. The
     // `fiveHour` labels are still carried so the rows know what to render.
     public var unavailable: Bool
     // Last-known reading shown while the live source is briefly unusable — e.g. Claude's access token
