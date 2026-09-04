@@ -90,3 +90,5 @@
 "Enable" = "Etkinleştir";
 "~/.claude/settings.json is not valid JSON" = "~/.claude/settings.json geçerli bir JSON değil";
 "couldn't write to ~/.claude" = "~/.claude klasörüne yazılamadı";
+"⏳ Reset credit expires in %@" = "⏳ Sıfırlama hakkı %@ sonra doluyor";
+"You have %@ waiting. Spend one now and it clears a used-up window — unused, it just lapses." = "Bekleyen %@ hakkın var. Şimdi kullanırsan tükenmiş pencereyi sıfırlar; kullanmazsan yanar.";

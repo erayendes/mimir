@@ -90,3 +90,5 @@
 "Enable" = "Enable";
 "~/.claude/settings.json is not valid JSON" = "~/.claude/settings.json is not valid JSON";
 "couldn't write to ~/.claude" = "couldn't write to ~/.claude";
+"⏳ Reset credit expires in %@" = "⏳ Reset credit expires in %@";
+"You have %@ waiting. Spend one now and it clears a used-up window — unused, it just lapses." = "You have %@ waiting. Spend one now and it clears a used-up window — unused, it just lapses.";

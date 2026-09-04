@@ -203,10 +203,13 @@ extension LiveUsageDataSource {
             return expiresAt
         }
         guard !credits.isEmpty else { return nil }
-        let caption = credits.min().map {
+        let earliest = credits.min()
+        let caption = earliest.map {
             String(format: String(localized: "first expires in %@"), TimeFormatter.duration(from: $0.timeIntervalSince(now)))
         }
-        return ModelStatus(name: String(localized: "Reset credits"), remainingPercent: 0, resetAt: nil,
+        // `resetAt` carries the earliest expiry: the value row doesn't draw it, but the expiry
+        // warning reads it from here rather than the row's already-formatted caption.
+        return ModelStatus(name: String(localized: "Reset credits"), remainingPercent: 0, resetAt: earliest,
                            valueText: String(credits.count), caption: caption, symbol: "arrow.clockwise")
     }
 
