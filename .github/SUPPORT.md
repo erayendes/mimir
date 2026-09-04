@@ -12,13 +12,16 @@
 Check Activity Monitor to see if Mimir is running. The app requires macOS 14.0 or later.
 
 **Claude limits are not showing.**
-Make sure `~/.claude` exists and Claude Code has been run at least once.
+Sign in to Claude Code or the Claude desktop app once — Mimir reads the records they create under `~/.claude` and the macOS Keychain. If the card says *token expired — open Claude Code*, opening Claude Code once refreshes it.
 
-**Codex credits look wrong.**
-The Codex OAuth token may have expired. Restart Codex to refresh the session.
+**The ChatGPT card looks wrong or out of date.**
+Mimir asks the ChatGPT usage API first and falls back to the local session files under `~/.codex`. If the API is briefly unreachable, the card is dimmed and shows the last-known reading rather than vanishing. Signing in to Codex again refreshes an expired token.
 
-**Gemini quotas can't be fetched.**
-Make sure the appropriate Google Cloud credentials are configured for the Quota API.
+**Antigravity says "open Antigravity or Cockpit".**
+The quota is read from the running Antigravity language server or Cockpit, so one of them has to have been open at least once — there are no Google Cloud credentials to configure. With both closed, Mimir shows the last snapshot until its reset time passes.
+
+**A card is dimmed, or a "couldn't fetch" notice appears at the top.**
+The live source has been unreachable long enough that the last reading is no longer trustworthy. Both clear on their own once that provider reports data again. Dismiss the notice with the × in its corner if you'd rather not see it.
 
 ---
 
@@ -36,13 +39,16 @@ If your issue isn't listed here, [open an issue](https://github.com/erayendes/mi
 Aktivite Monitörü'nden Mimir'in çalışıp çalışmadığını kontrol edin. Uygulama macOS 14.0 ve üzerini gerektirir.
 
 **Claude limitleri gösterilmiyor.**
-`~/.claude` dizininin var olduğunu ve Claude Code'un en az bir kez çalıştırıldığını doğrulayın.
+Claude Code'a veya Claude masaüstü uygulamasına bir kez giriş yapın — Mimir bu araçların `~/.claude` altında ve macOS Keychain'de oluşturduğu kayıtları okur. Kart *token süresi doldu — Claude Code'u aç* diyorsa, Claude Code'u bir kez açmak yeterlidir.
 
-**Codex kredileri yanlış görünüyor.**
-Codex OAuth token'ı süresi dolmuş olabilir. Codex'i yeniden başlatarak oturumu yenileyin.
+**ChatGPT kartı yanlış ya da eski görünüyor.**
+Mimir önce ChatGPT kullanım API'sini sorgular, olmazsa `~/.codex` altındaki yerel oturum dosyalarına düşer. API kısa süreliğine erişilemezse kart kaybolmaz; soluk hâlde son bilinen okumayı gösterir. Süresi dolmuş bir token için Codex'e yeniden giriş yapın.
 
-**Gemini kotaları çekilemiyor.**
-Google Cloud Quota API için uygun kimlik bilgilerinin yapılandırıldığından emin olun.
+**Antigravity "Antigravity veya Cockpit'i aç" diyor.**
+Kota, çalışan Antigravity dil sunucusundan veya Cockpit'ten okunur; bu yüzden ikisinden birinin en az bir kez açılmış olması gerekir — yapılandırılacak bir Google Cloud kimlik bilgisi yoktur. İkisi de kapalıyken Mimir, sıfırlanma zamanı geçene kadar son anlık görüntüyü gösterir.
+
+**Kart soluk görünüyor ya da üstte "veri alınamadı" uyarısı çıktı.**
+Canlı kaynağa yeterince uzun süre ulaşılamadı; son okuma artık güvenilir sayılmıyor. O sağlayıcı tekrar veri verdiğinde ikisi de kendiliğinden düzelir. Uyarıyı görmek istemiyorsanız köşesindeki × ile kapatabilirsiniz.
 
 ---
 
