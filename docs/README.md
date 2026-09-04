@@ -93,9 +93,9 @@ Mimir's entire UI lives in the menu bar: a small **Mimir glyph** and a vertical 
 
 | Color | Remaining | Meaning |
 |:---:|---|---|
-| 🟢 Green | 50–100% | Plenty left |
-| 🟡 Amber | 15–49% | Running low |
-| 🔴 Red | below 15% | Near the limit |
+| 🟢 Green | 40–100% | Plenty left |
+| 🟡 Amber | 10–39% | Running low |
+| 🔴 Red | below 10% | Near the limit |
 
 **The popover** — click the glyph to open it. Each service is a card with its name and brand icon, the session (5-hour) quota shown prominently with percentage and countdown, a weekly summary row, per-model quota or credit rows, an (i) info icon, and a status note (e.g. *"token expired — open Claude Code"*). When a service has no session window, the weekly reading is promoted into that spot instead. Reset times use short units — e.g. `2h 15m`.
 
@@ -342,9 +342,9 @@ Mimir'in tüm arayüzü menü çubuğunda yaşar: küçük bir **Mimir simgesi**
 
 | Renk | Kalan | Anlamı |
 |:---:|---|---|
-| 🟢 Yeşil | %50–100 | Bol hakkınız var |
-| 🟡 Amber | %15–49 | Azalıyor |
-| 🔴 Kırmızı | %15'in altı | Limite yakın |
+| 🟢 Yeşil | %40–100 | Bol hakkınız var |
+| 🟡 Amber | %10–39 | Azalıyor |
+| 🔴 Kırmızı | %10'un altı | Limite yakın |
 
 **Açılır pencere (popover)** — simgeye tıklayınca açılır. Her servis bir karttır: ad ve marka ikonu, belirgin gösterilen seans (5 saatlik) kotası (yüzde + geri sayım), haftalık özet satırı, per-model kota veya kredi satırları, (i) bilgi simgesi ve bir durum notu (örn. *"token süresi doldu — Claude Code'u aç"*). Bir servisin seans penceresi yoksa haftalık okuma o alana terfi eder. Yenilenme süreleri kısa birimlerle: örn. `2s 15d`.
 

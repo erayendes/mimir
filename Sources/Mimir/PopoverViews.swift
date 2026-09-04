@@ -563,14 +563,14 @@ struct QuotaBar: View {
     }
 }
 
-/// Status colour for a remaining-quota level, per the design spec's thresholds: green ≥50%,
-/// amber 15–49%, red ≤14% — one set of bands for every window. Returns a dynamic colour that
+/// Status colour for a remaining-quota level, per the design spec's thresholds: green ≥40%,
+/// amber 10–39%, red ≤9% — one set of bands for every window. Returns a dynamic colour that
 /// darkens in light mode so it stays legible on the light panel.
 func quotaStatusColor(_ percent: Int) -> Color {
     let darkHex: UInt32, lightHex: UInt32
     switch clampPct(percent) {
-    case 50...100: darkHex = 0x3FB984; lightHex = 0x1FA45E  // green
-    case 15...49:  darkHex = 0xE0A93C; lightHex = 0xB07D0A  // amber
+    case 40...100: darkHex = 0x3FB984; lightHex = 0x1FA45E  // green
+    case 10...39:  darkHex = 0xE0A93C; lightHex = 0xB07D0A  // amber
     default:       darkHex = 0xE5564E; lightHex = 0xC9403A  // red
     }
     return Color(nsColor: NSColor(name: nil) { appearance in

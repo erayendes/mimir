@@ -15,12 +15,12 @@ public extension Color {
     }
 }
 
-/// The one status-colour rule from the design spec: green ≥50%, amber 15–50%, red <15% — derived
+/// The one status-colour rule from the design spec: green ≥40%, amber 10–40%, red <10% — derived
 /// from *remaining* percent (low percent = critical = red). Drives the percentage text and bars.
 public func statusColor(_ percent: Int) -> Color {
     switch max(0, min(100, percent)) {
-    case 50...100: return Color(hex: 0x3FB984)
-    case 15..<50:  return Color(hex: 0xE0A93C)
+    case 40...100: return Color(hex: 0x3FB984)
+    case 10..<40:  return Color(hex: 0xE0A93C)
     default:       return Color(hex: 0xE5564E)
     }
 }

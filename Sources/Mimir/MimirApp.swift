@@ -566,8 +566,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func statusNSColor(_ percent: Int) -> NSColor {
         switch max(0, min(100, percent)) {
-        case 50...100: return NSColor(hex: 0x3FB984)  // green
-        case 15..<50:  return NSColor(hex: 0xE0A93C)  // amber
+        case 40...100: return NSColor(hex: 0x3FB984)  // green
+        case 10..<40:  return NSColor(hex: 0xE0A93C)  // amber
         default:       return NSColor(hex: 0xE5564E)  // red
         }
     }
@@ -632,7 +632,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private enum QuotaWindow {
         case fiveHour, weekly
         var suffix: String { self == .fiveHour ? "5h" : "weekly" }
-        var lowThreshold: Int { self == .fiveHour ? 20 : 10 }
+        var lowThreshold: Int { 10 }
     }
 
     private func checkNotifications() {
