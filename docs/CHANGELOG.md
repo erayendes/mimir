@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+#### Added
+- ChatGPT's **reset credits** now warn you before they lapse: a notification 1 day, 5 hours and 1 hour before the first one expires. A reset credit clears a spent limit window, but it expires on its own if unused — and it is worth most late in a window that won't reset for days. A newly granted credit starts a fresh set of warnings.
+
 #### Removed
 - The Medium widget is gone; the Small one stays. Usage data showed no one had ever placed a Medium widget, while its fixed four-row layout would have silently dropped a fifth quota row had one ever been added.
 
@@ -417,6 +420,9 @@ Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
 
 ### [Yayımlanmadı]
+
+#### Eklendi
+- ChatGPT'nin **sıfırlama hakları** artık yanmadan önce haber veriyor: ilkinin süresi dolmasına 1 gün, 5 saat ve 1 saat kala birer bildirim. Sıfırlama hakkı tükenmiş bir kota penceresini temizler, ama kullanılmazsa kendiliğinden yanar — ve en çok, günlerce sıfırlanmayacak bir pencerenin sonunda işe yarar. Yeni bir hak geldiğinde uyarılar baştan başlar.
 
 #### Kaldırıldı
 - Medium widget kaldırıldı, Small kalmaya devam ediyor. Kullanım verisi kimsenin Medium widget eklememiş olduğunu gösterdi; üstelik dört satırla sınırlı düzeni, beşinci bir kota satırı eklenseydi onu sessizce düşürecekti.
