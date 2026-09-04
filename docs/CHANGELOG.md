@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [Unreleased]
 
+#### Removed
+- The Medium widget is gone; the Small one stays. Usage data showed no one had ever placed a Medium widget, while its fixed four-row layout would have silently dropped a fifth quota row had one ever been added.
+
 ### [2.11] - 2026-08-24
 
 #### Added
@@ -414,6 +417,9 @@ Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
 
 ### [Yayımlanmadı]
+
+#### Kaldırıldı
+- Medium widget kaldırıldı, Small kalmaya devam ediyor. Kullanım verisi kimsenin Medium widget eklememiş olduğunu gösterdi; üstelik dört satırla sınırlı düzeni, beşinci bir kota satırı eklenseydi onu sessizce düşürecekti.
 
 ### [2.11] - 2026-08-24
 

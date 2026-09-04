@@ -25,8 +25,8 @@ private func windowFallback(_ m: WindowMetric) -> TimeInterval {
     return m.windowSeconds ?? weeklyWindow
 }
 
-// A 5-hour metric paired with its provider's logo, flattened across providers for the Small
-// (single metric) and Medium (one row per metric) layouts.
+// A 5-hour metric paired with its provider's logo, flattened across providers so Small can pick
+// one to show.
 private struct FlatMetric: Identifiable {
     let id = UUID()
     let iconName: String
@@ -38,7 +38,7 @@ private struct FlatMetric: Identifiable {
 
 private extension WidgetPayload {
     /// All 5-hour metrics across available providers, in display order (Claude, Codex, then
-    /// Antigravity's Gemini + Claude/GPT). Drives Small and Medium.
+    /// Antigravity's Gemini + Claude/GPT). Small picks one out of this.
     var fiveHourFlat: [FlatMetric] {
         providers.filter(\.isAvailable)
             .flatMap { p in p.fiveHour.map { FlatMetric(iconName: p.iconName, providerName: p.name, unavailable: p.unavailable, isStale: p.isStale, metric: $0) } }
@@ -54,18 +54,14 @@ private func widgetOpenURL(_ provider: String) -> URL? {
 }
 
 struct DetailedWidgetView: View {
-    @Environment(\.widgetFamily) private var family
     let entry: MimirEntry
 
     var body: some View {
         // Guard on fiveHourFlat (not just `available`): a provider can be available but carry no
-        // 5h metric yet (e.g. right at launch before the first quota read). Both Small and Medium
-        // need at least one metric — empty → EmptyState, never an out-of-range crash.
+        // 5h metric yet (e.g. right at launch before the first quota read). Empty → EmptyState,
+        // never an out-of-range crash.
         if let payload = entry.payload, !payload.fiveHourFlat.isEmpty {
-            switch family {
-            case .systemSmall: SmallView(metric: smallMetric(payload), now: entry.date)
-            default:           MediumView(payload: payload, now: entry.date)
-            }
+            SmallView(metric: smallMetric(payload), now: entry.date)
         } else {
             EmptyStateView()
         }
@@ -82,18 +78,6 @@ struct DetailedWidgetView: View {
 }
 
 // MARK: - Shared bits
-
-/// The "mimir" wordmark, used as the header of Medium. It carries no window badge: rows can mix
-/// windows (Claude 5h + Codex weekly since the July 2026 5h removal), so a single badge would be
-/// wrong — each row's reset line already says which window it is.
-private struct WordmarkHeader: View {
-    var body: some View {
-        HStack {
-            Text("mimir").font(.system(size: 11, weight: .medium)).tracking(-0.1).foregroundStyle(Tok.brand)
-            Spacer()
-        }
-    }
-}
 
 private struct Pill: View {
     let text: String
@@ -198,81 +182,6 @@ private struct SmallView: View {
         .widgetURL(metric.unavailable || metric.isStale ? widgetOpenURL(metric.providerName) : nil)
     }
 }
-
-// MARK: - Medium (338×158) — horizontal rows
-
-private struct MediumView: View {
-    let payload: WidgetPayload
-    let now: Date
-    var body: some View {
-        VStack(spacing: 0) {
-            WordmarkHeader()
-            Spacer(minLength: 12)   // keep the header off the first row
-            VStack(spacing: 12) {
-                ForEach(payload.fiveHourFlat.prefix(4)) { MediumRow(item: $0, now: now) }
-            }
-            Spacer(minLength: 12)
-        }
-        .padding(.horizontal, 16).padding(.top, 18).padding(.bottom, 14)
-    }
-}
-
-private struct MediumRow: View {
-    let item: FlatMetric
-    let now: Date
-    // Grey the row when its weekly quota is spent — same lockout rule as Small/the popover.
-    private var exhausted: Bool { item.metric.weeklyPercent == 0 }
-    var body: some View {
-        // Unavailable rows deep-link to the provider's app; stale rows deep-link to refresh (host
-        // routes by provider). Fresh rows aren't tappable — the whole widget already opens the host.
-        if (item.unavailable || item.isStale), let url = widgetOpenURL(item.providerName) {
-            Link(destination: url) { dimmedRow }
-        } else {
-            dimmedRow
-        }
-    }
-
-    // Dim a stale (last-known) row so it reads as not-live; the unavailable row draws its own "—".
-    private var dimmedRow: some View {
-        row.opacity(item.isStale && !item.unavailable ? 0.55 : 1)
-    }
-
-    private var row: some View {
-        HStack(spacing: 8) {
-            HStack(spacing: 6) {
-                BrandMark(iconName: item.iconName, size: 14)
-                Text(item.metric.label).font(.system(size: 12)).foregroundStyle(Tok.secondary).lineLimit(1)
-            }
-            // 92, not 84: the longest label ("Claude/GPT") plus its logo runs ~85pt at 12pt, so the
-            // narrower column truncated it to "Claude/G…".
-            .frame(width: 92, alignment: .leading)
-            if item.unavailable {
-                // Live source unreachable too long → empty track + "—" (Stocks "no data" language).
-                Capsule().fill(Tok.track).frame(height: 5)
-                Text("—").font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Tok.tertiary).frame(minWidth: 32, alignment: .trailing)
-                Text("—").font(.system(size: 9)).foregroundStyle(Tok.tertiary)
-                    .frame(minWidth: 62, alignment: .trailing)
-            } else {
-                ProgressBar(percent: item.metric.percent, height: 5, color: exhausted ? Tok.passive : nil)
-                Text("\(item.metric.percent)%")
-                    .font(.system(size: 15, weight: .semibold)).monospacedDigit()
-                    .foregroundStyle(exhausted ? Tok.passive : statusColor(item.metric.percent))
-                    .frame(minWidth: 32, alignment: .trailing)
-                Text(resetLine)
-                    .font(.system(size: 9)).monospacedDigit().foregroundStyle(Tok.tertiary)
-                    .frame(minWidth: 62, alignment: .trailing).lineLimit(1)
-                    .fixedSize()   // never truncate the reset text ("6g 20s · 08:50") — same rule as Small
-            }
-        }
-    }
-    private var resetLine: String {
-        [Reset.remaining(item.metric.resetAt, now: now, fallbackWindow: windowFallback(item.metric)), Reset.clock(item.metric.resetAt)]
-            .compactMap { $0 }.joined(separator: " · ")
-    }
-}
-
-// MARK: - Empty
 
 private struct EmptyStateView: View {
     var body: some View {
