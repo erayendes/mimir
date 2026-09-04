@@ -9,6 +9,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [2.13] - 2026-09-05
+
+#### Changed
+- ChatGPT's **reset credits** are now listed one per line, under a single "Renewal credits" heading: the date each one lapses, and how long that is from now. The old row showed only a count with "first expires in …" underneath, which hid the fact that every credit has its own date — and read oddly when there was only one.
+- The ChatGPT card labels its blocks by the window they describe — "5h session" above, "7d session" or "30d session" below. That account has no per-model rows to name instead, and the length is whatever the service reports, so an account on a month-long window reads "30d" without any guesswork.
+- New colour bands: green from 40%, amber 10–39%, red below 10%. Red now means the last tenth of a window rather than the last seventh, and every low-quota notification arrives as the reading turns red — the 5-hour warning used to go off in the middle of amber.
+
+#### Fixed
+- The monthly ChatGPT quota announced refills and warnings that had nothing to do with where the month actually was. Three causes: a reading that flickered back to full was taken for a reset, a reply that omitted the percentage was read as 100%, and the "running out" warning fired at a tenth of a month-long quota — three days of budget still in hand. Refills are now announced on the window's own reset time, an unknown percentage stays unknown, and the warning threshold scales with the window's length.
+- A "running out" warning is no longer repeated after every restart. Mimir remembered what it had already announced only while running, so quitting and reopening brought the same notification back.
+
 ### [2.12] - 2026-09-04
 
 #### Added
@@ -422,6 +433,17 @@ Bu projedeki tüm önemli değişiklikler bu dosyada belgelenecektir.
 
 Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
+
+### [2.13] - 2026-09-05
+
+#### Değiştirildi
+- ChatGPT'nin **yenileme hakları** artık tek tek listeleniyor: "Yenileme hakları" başlığı altında her hakkın yandığı tarih ve ne kadar kaldığı. Eski satır yalnızca adet gösterip altına "ilki … sonra doluyor" yazıyordu; bu hem her hakkın kendi tarihi olduğunu gizliyor hem de tek hak varken tuhaf okunuyordu.
+- ChatGPT kartı bloklarını anlattıkları pencereye göre adlandırıyor — üstte "5s oturum", altta "7g oturum" ya da "30g oturum". Bu hesapta ad taşıyacak model satırları yok; uzunluk da servisin bildirdiği değer olduğu için aylık pencereli bir hesap tahmine gerek kalmadan "30g" görüyor.
+- Yeni renk aralıkları: %40'tan itibaren yeşil, %10–39 amber, %10 altı kırmızı. Kırmızı artık pencerenin son yedide biri değil son onda biri anlamına geliyor ve bütün "kota tükeniyor" bildirimleri okuma kırmızıya dönerken geliyor — 5 saatlik uyarı önceden ambere yeni girmişken ötüyordu.
+
+#### Düzeltildi
+- Aylık ChatGPT kotası, ayın gerçekte neresinde olduğuyla ilgisi olmayan yenilenme ve tükenme bildirimleri gönderiyordu. Üç sebep vardı: bir anlığına dolu görünen okuma sıfırlanma sanılıyordu, yüzdeyi bildirmeyen bir cevap %100 sayılıyordu ve "tükeniyor" uyarısı aylık kotanın onda birinde — daha üç günlük hak dururken — ötüyordu. Yenilenme artık pencerenin kendi sıfırlanma saatinden duyuruluyor, bilinmeyen yüzde bilinmiyor olarak kalıyor ve uyarı eşiği pencerenin uzunluğuna göre ölçekleniyor.
+- "Kota tükeniyor" uyarısı artık her açılışta tekrar gelmiyor. Mimir neyi duyurduğunu yalnızca çalışırken hatırlıyordu; uygulamayı kapatıp açmak aynı bildirimi geri getiriyordu.
 
 ### [2.12] - 2026-09-04
 
