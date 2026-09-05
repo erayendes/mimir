@@ -271,7 +271,7 @@ struct ServiceCard: View {
             // so the header stays quiet and the quota block is the loudest thing on the card.
             HStack(spacing: 6) {
                 BrandIconView(iconName: service.iconName, size: 11)
-                    .foregroundStyle(Color.primary.opacity(0.45))
+                    .foregroundStyle(Color.primary.opacity(0.5))
                     .frame(width: 11, height: 11)
                 Text(cardTitle.uppercased())
                     .font(.system(size: 10, weight: .medium))
@@ -324,11 +324,15 @@ struct ServiceCard: View {
                             cardDivider.padding(.top, 13).padding(.bottom, 13)
                         }
                         if let session = family.session {
-                            QuotaBlock(label: family.name, percent: session.percent, resetAt: session.resetAt,
+                            QuotaBlock(label: "\(family.name) 5\(TimeFormatter.hourUnit)",
+                                       percent: session.percent, resetAt: session.resetAt,
                                        now: now, gated: family.weekly?.percent == 0)
                         }
                         if let weekly = family.weekly {
-                            modelRow((label: family.name, percent: weekly.percent, resetAt: weekly.resetAt))
+                            // Antigravity's two rows per family are the same name twice; the window is
+                            // what tells them apart, so each carries it. Its long window is always 7 days.
+                            modelRow((label: "\(family.name) 7\(TimeFormatter.dayUnit)",
+                                      percent: weekly.percent, resetAt: weekly.resetAt))
                                 .padding(.top, family.session != nil ? 9 : 0)
                         }
                     }
@@ -344,9 +348,10 @@ struct ServiceCard: View {
                     if !creditRows.isEmpty {
                         // One heading for the whole group, then a line per credit — repeating the icon
                         // and the label on every line read as noise.
-                        HStack(spacing: 5) {
-                            Image(systemName: "arrow.clockwise").font(.system(size: 11, weight: .regular))
-                            Text(String(localized: "Renewal credits"))
+                        HStack(spacing: 8) {
+                            Image(systemName: "plus.circle").font(.system(size: 11, weight: .regular))
+                                .frame(width: Self.iconColumn)
+                            Text(String(localized: "Renewal credit"))
                         }
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(Color.primary.opacity(0.58))
@@ -367,16 +372,21 @@ struct ServiceCard: View {
             .frame(height: 1)
     }
 
+    /// Width of the leading icon column. Symbols and status dots are different sizes, so both are
+    /// centred in a column of this width — otherwise a 7pt dot sits left of the symbol above it.
+    static let iconColumn: CGFloat = 12
+
     /// A secondary quota row: status dot + "Name: %X" + its remaining time on the right.
     private func modelRow(_ entry: (label: String, percent: Int, resetAt: Date?)) -> some View {
         HStack(spacing: 8) {
             Circle()
                 .fill(quotaStatusColor(entry.percent))
                 .frame(width: 7, height: 7)
+                .frame(width: Self.iconColumn)
             Text("\(entry.label): ").font(.system(size: 11, weight: .medium))
-                .foregroundStyle(Color.primary.opacity(0.72))
+                .foregroundStyle(Color.primary.opacity(0.58))
                 + Text("%\(clampPct(entry.percent))").font(.system(size: 11, weight: .medium).monospacedDigit())
-                .foregroundStyle(Color.primary.opacity(0.9))
+                .foregroundStyle(Color.primary.opacity(0.95))
             Spacer(minLength: 6)
             Text(relDuration(entry.resetAt, now) ?? "—")
                 .font(.system(size: 11, weight: .medium).monospacedDigit())
@@ -401,7 +411,7 @@ struct ServiceCard: View {
                 Spacer(minLength: 6)
                 Text(row.valueText ?? "")
                     .font(.system(size: 11, weight: .medium).monospacedDigit())
-                    .foregroundStyle(Color.primary.opacity(0.9))
+                    .foregroundStyle(Color.primary.opacity(0.95))
             }
             if let caption = row.caption {
                 Text(caption)
@@ -412,9 +422,15 @@ struct ServiceCard: View {
         .lineLimit(1)
     }
 
-    /// One renewal credit: the date it lapses, and how long that is from now.
+    /// One renewal credit: the date it lapses, and how long that is from now. The dot matches the
+    /// model rows' size but never changes colour — a credit is either there or it isn't, so there's
+    /// no level for a status colour to describe.
     private func creditRow(_ row: ModelStatus) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Circle()
+                .fill(quotaStatusColor(100))
+                .frame(width: 7, height: 7)
+                .frame(width: Self.iconColumn)
             Text(row.name)
                 .font(.system(size: 11, weight: .medium).monospacedDigit())
                 .foregroundStyle(Color.primary.opacity(0.58))
@@ -576,7 +592,7 @@ struct QuotaBlock: View {
                     // full window length rather than a bare dash.
                     Text(relDuration(resetAt, now) ?? TimeFormatter.duration(from: windowFallback))
                 } icon: {
-                    Image(systemName: "hourglass")
+                    Image(systemName: "timer").frame(width: ServiceCard.iconColumn)
                 }
                 Spacer(minLength: 4)
                 if let resetClock {
@@ -588,7 +604,7 @@ struct QuotaBlock: View {
                 }
             }
             .font(.system(size: 11, weight: .medium).monospacedDigit())
-            .foregroundStyle(Color.primary.opacity(0.5))
+            .foregroundStyle(Color.primary.opacity(0.9))
             .labelStyle(.titleAndIcon)
             .padding(.top, 7)
         }
