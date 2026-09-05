@@ -218,12 +218,15 @@ extension LiveUsageDataSource {
         }
     }
 
-    /// Locale's own short date ("19.10.2026" in tr, "10/19/2026" in en) — a credit's expiry is a
-    /// calendar date, not a countdown, so it reads as one.
+    /// Fixed dd.MM.yyyy — a credit's expiry is a calendar date, not a countdown, so it reads as one.
+    /// Not the locale's short style: that dropped the leading zero ("8.09.2026"), so a column of dates
+    /// didn't line up. `yyyy` (calendar year), never `YYYY` (week-year, which is off by one in late
+    /// December). POSIX locale so a non-Gregorian regional calendar can't reformat it.
     static let creditDateFormatter: DateFormatter = {
         let f = DateFormatter()
-        f.dateStyle = .short
-        f.timeStyle = .none
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.calendar = Calendar(identifier: .gregorian)
+        f.dateFormat = "dd.MM.yyyy"
         return f
     }()
 

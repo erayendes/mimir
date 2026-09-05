@@ -9,6 +9,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [2.14] - 2026-09-05
+
+#### Changed
+- The card now reads by its numbers: countdowns, reset clocks, percentages and amounts are bright, while the words naming them step back. Same size and weight — only the tone separates a label from its number.
+- Every quota block says which window it is — "5h session" above, "7d session" or "30d session" below. Antigravity puts its family first ("Gemini 5h"), since one card there holds more than one.
+- Rows are named for what they hold. Claude's billing row is **Spending**: it shows money spent against your cap, which climbs, where a "credit" reads as something that counts down. Amounts use the currency symbol — `$18.40 / $40`.
+- ChatGPT's **renewal credits** are listed one per line under a single heading, each with the date it lapses and how long that is.
+- Fresh icons: a timer for the countdown, a plus for the renewal group, and a shared column so every icon and status dot lines up.
+
 ### [2.13] - 2026-09-05
 
 #### Changed
@@ -433,6 +442,15 @@ Bu projedeki tüm önemli değişiklikler bu dosyada belgelenecektir.
 
 Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
+
+### [2.14] - 2026-09-05
+
+#### Değiştirildi
+- Kart artık sayılarıyla okunuyor: geri sayımlar, sıfırlanma saatleri, yüzdeler ve tutarlar parlak; onları adlandıran kelimeler geri çekildi. Boyut ve ağırlık aynı — etiketi sayısından yalnızca ton ayırıyor.
+- Her kota bloğu hangi pencere olduğunu söylüyor: üstte "5s oturum", altta "7g oturum" ya da "30g oturum". Antigravity'de aile adı önde ("Gemini 5s"), çünkü orada tek kartta birden fazla aile var.
+- Satırlar taşıdıkları şeyin adını aldı. Claude'un fatura satırı artık **Harcama**: tavanına doğru artan bir tutarı gösteriyor, oysa "kredi" azalan bir şey gibi okunuyordu. Tutarlar para birimi simgesiyle — `$18.40 / $40`.
+- ChatGPT'nin **yenileme hakları** tek başlık altında tek tek listeleniyor; her satırda yandığı tarih ve ne kadar kaldığı yazıyor.
+- Yeni ikonlar: geri sayım için timer, yenileme grubu için artı; ayrıca ortak bir sütun sayesinde bütün ikonlar ve durum noktaları hizalı.
 
 ### [2.13] - 2026-09-05
 

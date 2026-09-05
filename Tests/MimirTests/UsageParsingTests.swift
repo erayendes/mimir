@@ -592,7 +592,7 @@ final class UsageParsingTests: XCTestCase {
         ]
         let status = ds.buildClaudeStatus(from: root, note: "oauth usage api")
         let billing = status.models.first { $0.valueText != nil }
-        XCTAssertEqual(billing?.valueText, "5 USD / 10 USD")
+        XCTAssertEqual(billing?.valueText, "$5 / $10")
     }
 
     /// Claude Code now writes per-config keychain items ("Claude Code-credentials-<hash>") and can

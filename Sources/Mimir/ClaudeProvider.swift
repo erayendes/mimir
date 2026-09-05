@@ -225,6 +225,21 @@ extension LiveUsageDataSource {
     /// Billing/credits row. Prefers the new `spend` object (richer: cap, balance, auto_reload,
     /// disclaimer) and falls back to the legacy `extra_usage` shape for accounts the API hasn't
     /// migrated yet — both are read defensively since neither's rollout is guaranteed complete.
+
+    /// Money as the symbol plus the amount ("$18.40"), which reads shorter than "18.40 USD" in a row
+    /// that has to fit a used/limit pair. A currency with no known symbol keeps its code ("TRY 18.40"),
+    /// so an unfamiliar one is still unambiguous. Whole amounts drop the ".00".
+    func formattedMoney(_ value: Double, currency: String) -> String {
+        let whole = value.truncatingRemainder(dividingBy: 1) == 0
+        guard !currency.isEmpty else { return whole ? String(Int(value)) : String(format: "%.2f", value) }
+        let f = NumberFormatter()
+        f.numberStyle = .currency
+        f.currencyCode = currency
+        f.locale = Locale(identifier: "en_US")
+        f.maximumFractionDigits = whole ? 0 : 2
+        return f.string(from: NSNumber(value: value)) ?? "\(value) \(currency)"
+    }
+
     private func claudeBillingRow(_ root: [String: Any]) -> ModelStatus? {
         if let spend = root["spend"] as? [String: Any], spend["enabled"] as? Bool == true {
             return claudeSpendBillingRow(spend)
@@ -239,16 +254,13 @@ extension LiveUsageDataSource {
         let used = (doubleValue(usedObj["amount_minor"]) ?? 0) / scale
         let cur = (usedObj["currency"] as? String)?.uppercased() ?? ""
         let limit = (spend["limit"] as? [String: Any]).flatMap { doubleValue($0["amount_minor"]) }.map { $0 / scale }
-        func money(_ v: Double) -> String {
-            let n = v.truncatingRemainder(dividingBy: 1) == 0 ? String(Int(v)) : String(format: "%.2f", v)
-            return cur.isEmpty ? n : "\(n) \(cur)"
-        }
+        func money(_ v: Double) -> String { formattedMoney(v, currency: cur) }
         let text = limit.map { "\(money(used)) / \(money($0))" } ?? money(used)
         let util = doubleValue(spend["percent"]) ?? (limit.map { $0 > 0 ? used / $0 * 100 : 0 } ?? 0)
         // Prefer the API's own judgement when it ships one; otherwise the 80%-of-cap heuristic.
         let low = (spend["severity"] as? String)
             .map { !["none", "normal", "ok"].contains($0.lowercased()) } ?? (util >= 80)
-        return ModelStatus(name: String(localized: "Usage credit"), remainingPercent: 0, resetAt: nil,
+        return ModelStatus(name: String(localized: "Spending"), remainingPercent: 0, resetAt: nil,
                            valueText: text, isLow: low, symbol: "dollarsign.circle")
     }
 
@@ -257,13 +269,10 @@ extension LiveUsageDataSource {
         let used = doubleValue(e["used_credits"]) ?? 0
         let limit = doubleValue(e["monthly_limit"])
         let cur = (e["currency"] as? String).map { $0.uppercased() } ?? ""
-        func money(_ v: Double) -> String {
-            let n = v.truncatingRemainder(dividingBy: 1) == 0 ? String(Int(v)) : String(format: "%.2f", v)
-            return cur.isEmpty ? n : "\(n) \(cur)"
-        }
+        func money(_ v: Double) -> String { formattedMoney(v, currency: cur) }
         let text = limit.map { "\(money(used)) / \(money($0))" } ?? money(used)
         let util = doubleValue(e["utilization"]) ?? (limit.map { $0 > 0 ? used / $0 * 100 : 0 } ?? 0)
-        return ModelStatus(name: String(localized: "Usage credit"), remainingPercent: 0, resetAt: nil,
+        return ModelStatus(name: String(localized: "Spending"), remainingPercent: 0, resetAt: nil,
                            valueText: text, isLow: util >= 80, symbol: "dollarsign.circle")
     }
     private func mergeClaudeWindows(root: [String: Any], baseKey: String) -> (utilization: Double, resetAt: Date?) {

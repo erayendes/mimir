@@ -17,8 +17,8 @@
 "5h session" = "5 saatlik oturum";
 "5h session · %@" = "5 saatlik oturum · %@";
 "All models" = "Tüm modeller";
-"Usage credit" = "Kullanım kredisi";
 "Usage limits" = "Kullanım limitleri";
+"Spending" = "Harcama";
 "Credit balance" = "Kredi bakiyesi";
 "AI credit" = "AI kredisi";
 "Resets at %@" = "%@'da sıfırlanır";
@@ -93,6 +93,6 @@
 "~/.claude/settings.json is not valid JSON" = "~/.claude/settings.json geçerli bir JSON değil";
 "couldn't write to ~/.claude" = "~/.claude klasörüne yazılamadı";
 "%@ session" = "%@ oturum";
-"Renewal credits" = "Yenileme hakları";
+"Renewal credit" = "Yenileme hakkı";
 "⏳ Reset credit expires in %@" = "⏳ Yenileme hakkı %@ sonra doluyor";
 "You have %@ waiting. Spend one now and it clears a used-up window — unused, it just lapses." = "Bekleyen %@ hakkın var. Şimdi kullanırsan tükenmiş pencereyi sıfırlar; kullanmazsan yanar.";

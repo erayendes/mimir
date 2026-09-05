@@ -17,8 +17,8 @@
 "5h session" = "5h session";
 "5h session · %@" = "5h session · %@";
 "All models" = "All models";
-"Usage credit" = "Usage credit";
 "Usage limits" = "Usage limits";
+"Spending" = "Spending";
 "Credit balance" = "Credit balance";
 "AI credit" = "AI credit";
 "Resets at %@" = "Resets at %@";
@@ -93,6 +93,6 @@
 "~/.claude/settings.json is not valid JSON" = "~/.claude/settings.json is not valid JSON";
 "couldn't write to ~/.claude" = "couldn't write to ~/.claude";
 "%@ session" = "%@ session";
-"Renewal credits" = "Renewal credits";
+"Renewal credit" = "Renewal credit";
 "⏳ Reset credit expires in %@" = "⏳ Reset credit expires in %@";
 "You have %@ waiting. Spend one now and it clears a used-up window — unused, it just lapses." = "You have %@ waiting. Spend one now and it clears a used-up window — unused, it just lapses.";
