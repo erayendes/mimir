@@ -773,7 +773,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // A refill notice is only meaningful on a window that was actually run down first: spent for
         // the 5h one, below its low threshold for the longer one.
-        if percent < (window == .fiveHour ? 1 : lowThreshold) {
+        if window == .fiveHour ? percent < 1 : percent <= lowThreshold {
             setNotifState(key, "depleted", 1)
         }
 
@@ -804,7 +804,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // A service that reports no reset at all stores 0 and so warns only once, until one appears.
         let lowKey = "notif.\(key).low"
         let resetStamp = resetAt?.timeIntervalSince1970 ?? 0
-        guard percent < lowThreshold,
+        // Inclusive: a 30-day window's threshold is 5, and an account sitting at exactly 5% is the
+        // case the warning exists for — a strict `<` waited for 4% before saying anything.
+        guard percent <= lowThreshold,
               UserDefaults.standard.object(forKey: lowKey) as? Double != resetStamp else { return }
         UserDefaults.standard.set(resetStamp, forKey: lowKey)
 
