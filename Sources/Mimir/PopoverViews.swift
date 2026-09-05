@@ -471,8 +471,9 @@ struct ServiceCard: View {
     /// a label that says so, rather than leaving the card without a headline number.
     private var sessionHero: (label: String, percent: Int, resetAt: Date?, fallback: TimeInterval, gated: Bool)? {
         if let session = service.sessionRemainingPercent {
-            let label = labelsByWindow ? sessionWindowLabel : String(localized: "Current session")
-            return (label, session, service.sessionResetAt,
+            // Every 5-hour block says so, Claude included: "Current session" named the block without
+            // saying which window it was, next to rows that name theirs.
+            return (sessionWindowLabel, session, service.sessionResetAt,
                     5 * 3600, service.weeklyRemainingPercent == 0)
         }
         if let weekly = service.weeklyRemainingPercent {
@@ -519,23 +520,27 @@ struct ServiceCard: View {
         service.name == "Claude" || service.name == "Codex"
     }
 
-    /// ChatGPT's blocks are labelled by the window they describe — "5h session", "7d session", or
-    /// "30d session" on a ChatGPT Go account — because that account has no per-model rows to name
-    /// instead. Claude keeps "Current session" / "All models": there the model names carry the meaning.
+    /// Should the LONG window be labelled by its length ("7d session", "30d session") rather than
+    /// "All models"? Only for ChatGPT, which has no per-model rows to name instead; on Claude those
+    /// rows carry the meaning, so its account row stays "All models". The 5-hour block names its
+    /// window on every provider.
     private var labelsByWindow: Bool { service.name == "Codex" }
 
     /// "5h session". The session window is whatever the provider reports, but it's only ever
     /// classified as one at 6h or below (see `codexWindowIsSession`), so 5 is the honest label.
     private var sessionWindowLabel: String {
-        String(format: String(localized: "%@ session"), "5\(TimeFormatter.hourUnit)")
+        Self.windowLabel("5\(TimeFormatter.hourUnit)")
+    }
+
+    /// "<window> session", the one phrasing every card uses for a quota window.
+    static func windowLabel(_ window: String) -> String {
+        String(format: String(localized: "%@ session"), window)
     }
 
     /// "7d session" / "30d session", from the window's REAL length. nil when the provider didn't
     /// report one — then the caller keeps its generic label rather than printing a guess.
     private var longWindowLabel: String? {
-        quotaWindowDays(service.weeklyWindowSeconds).map {
-            String(format: String(localized: "%@ session"), "\($0)\(TimeFormatter.dayUnit)")
-        }
+        quotaWindowDays(service.weeklyWindowSeconds).map { Self.windowLabel("\($0)\(TimeFormatter.dayUnit)") }
     }
 }
 
