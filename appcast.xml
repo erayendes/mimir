@@ -7,7 +7,39 @@
     <link>https://github.com/erayendes/mimir</link>
     <description>Mimir update feed</description>
     <language>en</language>
-                                                                                                        <item>
+                                                                                                            <item>
+      <title>Mimir 2.14</title>
+      <sparkle:version>2014000</sparkle:version>
+      <sparkle:shortVersionString>2.14</sparkle:shortVersionString>
+      <pubDate>Sat, 05 Sep 2026 19:27:15 +0000</pubDate>
+      <description><![CDATA[
+<p><b>Changed</b></p>
+<ul>
+<li>The card now reads by its numbers: countdowns, reset clocks, percentages and amounts are bright, while the words naming them step back. Same size and weight — only the tone separates a label from its number.</li>
+<li>Every quota block says which window it is — "5h session" above, "7d session" or "30d session" below. Antigravity puts its family first ("Gemini 5h"), since one card there holds more than one.</li>
+<li>Rows are named for what they hold. Claude's billing row is <b>Spending</b>: it shows money spent against your cap, which climbs, where a "credit" reads as something that counts down. Amounts use the currency symbol — `$18.40 / $40`.</li>
+<li>ChatGPT's <b>renewal credits</b> are listed one per line under a single heading, each with the date it lapses and how long that is.</li>
+<li>Fresh icons: a timer for the countdown, a plus for the renewal group, and a shared column so every icon and status dot lines up.</li>
+</ul>
+<hr>
+<p><b>Değiştirildi</b></p>
+<ul>
+<li>Kart artık sayılarıyla okunuyor: geri sayımlar, sıfırlanma saatleri, yüzdeler ve tutarlar parlak; onları adlandıran kelimeler geri çekildi. Boyut ve ağırlık aynı — etiketi sayısından yalnızca ton ayırıyor.</li>
+<li>Her kota bloğu hangi pencere olduğunu söylüyor: üstte "5s oturum", altta "7g oturum" ya da "30g oturum". Antigravity'de aile adı önde ("Gemini 5s"), çünkü orada tek kartta birden fazla aile var.</li>
+<li>Satırlar taşıdıkları şeyin adını aldı. Claude'un fatura satırı artık <b>Harcama</b>: tavanına doğru artan bir tutarı gösteriyor, oysa "kredi" azalan bir şey gibi okunuyordu. Tutarlar para birimi simgesiyle — `$18.40 / $40`.</li>
+<li>ChatGPT'nin <b>yenileme hakları</b> tek başlık altında tek tek listeleniyor; her satırda yandığı tarih ve ne kadar kaldığı yazıyor.</li>
+<li>Yeni ikonlar: geri sayım için timer, yenileme grubu için artı; ayrıca ortak bir sütun sayesinde bütün ikonlar ve durum noktaları hizalı.</li>
+</ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v2.14/Mimir.zip"
+        sparkle:edSignature="7vD120PUYKBI9xRNnseTRZY2ePHvev+7JXZ4ckXaLGeVaRa1BsB+bcB5jxkNQxx/WkWCNmiEIT8F/ruKywq3Aw=="
+        length="6627257"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 2.13</title>
       <sparkle:version>2013000</sparkle:version>
       <sparkle:shortVersionString>2.13</sparkle:shortVersionString>
