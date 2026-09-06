@@ -9,6 +9,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [2.15] - 2026-09-06
+
+#### Fixed
+- A "quota running out" warning could arrive several times for the same 5-hour window. ChatGPT's reset time drifts forward while the window is still running, and each drift read as a new window. The warning now waits for that reset to actually come round before it can speak again.
+- A quota sitting exactly on its warning threshold said nothing. The warning waited for one point below it — on a monthly window, whose threshold is 5%, that meant no word until 4%.
+
 ### [2.14] - 2026-09-05
 
 #### Changed
@@ -442,6 +448,12 @@ Bu projedeki tüm önemli değişiklikler bu dosyada belgelenecektir.
 
 Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
+
+### [2.15] - 2026-09-06
+
+#### Düzeltildi
+- Aynı 5 saatlik pencere için "kota bitiyor" uyarısı birkaç kez gelebiliyordu. ChatGPT'nin sıfırlanma zamanı pencere sürerken ileri kayıyor ve her kayış yeni bir pencere gibi okunuyordu. Uyarı artık o sıfırlanma gerçekten gelene kadar tekrar konuşmuyor.
+- Tam eşikte duran bir kota hiçbir şey söylemiyordu. Uyarı bir puan altını bekliyordu — eşiği %5 olan aylık pencerede bu, %4'e inmeden ses çıkmaması demekti.
 
 ### [2.14] - 2026-09-05
 
