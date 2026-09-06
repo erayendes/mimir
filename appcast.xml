@@ -7,7 +7,33 @@
     <link>https://github.com/erayendes/mimir</link>
     <description>Mimir update feed</description>
     <language>en</language>
-                                                                                                            <item>
+                                                                                                                <item>
+      <title>Mimir 2.15</title>
+      <sparkle:version>2015000</sparkle:version>
+      <sparkle:shortVersionString>2.15</sparkle:shortVersionString>
+      <pubDate>Sun, 06 Sep 2026 06:27:50 +0000</pubDate>
+      <description><![CDATA[
+<p><b>Fixed</b></p>
+<ul>
+<li>A "quota running out" warning could arrive several times for the same 5-hour window. ChatGPT's reset time drifts forward while the window is still running, and each drift read as a new window. The warning now waits for that reset to actually come round before it can speak again.</li>
+<li>A quota sitting exactly on its warning threshold said nothing. The warning waited for one point below it — on a monthly window, whose threshold is 5%, that meant no word until 4%.</li>
+</ul>
+<hr>
+<p><b>Düzeltildi</b></p>
+<ul>
+<li>Aynı 5 saatlik pencere için "kota bitiyor" uyarısı birkaç kez gelebiliyordu. ChatGPT'nin sıfırlanma zamanı pencere sürerken ileri kayıyor ve her kayış yeni bir pencere gibi okunuyordu. Uyarı artık o sıfırlanma gerçekten gelene kadar tekrar konuşmuyor.</li>
+<li>Tam eşikte duran bir kota hiçbir şey söylemiyordu. Uyarı bir puan altını bekliyordu — eşiği %5 olan aylık pencerede bu, %4'e inmeden ses çıkmaması demekti.</li>
+</ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v2.15/Mimir.zip"
+        sparkle:edSignature="6hn4x47TRVHTteA/99iO6fWpw8pPvzTalA0do6Ndg4VzAYYrIPmB3Xhax7P2MNAC/B+5Wit38vUgn2KZ6LEeAA=="
+        length="6627232"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 2.14</title>
       <sparkle:version>2014000</sparkle:version>
       <sparkle:shortVersionString>2.14</sparkle:shortVersionString>
