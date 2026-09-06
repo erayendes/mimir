@@ -299,3 +299,13 @@ func lowQuotaThreshold(windowSeconds: TimeInterval?,
     guard let windowSeconds, windowSeconds > baseWindow else { return base }
     return max(floor, Int((Double(base) * baseWindow / windowSeconds).rounded()))
 }
+
+/// Should the low-quota warning fire? Once per window, keyed on the reset it belongs to. Codex's
+/// 5-hour `reset_at` drifts forward WITHIN a window (it's anchored on usage, not on a fixed clock),
+/// so plain "stamp changed" re-warned every poll while the quota sat at zero. A reset we've already
+/// warned about that hasn't come round yet means we're still inside that same window: stay quiet
+/// until it passes. A service reporting no reset at all stores 0 and warns once, as before.
+func lowAlertIsDue(lastWarnedReset: Double?, resetStamp: Double, now: Double) -> Bool {
+    guard let last = lastWarnedReset else { return true }
+    return last != resetStamp && last <= now
+}

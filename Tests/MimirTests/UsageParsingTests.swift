@@ -314,6 +314,20 @@ final class UsageParsingTests: XCTestCase {
                                     resetAt: next, now: now))                             // already announced
     }
 
+    /// Codex's 5-hour `reset_at` drifts forward inside one window, so the low warning must key on
+    /// "has that reset actually come round" rather than on the stamp changing — otherwise the same
+    /// spent window warned again on every poll.
+    func testLowAlertFiresOncePerWindowDespiteDriftingReset() {
+        let now: Double = 1_788_650_000
+        let reset = now + 3_600
+        XCTAssertTrue(lowAlertIsDue(lastWarnedReset: nil, resetStamp: reset, now: now))        // never warned
+        XCTAssertFalse(lowAlertIsDue(lastWarnedReset: reset, resetStamp: reset, now: now))     // same reset
+        XCTAssertFalse(lowAlertIsDue(lastWarnedReset: reset, resetStamp: reset + 12, now: now)) // drifted, same window
+        XCTAssertTrue(lowAlertIsDue(lastWarnedReset: reset, resetStamp: reset + 18_000,
+                                    now: reset + 60))                                          // window rolled over
+        XCTAssertFalse(lowAlertIsDue(lastWarnedReset: 0, resetStamp: 0, now: now))             // no reset reported
+    }
+
     /// The low-quota threshold scales with the window: a flat 10% warns on day three of a 30-day
     /// ChatGPT Go quota. Anything at or under a week keeps the base, and the floor stops the scaling
     /// from tightening past a usable warning.
