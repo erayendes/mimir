@@ -807,7 +807,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Inclusive: a 30-day window's threshold is 5, and an account sitting at exactly 5% is the
         // case the warning exists for — a strict `<` waited for 4% before saying anything.
         guard percent <= lowThreshold,
-              UserDefaults.standard.object(forKey: lowKey) as? Double != resetStamp else { return }
+              lowAlertIsDue(lastWarnedReset: UserDefaults.standard.object(forKey: lowKey) as? Double,
+                            resetStamp: resetStamp, now: Date().timeIntervalSince1970) else { return }
         UserDefaults.standard.set(resetStamp, forKey: lowKey)
 
         let duration = resetAt.map { TimeFormatter.duration(from: $0.timeIntervalSinceNow) }
