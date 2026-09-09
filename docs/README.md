@@ -185,7 +185,7 @@ Mimir shows group-based quotas for **Antigravity**. Antigravity no longer manage
 | Data looks dimmed | The IDE/Cockpit closed; the last snapshot is being shown |
 | Quotas differ from expected | Antigravity uses group-pool logic; read by group, not per-model |
 
-> 🔒 **Privacy:** All reads are local / against authorized endpoints; your data is processed only on your machine and sent to no third party. See [Privacy & Security](#privacy--security).
+> 🔒 **Privacy:** All reads are local / against authorized endpoints; your quotas and tokens stay on your machine and reach no Mimir server — there is none. Crash reports and anonymous, categorical telemetry are the only outbound extras. See [Privacy & Security](#privacy--security).
 
 ### Privacy & Security
 
@@ -434,7 +434,7 @@ Mimir, **Antigravity** için grup bazlı kotaları gösterir. Antigravity kotay�
 | Veri soluk görünüyor | IDE/Cockpit kapandı; son snapshot gösteriliyor |
 | Kotalar beklenenden farklı | Antigravity grup havuzu mantığı kullanır; per-model değil grup bazında okuyun |
 
-> 🔒 **Gizlilik:** Tüm okuma yereldir/yetkili uç noktalarladır; veriniz yalnızca makinenizde işlenir, hiçbir üçüncü tarafa gönderilmez. Bkz. [Gizlilik ve Güvenlik](#gizlilik-ve-güvenlik).
+> 🔒 **Gizlilik:** Tüm okuma yereldir/yetkili uç noktalarladır; kotalarınız ve token'larınız makinenizden çıkıp bir Mimir sunucusuna gitmez — çünkü yoktur. Dışarı giden tek ek, çökme raporları ve anonim telemetridir. Bkz. [Gizlilik ve Güvenlik](#gizlilik-ve-güvenlik).
 
 ### Gizlilik ve Güvenlik
 
