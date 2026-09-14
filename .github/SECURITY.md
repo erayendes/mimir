@@ -70,8 +70,17 @@ Bildiriminizde şunları belirtin:
 
 #### Kapsam
 
-Bu proje macOS'ta yerel olarak çalışır ve ağ üzerinden herhangi bir veri göndermez. Güvenlik endişeleri genellikle şu konularla ilgilidir:
+Mimir macOS'ta yerel çalışır ve **kendi arka uç sunucusu yoktur** — kotalarınız ve token'larınız bize ait bir sunucuya gitmez. Ağ trafiği üç grupla sınırlıdır:
+
+1. **Sağlayıcıların kendi kota uç noktaları**, o sağlayıcının kendi token'ıyla — Anthropic, OpenAI, Google. Aracın kendisinin yapacağı isteklerle aynı nitelikte.
+2. **Çökme raporları** (Sentry, yayınlanan sürümlerde açık) ve **anonim kategorik kullanım sinyalleri** (TelemetryDeck, popover menüsünden kapatılabilir). İkisi de kota değeri, token veya hesap bilgisi taşımaz.
+3. **Sparkle güncelleme akışı** (`appcast.xml`).
+
+Tam döküm: [Gizlilik ve Güvenlik](../docs/README.md#gizlilik-ve-güvenlik).
+
+Güvenlik endişeleri genellikle şu konularla ilgilidir:
 
 - Yerel dosya erişimi (`~/.claude`, `~/.codex` vb.)
 - macOS Keychain okuma işlemleri
 - Antigravity / Gemini API token yönetimi
+- Yukarıdaki uç noktalara giden isteklerin içeriği
