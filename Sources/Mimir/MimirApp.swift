@@ -719,15 +719,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func fireRefillIfDue(key: String, bucket: String, requireDepleted: Bool,
                                  title: String, body: String) {
         let armed = notifState(key, "armed")
-        guard refillIsDue(armed: armed, announced: notifState(key, "announced"),
-                          now: Date().timeIntervalSince1970) else { return }
-        if !requireDepleted || notifState(key, "depleted") == 1 {
+        let now = Date().timeIntervalSince1970
+        guard refillIsDue(armed: armed, announced: notifState(key, "announced"), now: now) else { return }
+        // Only announce a reset we learn about promptly. After a restart or a long sleep the arming
+        // can be hours stale, and the window has been running (and spending) ever since — announcing
+        // "back to 100%" then contradicts the live reading the user is looking at. Past the grace
+        // period, clear the arming silently so the next reset still arms.
+        if now - armed <= Self.refillGrace, !requireDepleted || notifState(key, "depleted") == 1 {
             sendNotification(identifier: "\(key)-refilled", window: bucket, title: title, body: body)
         }
         setNotifState(key, "announced", armed)
         setNotifState(key, "depleted", 0)
         setNotifState(key, "armed", 0)
     }
+
+    /// How late a refill may be announced. Generous next to the 60-second poll — a brief sleep or a
+    /// slow first fetch still gets its notice — but short enough that a relaunch hours later doesn't.
+    private static let refillGrace: TimeInterval = 900
 
     private func armNextReset(key: String, resetAt: Date?) {
         guard let stamp = nextArmedReset(armed: notifState(key, "armed"),
