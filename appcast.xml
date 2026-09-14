@@ -15,12 +15,12 @@
       <description><![CDATA[
 <p><b>Fixed</b></p>
 <ul>
-<li>Widgets went blank after an update. The widget process macOS starts at login kept running the old copy of Mimir against an app bundle that had since been replaced, and every render came back empty — no crash, nothing in the logs. Mimir now notices on launch that its version changed, retires that stale process, and asks macOS for a fresh one, which comes up from the new bundle within seconds. This first update still needs one manual nudge (the running copy predates the fix): quit Mimir's widget process once with `pkill -f MimirWidgetExtension`, or log out and back in.</li>
+<li>Widgets went blank after an update. The widget process macOS starts at login kept running the old copy of Mimir against an app bundle that had since been replaced, and every render came back empty — no crash, nothing in the logs. Mimir now notices on launch that its version changed, retires that stale process, and asks macOS for a fresh one, which comes up from the new bundle within seconds.</li>
 </ul>
 <hr>
 <p><b>Düzeltildi</b></p>
 <ul>
-<li>Güncelleme sonrası widget'lar boş kalıyordu. macOS'in oturum açılışında başlattığı widget süreci, sonradan değiştirilmiş uygulama paketine karşı Mimir'in eski kopyasını çalıştırmaya devam ediyor ve her çizim boş dönüyordu — çökme yok, logda iz yok. Mimir artık açılışta sürümünün değiştiğini fark ediyor, o bayat süreci kapatıyor ve macOS'ten yenisini istiyor; yenisi saniyeler içinde yeni paketten kalkıyor. Bu ilk güncellemede bir kez elle dokunmak gerekiyor (çalışan kopya düzeltmeden eski): `pkill -f MimirWidgetExtension` ile widget sürecini bir kez kapatın ya da oturumu kapatıp açın.</li>
+<li>Güncelleme sonrası widget'lar boş kalıyordu. macOS'in oturum açılışında başlattığı widget süreci, sonradan değiştirilmiş uygulama paketine karşı Mimir'in eski kopyasını çalıştırmaya devam ediyor ve her çizim boş dönüyordu — çökme yok, logda iz yok. Mimir artık açılışta sürümünün değiştiğini fark ediyor, o bayat süreci kapatıyor ve macOS'ten yenisini istiyor; yenisi saniyeler içinde yeni paketten kalkıyor.</li>
 </ul>
       ]]></description>
       <enclosure
