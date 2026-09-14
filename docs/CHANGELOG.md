@@ -9,6 +9,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [2.16] - 2026-09-14
+
+#### Fixed
+- Relaunching Mimir after a restart or a long sleep announced a refill that had come round hours earlier — "your 5-hour session is back to 100%" arrived next to the low warning for that same window sitting at 10%. A refill is now announced only when Mimir learns of it within 15 minutes; a later one is noted silently so the next reset still gets its notice.
+- Claude Code drops a rate-limit window from its status line once that window's reset has passed. Mimir treated the remaining window as no reading at all and fell back to an older cache. The window Claude Code still reports is now used as-is, and the one it dropped shows as refilled — which, after a reset, it is.
+- Antigravity's quota buckets are now told apart by their own id (`gemini-5h`, `gemini-weekly`, …) rather than a separate field that some responses leave out. Without it, both buckets read as the 5-hour window and one silently replaced the other, so the weekly row could vanish from the card. The old field is still honored when the id says nothing.
+
 ### [2.15] - 2026-09-06
 
 #### Fixed
@@ -448,6 +455,13 @@ Bu projedeki tüm önemli değişiklikler bu dosyada belgelenecektir.
 
 Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
+
+### [2.16] - 2026-09-14
+
+#### Düzeltildi
+- Yeniden başlatma ya da uzun uyku sonrası Mimir açıldığında saatler önce gelmiş bir sıfırlanma duyuruluyordu — "5 saatlik seansın %100'e döndü" bildirimi, aynı pencerenin %10'da duran düşük uyarısının yanına düşüyordu. Sıfırlanma artık yalnızca Mimir 15 dakika içinde öğrenirse duyuruluyor; geç kalanı sessizce not ediliyor ki bir sonraki sıfırlanma bildirimini alsın.
+- Claude Code, sıfırlanması geçmiş bir pencereyi durum satırından düşürüyor. Mimir kalan tek pencereyi hiç okuma yokmuş gibi sayıp eski önbelleğe düşüyordu. Artık Claude Code'un hâlâ bildirdiği pencere olduğu gibi kullanılıyor, düşürdüğü ise dolmuş görünüyor — sıfırlanma sonrası öyle zaten.
+- Antigravity kota kovaları artık bazı yanıtların boş bıraktığı ayrı bir alandan değil, kendi kimliğinden (`gemini-5h`, `gemini-weekly`, …) ayırt ediliyor. Bu olmadan iki kova da 5 saatlik pencere olarak okunuyor ve biri diğerinin yerine geçiyordu; haftalık satır karttan kaybolabiliyordu. Kimlik bir şey söylemediğinde eski alan hâlâ dikkate alınıyor.
 
 ### [2.15] - 2026-09-06
 
