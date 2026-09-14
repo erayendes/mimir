@@ -9,6 +9,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [2.17] - 2026-09-14
+
+#### Fixed
+- Widgets went blank after an update. The widget process macOS starts at login kept running the old copy of Mimir against an app bundle that had since been replaced, and every render came back empty — no crash, nothing in the logs. Mimir now notices on launch that its version changed, retires that stale process, and asks macOS for a fresh one, which comes up from the new bundle within seconds. This first update still needs one manual nudge (the running copy predates the fix): quit Mimir's widget process once with `pkill -f MimirWidgetExtension`, or log out and back in.
+
 ### [2.16] - 2026-09-14
 
 #### Fixed
@@ -455,6 +460,11 @@ Bu projedeki tüm önemli değişiklikler bu dosyada belgelenecektir.
 
 Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
+
+### [2.17] - 2026-09-14
+
+#### Düzeltildi
+- Güncelleme sonrası widget'lar boş kalıyordu. macOS'in oturum açılışında başlattığı widget süreci, sonradan değiştirilmiş uygulama paketine karşı Mimir'in eski kopyasını çalıştırmaya devam ediyor ve her çizim boş dönüyordu — çökme yok, logda iz yok. Mimir artık açılışta sürümünün değiştiğini fark ediyor, o bayat süreci kapatıyor ve macOS'ten yenisini istiyor; yenisi saniyeler içinde yeni paketten kalkıyor. Bu ilk güncellemede bir kez elle dokunmak gerekiyor (çalışan kopya düzeltmeden eski): `pkill -f MimirWidgetExtension` ile widget sürecini bir kez kapatın ya da oturumu kapatıp açın.
 
 ### [2.16] - 2026-09-14
 
