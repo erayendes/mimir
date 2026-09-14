@@ -118,6 +118,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
+        relaunchWidgetExtensionIfUpdated()
+
         // Anonymous, opt-out usage telemetry (no-op for dev builds / opted-out users). The
         // widget-usage snapshot is read here since WidgetCenter is local and immediate.
         Telemetry.start()
@@ -716,6 +718,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Announce a refill when the armed reset has passed, then disarm so the next one can arm cleanly.
     /// `requireDepleted` is false only for Antigravity, whose usage can't be observed while its IDE is
     /// closed — there the reset clock is all we have.
+    /// After an in-place update (Sparkle, or a manual replace) the widget extension process that
+    /// WidgetKit launched at login keeps running the *old* binary against a bundle that no longer
+    /// exists on disk, and every render comes back blank — no crash, no log. Reloading timelines
+    /// doesn't help; the stale process has to go. It's our own process, so kill it: WidgetKit
+    /// respawns it from the new bundle on the next reload, which we request right away. Gated on
+    /// a version change so a routine launch doesn't flicker the widgets.
+    private func relaunchWidgetExtensionIfUpdated() {
+        let key = "widget.lastLaunchedVersion"
+        let current = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+        guard UserDefaults.standard.string(forKey: key) != current else { return }
+        UserDefaults.standard.set(current, forKey: key)
+        let appex = Bundle.main.bundleURL.appendingPathComponent("Contents/PlugIns/MimirWidgetExtension.appex").path
+        let kill = Process()
+        kill.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
+        kill.arguments = ["-f", appex]
+        try? kill.run()
+        kill.waitUntilExit()
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+
     private func fireRefillIfDue(key: String, bucket: String, requireDepleted: Bool,
                                  title: String, body: String) {
         let armed = notifState(key, "armed")
