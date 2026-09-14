@@ -7,7 +7,31 @@
     <link>https://github.com/erayendes/mimir</link>
     <description>Mimir update feed</description>
     <language>en</language>
-                                                                                                                    <item>
+                                                                                                                        <item>
+      <title>Mimir 2.17</title>
+      <sparkle:version>2017000</sparkle:version>
+      <sparkle:shortVersionString>2.17</sparkle:shortVersionString>
+      <pubDate>Mon, 14 Sep 2026 18:08:50 +0000</pubDate>
+      <description><![CDATA[
+<p><b>Fixed</b></p>
+<ul>
+<li>Widgets went blank after an update. The widget process macOS starts at login kept running the old copy of Mimir against an app bundle that had since been replaced, and every render came back empty — no crash, nothing in the logs. Mimir now notices on launch that its version changed, retires that stale process, and asks macOS for a fresh one, which comes up from the new bundle within seconds. This first update still needs one manual nudge (the running copy predates the fix): quit Mimir's widget process once with `pkill -f MimirWidgetExtension`, or log out and back in.</li>
+</ul>
+<hr>
+<p><b>Düzeltildi</b></p>
+<ul>
+<li>Güncelleme sonrası widget'lar boş kalıyordu. macOS'in oturum açılışında başlattığı widget süreci, sonradan değiştirilmiş uygulama paketine karşı Mimir'in eski kopyasını çalıştırmaya devam ediyor ve her çizim boş dönüyordu — çökme yok, logda iz yok. Mimir artık açılışta sürümünün değiştiğini fark ediyor, o bayat süreci kapatıyor ve macOS'ten yenisini istiyor; yenisi saniyeler içinde yeni paketten kalkıyor. Bu ilk güncellemede bir kez elle dokunmak gerekiyor (çalışan kopya düzeltmeden eski): `pkill -f MimirWidgetExtension` ile widget sürecini bir kez kapatın ya da oturumu kapatıp açın.</li>
+</ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v2.17/Mimir.zip"
+        sparkle:edSignature="4//Wz4eEKRupX8Ca7/4IKYxNtGvzQp3lrRehVI+1RbmRg1Ke5JpbQjUZTK9gYzjx+3OpHFJ0OKr+D78VSTvaAA=="
+        length="6625850"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 2.16</title>
       <sparkle:version>2016000</sparkle:version>
       <sparkle:shortVersionString>2.16</sparkle:shortVersionString>
