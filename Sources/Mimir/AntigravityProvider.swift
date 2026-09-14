@@ -214,21 +214,37 @@ extension LiveUsageDataSource {
 
     /// Flatten `groups[].buckets[]` into one row per (group × window), ordered 5h then
     /// weekly within each group: Gemini · 5h, Gemini · Weekly, Claude/GPT · 5h, Claude/GPT · Weekly.
-    private func antigravityQuotaSummaryRows(groups: [[String: Any]]) -> [ModelStatus] {
+    func antigravityQuotaSummaryRows(groups: [[String: Any]]) -> [ModelStatus] {
         var rows: [ModelStatus] = []
         for group in groups {
             let family = antigravityFamilyLabel(group["displayName"] as? String ?? "")
             let buckets = (group["buckets"] as? [[String: Any]] ?? [])
-                .sorted { antigravityWindowRank($0["window"] as? String) < antigravityWindowRank($1["window"] as? String) }
+                .sorted { !antigravityBucketIsWeekly($0) && antigravityBucketIsWeekly($1) }
             for bucket in buckets {
                 guard let fraction = doubleValue(bucket["remainingFraction"]) else { continue }
                 let percent = Int((min(1, max(0, fraction)) * 100).rounded())
                 let reset = (bucket["resetTime"] as? String).flatMap { parseISO8601($0) }
-                let window: ModelWindow = (bucket["window"] as? String == "weekly") ? .weekly : .session
+                let window: ModelWindow = antigravityBucketIsWeekly(bucket) ? .weekly : .session
                 rows.append(ModelStatus(name: family, remainingPercent: percent, resetAt: reset, window: window))
             }
         }
         return rows
+    }
+
+    /// Which window a bucket belongs to. Classified from the bucket's own id/name FIRST — several
+    /// independent competitor implementations (reading real `RetrieveUserQuotaSummary` responses)
+    /// agree the flat `window` field this used to rely on is either absent or unreliable, with the
+    /// window instead baked into an id like "gemini-5h"/"gemini-weekly"/"3p-5h"/"3p-weekly". Getting
+    /// this wrong isn't cosmetic: `antigravityFamilies` (PopoverViews.swift) keys its 5h/weekly
+    /// readings by `ModelWindow`, so every bucket misread as `.session` makes the weekly one silently
+    /// overwrite the 5h one (or vice versa) with no error — the weekly row just never appears. `window`
+    /// is kept as a last-resort fallback for any account that still reports it.
+    private func antigravityBucketIsWeekly(_ bucket: [String: Any]) -> Bool {
+        let id = ((bucket["bucketId"] as? String) ?? (bucket["id"] as? String)
+            ?? (bucket["displayName"] as? String) ?? "").lowercased()
+        if id.contains("weekly") || id.contains("7d") { return true }
+        if id.contains("5h") || id.contains("session") || id.contains("hour") { return false }
+        return (bucket["window"] as? String) == "weekly"
     }
 
     private func antigravityFamilyLabel(_ displayName: String) -> String {
@@ -236,14 +252,6 @@ extension LiveUsageDataSource {
         if lower.contains("gemini") { return "Gemini" }
         if lower.contains("claude") || lower.contains("gpt") { return "Claude/GPT" }
         return displayName.isEmpty ? "Antigravity" : displayName
-    }
-
-    private func antigravityWindowRank(_ window: String?) -> Int {
-        switch window {
-        case "weekly": return 0
-        case "5h": return 1
-        default: return 2
-        }
     }
 
     private func fetchAntigravityLocalLanguageServer(models defaults: [String]) -> ServiceStatus? {

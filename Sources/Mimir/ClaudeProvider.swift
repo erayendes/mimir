@@ -361,10 +361,15 @@ extension LiveUsageDataSource {
     /// rate-limit numbers it already fetched server-side — to `~/.claude/mimir-usage.json` on every
     /// render (see `MimirStatusLineHook`). Reading that file is the prompt-free primary source for the
     /// session/weekly windows: no keychain, no token, no network. Returns nil when the file is absent,
-    /// older than `maxAge`, malformed, or carries no `rate_limits` (older Claude Code / no subscription
-    /// limits). Note `resets_at` here is epoch SECONDS (a number), unlike the OAuth API's ISO string.
+    /// older than `maxAge`, malformed, or carries no `rate_limits` at all (older Claude Code / no
+    /// subscription limits). Either window inside may still be individually nil — Anthropic's own
+    /// statusline docs confirm `five_hour`/`seven_day` can each be independently absent (no session yet
+    /// this launch, a Team-plan account that never gets `rate_limits`, or a window Claude Code has
+    /// already dropped once its `resets_at` passed) — the caller (`claudeCardFromHook`) fills in
+    /// whichever one is missing from the existing usage cache instead of losing the whole reading. Note
+    /// `resets_at` here is epoch SECONDS (a number), unlike the OAuth API's ISO string.
     func readClaudeHookUsage(maxAge: TimeInterval)
-        -> (five: (used: Double, reset: Date?), seven: (used: Double, reset: Date?))? {
+        -> (five: (used: Double, reset: Date?)?, seven: (used: Double, reset: Date?)?)? {
         let url = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".claude/mimir-usage.json")
         guard let vals = try? url.resourceValues(forKeys: [.contentModificationDateKey]),
@@ -375,11 +380,12 @@ extension LiveUsageDataSource {
         return Self.parseHookRateLimits(root)
     }
 
-    /// Pure: pull the 5h/7d windows out of a statusLine JSON root. Both windows must be present (an
-    /// account without subscription limits, or older Claude Code, omits `rate_limits`). `resets_at` is
-    /// epoch SECONDS. Testable without the filesystem.
+    /// Pure: pull the 5h/7d windows out of a statusLine JSON root. `resets_at` is epoch SECONDS.
+    /// Returns nil only when `rate_limits` itself is missing; either window inside it may still come
+    /// back nil on its own (see `readClaudeHookUsage`) as long as at least one is present. Testable
+    /// without the filesystem.
     static func parseHookRateLimits(_ root: [String: Any])
-        -> (five: (used: Double, reset: Date?), seven: (used: Double, reset: Date?))? {
+        -> (five: (used: Double, reset: Date?)?, seven: (used: Double, reset: Date?)?)? {
         guard let limits = root["rate_limits"] as? [String: Any] else { return nil }
         func window(_ key: String) -> (used: Double, reset: Date?)? {
             guard let obj = limits[key] as? [String: Any],
@@ -387,7 +393,9 @@ extension LiveUsageDataSource {
             let reset = doubleFromJSON(obj["resets_at"]).map { Date(timeIntervalSince1970: $0) }
             return (used, reset)
         }
-        guard let five = window("five_hour"), let seven = window("seven_day") else { return nil }
+        let five = window("five_hour")
+        let seven = window("seven_day")
+        guard five != nil || seven != nil else { return nil }
         return (five, seven)
     }
 
@@ -405,7 +413,14 @@ extension LiveUsageDataSource {
     /// hook's live session/weekly percents replace the cache's. When no recent cache exists, the card
     /// shows session/weekly only. ponytail: overlaid per-model rows are trusted within their weekly
     /// window; a real user open refreshes them live via the OAuth API.
-    func claudeCardFromHook(_ hook: (five: (used: Double, reset: Date?), seven: (used: Double, reset: Date?))) -> ServiceStatus {
+    ///
+    /// The hook is authoritative for both windows even when it reports only one (see
+    /// `parseHookRateLimits`): a reported window replaces the cache's, and an omitted one is dropped
+    /// rather than carried over. Claude Code omits a window once its `resets_at` has passed, so the
+    /// cached copy is exactly the refilled window's stale percent — and `live: true` below skips
+    /// reset-classification, so carrying it would show that percent as current. Dropped, the window
+    /// reads as 0% used, which after a reset is the truth.
+    func claudeCardFromHook(_ hook: (five: (used: Double, reset: Date?)?, seven: (used: Double, reset: Date?)?)) -> ServiceStatus {
         var root = readClaudeUsageCache(maxAge: 24 * 60 * 60) ?? [:]
         let iso = ISO8601DateFormatter()
         func windowDict(_ w: (used: Double, reset: Date?)) -> [String: Any] {
@@ -413,12 +428,10 @@ extension LiveUsageDataSource {
             if let r = w.reset { d["resets_at"] = iso.string(from: r) }
             return d
         }
-        // The hook's single 5h/7d reading is authoritative — drop any sub-keyed windows the cache
-        // carried so `mergeClaudeWindows` can't pick a stale one over it.
         for k in root.keys where k == "five_hour" || k.hasPrefix("five_hour_")
             || k == "seven_day" || k.hasPrefix("seven_day_") { root.removeValue(forKey: k) }
-        root["five_hour"] = windowDict(hook.five)
-        root["seven_day"] = windowDict(hook.seven)
+        if let five = hook.five { root["five_hour"] = windowDict(five) }
+        if let seven = hook.seven { root["seven_day"] = windowDict(seven) }
         return buildClaudeStatus(from: root, note: "statusline hook", live: true)
     }
 

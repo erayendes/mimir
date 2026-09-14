@@ -16,19 +16,32 @@ final class ClaudeHookTests: XCTestCase {
             "model": ["display_name": "Opus"],
         ]
         let parsed = LiveUsageDataSource.parseHookRateLimits(root)
-        XCTAssertEqual(parsed?.five.used, 4)
-        XCTAssertEqual(parsed?.five.reset, Date(timeIntervalSince1970: 1_700_000_000))
-        XCTAssertEqual(parsed?.seven.used, 81.5)
-        XCTAssertEqual(parsed?.seven.reset, Date(timeIntervalSince1970: 1_700_600_000))
+        XCTAssertEqual(parsed?.five?.used, 4)
+        XCTAssertEqual(parsed?.five?.reset, Date(timeIntervalSince1970: 1_700_000_000))
+        XCTAssertEqual(parsed?.seven?.used, 81.5)
+        XCTAssertEqual(parsed?.seven?.reset, Date(timeIntervalSince1970: 1_700_600_000))
     }
 
     func testParseHookMissingRateLimitsReturnsNil() {
-        // No rate_limits (older Claude Code / no subscription limits) → nil, so callers fall through.
+        // No rate_limits at all (older Claude Code / no subscription limits) → nil, callers fall through.
         XCTAssertNil(LiveUsageDataSource.parseHookRateLimits(["model": ["display_name": "Opus"]]))
-        // Only one window present → nil (both are required for a session/weekly card).
-        XCTAssertNil(LiveUsageDataSource.parseHookRateLimits([
+    }
+
+    func testParseHookToleratesOneWindowMissing() {
+        // Anthropic's own statusline docs confirm five_hour/seven_day can each be independently
+        // absent (no session yet this launch, a Team-plan account, or a window past its reset) — a
+        // partial reading must still come back rather than being discarded outright.
+        let fiveOnly = LiveUsageDataSource.parseHookRateLimits([
             "rate_limits": ["five_hour": ["used_percentage": 10]]
-        ]))
+        ])
+        XCTAssertEqual(fiveOnly?.five?.used, 10)
+        XCTAssertNil(fiveOnly?.seven)
+
+        let sevenOnly = LiveUsageDataSource.parseHookRateLimits([
+            "rate_limits": ["seven_day": ["used_percentage": 33]]
+        ])
+        XCTAssertNil(sevenOnly?.five)
+        XCTAssertEqual(sevenOnly?.seven?.used, 33)
     }
 
     func testParseHookToleratesMissingResetAndStringNumbers() {
@@ -39,9 +52,9 @@ final class ClaudeHookTests: XCTestCase {
             ]
         ]
         let parsed = LiveUsageDataSource.parseHookRateLimits(root)
-        XCTAssertEqual(parsed?.five.used, 12)
-        XCTAssertNil(parsed?.five.reset)                          // absent reset → nil, not a crash
-        XCTAssertEqual(parsed?.seven.reset, Date(timeIntervalSince1970: 1_700_000_000))
+        XCTAssertEqual(parsed?.five?.used, 12)
+        XCTAssertNil(parsed?.five?.reset)                         // absent reset → nil, not a crash
+        XCTAssertEqual(parsed?.seven?.reset, Date(timeIntervalSince1970: 1_700_000_000))
     }
 
     // MARK: - statusLine wiring (pure)
