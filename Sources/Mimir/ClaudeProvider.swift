@@ -414,9 +414,12 @@ extension LiveUsageDataSource {
     /// shows session/weekly only. ponytail: overlaid per-model rows are trusted within their weekly
     /// window; a real user open refreshes them live via the OAuth API.
     ///
-    /// The hook is authoritative only for the window(s) it actually reports — either can be
-    /// independently absent (see `parseHookRateLimits`). A window the hook omits keeps whatever the
-    /// ≤24h cache still carries instead of being blanked to a misleading 0%-used reading.
+    /// The hook is authoritative for both windows even when it reports only one (see
+    /// `parseHookRateLimits`): a reported window replaces the cache's, and an omitted one is dropped
+    /// rather than carried over. Claude Code omits a window once its `resets_at` has passed, so the
+    /// cached copy is exactly the refilled window's stale percent — and `live: true` below skips
+    /// reset-classification, so carrying it would show that percent as current. Dropped, the window
+    /// reads as 0% used, which after a reset is the truth.
     func claudeCardFromHook(_ hook: (five: (used: Double, reset: Date?)?, seven: (used: Double, reset: Date?)?)) -> ServiceStatus {
         var root = readClaudeUsageCache(maxAge: 24 * 60 * 60) ?? [:]
         let iso = ISO8601DateFormatter()
@@ -425,14 +428,10 @@ extension LiveUsageDataSource {
             if let r = w.reset { d["resets_at"] = iso.string(from: r) }
             return d
         }
-        if let five = hook.five {
-            for k in root.keys where k == "five_hour" || k.hasPrefix("five_hour_") { root.removeValue(forKey: k) }
-            root["five_hour"] = windowDict(five)
-        }
-        if let seven = hook.seven {
-            for k in root.keys where k == "seven_day" || k.hasPrefix("seven_day_") { root.removeValue(forKey: k) }
-            root["seven_day"] = windowDict(seven)
-        }
+        for k in root.keys where k == "five_hour" || k.hasPrefix("five_hour_")
+            || k == "seven_day" || k.hasPrefix("seven_day_") { root.removeValue(forKey: k) }
+        if let five = hook.five { root["five_hour"] = windowDict(five) }
+        if let seven = hook.seven { root["seven_day"] = windowDict(seven) }
         return buildClaudeStatus(from: root, note: "statusline hook", live: true)
     }
 
