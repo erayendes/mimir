@@ -123,7 +123,9 @@ GET https://api.anthropic.com/api/oauth/usage
 - The token is read from Claude Code's records under `~/.claude` / the macOS **Keychain**.
 - The response is **cached for 5 minutes**, so the Keychain (and its permission prompt) is touched only at launch and around token expiry.
 
-**Token refresh.** Anthropic rotates the **refresh token**. If the token is expired or within 5 minutes of expiry, Mimir refreshes it proactively and **writes the new pair back to the Keychain** — keeping Claude Code's own login valid too. If the refresh fails, the card shows **token expired — open Claude Code**; just open Claude Code once and sign in.
+3. **Claude Code's status line** — with **Prompt-free Claude tracking** on (right-click menu). A small hook in `~/.claude/settings.json` receives the session JSON Claude Code already fetched, with its official 5-hour and 7-day numbers, and saves it to `~/.claude/mimir-usage.json`. No Keychain, no token, no network, no prompt. While the hook is fresh (Claude Code rendered a status line in the last 30 minutes) a background refresh never touches the Keychain, and it fills the card whenever the token is expired or can't be read silently. An existing `statusLine` command is chained through, not replaced; `settings.json` is backed up before the first write.
+
+**Tokens are read, never refreshed.** Anthropic rotates the refresh token single-use, so a refresh from outside would sign Claude Code out. Mimir only reads the token Claude Code currently holds and uses it while valid; once it has expired, the card shows **token expired — open Claude Code** and Claude Code refreshes it on its own next use.
 
 **What's shown.** Session (5-hour) and weekly remaining percentages with reset times. The **Claude dot** in the menu bar is colored by the session percentage.
 
@@ -131,6 +133,8 @@ GET https://api.anthropic.com/api/oauth/usage
 |---|---|
 | No Claude card | Claude Code may never have been signed in — open it once and sign in |
 | "token expired" note | Open Claude Code; it resolves once the token refreshes |
+| "open Mimir to refresh Claude" note | The token couldn't be read without a prompt; opening the popover is the user action that allows it |
+| Repeated Keychain prompts | Claude Code rewrites its Keychain item on every token refresh, so *Always Allow* doesn't stick — turn on **Prompt-free Claude tracking** |
 | Frozen / dimmed data | Temporary error or rate limit; Mimir shows last-known data and refreshes shortly |
 
 #### Codex
@@ -226,7 +230,7 @@ No quota percentages, reset times, credit balances, account ids or tokens are ev
 #### Token handling
 
 - Tokens are kept **in memory** as much as possible; the Keychain (and its permission prompt) is touched only at startup and around token expiry.
-- When the Claude token expires, Mimir refreshes it and **writes the new pair back to the Keychain** — so it doesn't break the tool's own session.
+- The Claude token is **read, never refreshed or written back**: Anthropic rotates it single-use, so refreshing from outside would sign Claude Code out. With **Prompt-free Claude tracking** on, the Keychain isn't touched at all.
 - A rejected (401/403) token is dropped from the cache; a dead token is not retried over and over.
 
 #### Crash/diagnostic data
@@ -372,7 +376,9 @@ GET https://api.anthropic.com/api/oauth/usage
 - Token, Claude Code'un `~/.claude` altındaki kayıtlarından / macOS **Keychain**'den okunur.
 - Yanıt 5 dakikalık bir **önbelleğe** alınır; böylece Keychain'e yalnızca uygulama başlarken ve token süresi dolmaya yakınken dokunulur.
 
-**Token yenileme.** Anthropic, **refresh token**'ı döndürür (rotation). Token'ın süresi dolmuşsa veya dolmasına 5 dakikadan az kalmışsa Mimir token'ı proaktif yeniler ve **yeni çiftini Keychain'e geri yazar** — böylece Claude Code'un kendi oturumu da geçerli kalır. Yenileme başarısız olursa kart **token süresi doldu — Claude Code'u aç** notunu gösterir; Claude Code'u bir kez açıp giriş yapmanız yeterlidir.
+3. **Claude Code'un durum satırı** — sağ tık menüsündeki **Parolasız Claude takibi** açıkken. `~/.claude/settings.json` içine konan küçük bir kanca, Claude Code'un zaten çektiği oturum JSON'unu — resmî 5 saatlik ve 7 günlük sayılarıyla — alır ve `~/.claude/mimir-usage.json` dosyasına yazar. Keychain yok, token yok, ağ yok, izin penceresi yok. Kanca tazeyken (Claude Code son 30 dakikada bir durum satırı çizmişse) arka plan yenilemesi Keychain'e hiç dokunmaz; token süresi dolmuş ya da sessizce okunamıyorsa kartı bu kanca doldurur. Mevcut bir `statusLine` komutu silinmez, zincire eklenir; ilk yazımdan önce `settings.json` yedeklenir.
+
+**Token okunur, yenilenmez.** Anthropic refresh token'ı tek kullanımlık döndürür; dışarıdan yapılan bir yenileme Claude Code'un oturumunu düşürür. Mimir yalnızca Claude Code'un elindeki token'ı okur ve geçerli olduğu sürece kullanır; süresi dolunca kart **token süresi doldu — Claude Code'u aç** der ve Claude Code bir sonraki kullanımında token'ı kendisi yeniler.
 
 **Gösterilen bilgiler.** Seans (5 saatlik) ve haftalık kalan yüzdeleri ile sıfırlanma zamanları. Menü çubuğundaki **Claude noktası** seans yüzdesine göre renklenir.
 
@@ -380,6 +386,8 @@ GET https://api.anthropic.com/api/oauth/usage
 |---|---|
 | Claude kartı yok | Claude Code'a hiç giriş yapılmamış olabilir — bir kez açıp giriş yapın |
 | "token süresi doldu" notu | Claude Code'u açın; token yenilenince düzelir |
+| "open Mimir to refresh Claude" notu | Token izin penceresi olmadan okunamadı; popover'ı açmak bunu sağlayan kullanıcı eylemidir |
+| Tekrarlayan Keychain izin pencereleri | Claude Code her token yenilemesinde Keychain kaydını yeniden yazdığı için *Her Zaman İzin Ver* kalıcı olmaz — **Parolasız Claude takibi**'ni açın |
 | Veri donuk / soluk | Geçici hata ya da hız sınırı; Mimir son bilinen veriyi gösterir, kısa süre sonra yeniler |
 
 #### Codex
@@ -475,7 +483,7 @@ Bu istekler, aracın kendisinin yapacağı isteklerle aynı niteliktedir. **Mimi
 #### Token yönetimi
 
 - Token'lar mümkün olduğunca **bellekte** tutulur; Keychain'e (ve onun izin istemine) yalnızca başlangıçta ve token süresi dolmaya yakınken dokunulur.
-- Claude token'ı süresi dolduğunda Mimir onu yeniler ve **yeni çiftini Keychain'e geri yazar** — böylece aracın kendi oturumunu bozmaz.
+- Claude token'ı **yalnızca okunur; yenilenmez, geri yazılmaz**. Anthropic onu tek kullanımlık döndürdüğü için dışarıdan yenilemek Claude Code'un oturumunu düşürür. **Parolasız Claude takibi** açıkken Keychain'e hiç dokunulmaz.
 - Reddedilen (401/403) bir token önbellekten düşürülür; ölü token tekrar tekrar denenmez.
 
 #### Hata/teşhis verisi
