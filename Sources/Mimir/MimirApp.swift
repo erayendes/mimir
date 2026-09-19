@@ -80,6 +80,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Re-activating an already-running Mimir (Finder, `open -a`, Dock) would make SwiftUI show the
+    /// only scene it has — the empty placeholder `Settings` window. There is nothing to reopen; the
+    /// app lives in the menu bar.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool { false }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         #if DEBUG
         if let shot = ProcessInfo.processInfo.environment["MIMIR_DEMO_SHOT"] {

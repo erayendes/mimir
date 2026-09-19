@@ -78,7 +78,7 @@
 "popover.unavailable.dismiss" = "Dismiss";
 "widget.empty" = "Open Mimir to load quota.";
 "widget.config.model" = "Model";
-"widget.config.description" = "Choose which model the small widget shows.";
+"widget.config.description" = "Choose which model the widget shows.";
 
 /* Status menu */
 "Send anonymous statistics" = "Send anonymous statistics";
