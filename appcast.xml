@@ -7,7 +7,41 @@
     <link>https://github.com/erayendes/mimir</link>
     <description>Mimir update feed</description>
     <language>en</language>
-                                                                                                                        <item>
+                                                                                                                            <item>
+      <title>Mimir 2.18</title>
+      <sparkle:version>2018000</sparkle:version>
+      <sparkle:shortVersionString>2.18</sparkle:shortVersionString>
+      <pubDate>Sat, 19 Sep 2026 14:33:26 +0000</pubDate>
+      <description><![CDATA[
+<p><b>Added</b></p>
+<ul>
+<li><b>Introducing the Medium widget.</b> One model's whole story, on one surface. The five-hour window becomes the widget itself: what's left of your quota is how much of the face it covers, from the left. The number sits top right, with the reset time and the countdown beside it — all three on one line, the way they should be. The week runs along the bottom as a capsule bar: its percent inside the fill, its reset just below, weekday included. You know without looking; when you look, it's all there. Right-click, Edit Widget, pick your model.</li>
+<li><b>Resets now name the day.</b> "Friday 19:00" instead of "19:00". A reset three days out no longer looks like this evening's. The Small widget gets this too.</li>
+</ul>
+<p><b>Fixed</b></p>
+<ul>
+<li>Re-opening a running Mimir no longer shows an empty "Settings" window. Mimir lives in the menu bar; there was nothing to open.</li>
+</ul>
+<hr>
+<p><b>Eklendi</b></p>
+<ul>
+<li><b>Tanışın: Orta boy widget.</b> Tek bir modelin bütün hikâyesi, tek bir yüzeyde. Beş saatlik pencere widget'ın kendisine dönüşüyor: kalan kota, yüzeyi soldan ne kadar kaplıyorsa o kadar. Sayı sağ üstte, yanında saat ve kalan süre — üçü aynı çizgide, tam olması gerektiği gibi. Hafta ise altta, bir kapsül bar olarak: yüzdesi dolgunun içinde, sıfırlanması hemen altında, gün adıyla. Bakmadan bilirsiniz; baktığınızda her şey oradadır. Sağ tık, Widget'ı Düzenle, modelinizi seçin.</li>
+<li><b>Sıfırlanma artık gün söylüyor.</b> "19:00" yerine "Cuma 19:00". Üç gün sonraki bir sıfırlanma, bu akşamınki gibi görünmüyor. Small widget da bundan yararlanıyor.</li>
+</ul>
+<p><b>Düzeltildi</b></p>
+<ul>
+<li>Çalışan Mimir'i yeniden açınca beliren boş "Ayarlar" penceresi artık belirmiyor. Mimir menü çubuğunda yaşar; açılacak bir penceresi yok.</li>
+</ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v2.18/Mimir.zip"
+        sparkle:edSignature="d5ihi+HelK3nOTz3oKvRe7lbB66ieUCOKki8JSuzOUCJNUG8i8PpqDSfPab9tqHFHR1msTPl9PWWUbL6jANHBg=="
+        length="6670664"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 2.17</title>
       <sparkle:version>2017000</sparkle:version>
       <sparkle:shortVersionString>2.17</sparkle:shortVersionString>
