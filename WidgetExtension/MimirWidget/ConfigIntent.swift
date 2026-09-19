@@ -2,8 +2,8 @@ import AppIntents
 import WidgetKit
 // MimirShared (WidgetStore/WidgetPayload) compiles into this target — same-module, no import.
 
-/// Configuration for the widget: which 5-hour window the **Small** size pins to. Other sizes show
-/// every window regardless, so they ignore this. Edit via long-press → Edit Widget → Model.
+/// Configuration for the widget: which model the Small and Medium sizes pin to. Edit via
+/// long-press → Edit Widget → Model.
 struct SelectMetricIntent: WidgetConfigurationIntent {
     static let title: LocalizedStringResource = "Mimir"
     static let description = IntentDescription(LocalizedStringResource("widget.config.description"))

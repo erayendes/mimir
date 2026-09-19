@@ -91,13 +91,21 @@ enum Reset {
                              hour: String(localized: "duration.unit.hour"),
                              minute: String(localized: "duration.unit.minute"))
     }
-    static func clock(_ resetAt: Date?) -> String? {
+    /// "HH:mm" when the reset lands today, else "EEEE HH:mm" — a weekly reset three days out reads
+    /// "Cuma 19:00", not a bare clock that looks like this evening.
+    static func clock(_ resetAt: Date?, now: Date = Date()) -> String? {
         guard let resetAt else { return nil }
-        return clockFormatter.string(from: resetAt)
+        let f = Calendar.current.isDate(resetAt, inSameDayAs: now) ? clockFormatter : dayClockFormatter
+        return f.string(from: resetAt)
     }
     private static let clockFormatter: DateFormatter = {
         let f = DateFormatter()
         f.dateFormat = "HH:mm"
+        return f
+    }()
+    private static let dayClockFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.setLocalizedDateFormatFromTemplate("EEEE HH:mm")
         return f
     }()
 }

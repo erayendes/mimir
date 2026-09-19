@@ -28,8 +28,8 @@ struct MimirProvider: AppIntentTimelineProvider {
     }
 }
 
-/// The main, size-adaptive widget — one layout per WidgetKit family. Configurable: the Small size
-/// pins to the chosen model (`SelectMetricIntent`); larger sizes show everything and ignore it.
+/// The main, size-adaptive widget — one layout per WidgetKit family. Configurable: Small and
+/// Medium pin to the chosen model (`SelectMetricIntent`).
 /// `contentMarginsDisabled` so our own paddings are the single source of truth (match the spec).
 struct MimirWidget: Widget {
     var body: some WidgetConfiguration {
@@ -39,7 +39,7 @@ struct MimirWidget: Widget {
         }
         .configurationDisplayName("Mimir")
         .description(String(localized: "widget.detailed.description"))
-        .supportedFamilies([.systemSmall])
+        .supportedFamilies([.systemSmall, .systemMedium])
         .contentMarginsDisabled()
     }
 }
