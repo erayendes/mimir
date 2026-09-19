@@ -9,6 +9,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [2.19] - 2026-09-19
+
+#### Fixed
+- The medium widget's weekly percent vanished on the desktop whenever another app had focus, and with an accent colour set. macOS renders widgets in white in those modes, and the number was painted white on the bar. It's now cut out of the bar instead, so what's behind shows through — in every mode.
+
 ### [2.18] - 2026-09-19
 
 #### Added
@@ -469,6 +474,11 @@ Bu projedeki tüm önemli değişiklikler bu dosyada belgelenecektir.
 
 Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
+
+### [2.19] - 2026-09-19
+
+#### Düzeltildi
+- Orta boy widget'ın haftalık yüzdesi, başka bir uygulama öndeyken ve vurgu rengi seçiliyken masaüstünde kayboluyordu. macOS bu modlarda widget'ı beyaz çiziyor, sayı da barın üstüne beyaz basılıydı. Artık barın içinden kesiliyor; arkası her modda görünüyor.
 
 ### [2.18] - 2026-09-19
 
