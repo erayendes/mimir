@@ -7,7 +7,31 @@
     <link>https://github.com/erayendes/mimir</link>
     <description>Mimir update feed</description>
     <language>en</language>
-                                                                                                                            <item>
+                                                                                                                                <item>
+      <title>Mimir 2.19</title>
+      <sparkle:version>2019000</sparkle:version>
+      <sparkle:shortVersionString>2.19</sparkle:shortVersionString>
+      <pubDate>Sat, 19 Sep 2026 15:57:18 +0000</pubDate>
+      <description><![CDATA[
+<p><b>Fixed</b></p>
+<ul>
+<li>The medium widget's weekly percent vanished on the desktop whenever another app had focus, and with an accent colour set. macOS renders widgets in white in those modes, and the number was painted white on the bar. It's now cut out of the bar instead, so what's behind shows through — in every mode.</li>
+</ul>
+<hr>
+<p><b>Düzeltildi</b></p>
+<ul>
+<li>Orta boy widget'ın haftalık yüzdesi, başka bir uygulama öndeyken ve vurgu rengi seçiliyken masaüstünde kayboluyordu. macOS bu modlarda widget'ı beyaz çiziyor, sayı da barın üstüne beyaz basılıydı. Artık barın içinden kesiliyor; arkası her modda görünüyor.</li>
+</ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v2.19/Mimir.zip"
+        sparkle:edSignature="qAjDpMh6Qpekx7HStNiGW7i/h8J7ZG9BknC7OdGNVeyr3I7XQh8Sa+VhWjEvhSErYw5js//mHDbDoH2Epe09DQ=="
+        length="6676570"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 2.18</title>
       <sparkle:version>2018000</sparkle:version>
       <sparkle:shortVersionString>2.18</sparkle:shortVersionString>
