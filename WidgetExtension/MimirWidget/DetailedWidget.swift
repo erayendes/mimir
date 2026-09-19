@@ -210,16 +210,44 @@ private struct MediumView: View {
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .topLeading) {
-                // Edge to edge; the widget's own mask rounds the corners.
-                Rectangle().fill(faceColor.opacity(0.22))
+                // Edge to edge; the widget's own mask rounds the corners. A light wash rather than a
+                // solid tint — 0.22 went muddy against the face's grey.
+                Rectangle().fill(faceColor.opacity(0.12))
                     .frame(width: geo.size.width * CGFloat(clampPct(m.percent)) / 100)
 
-                HStack(spacing: 6) {
-                    BrandMark(iconName: metric.iconName, size: 14)
-                    Text(m.label).font(.system(size: 13)).foregroundStyle(Tok.secondary).lineLimit(1)
-                    // The face is the session by default; when a long window has taken its place
-                    // (Codex Go's 30d), say so — otherwise the 5s needs no label.
-                    if m.isWeekly { Pill(windowPill(m)) }
+                // Header and the top-right block share one row so the clock line's top sits on the
+                // header's top; the number centres on the two info lines beside it.
+                HStack(alignment: .top, spacing: 8) {
+                    HStack(spacing: 6) {
+                        BrandMark(iconName: metric.iconName, size: 14)
+                        Text(m.label).font(.system(size: 13)).foregroundStyle(Tok.secondary).lineLimit(1)
+                        // The face is the session by default; when a long window has taken its place
+                        // (Codex Go's 30d), say so — otherwise the 5s needs no label.
+                        if m.isWeekly { Pill(windowPill(m)) }
+                    }
+                    Spacer(minLength: 8)
+                    if !metric.unavailable {
+                        HStack(alignment: .top, spacing: 10) {
+                            VStack(alignment: .trailing, spacing: 4) {
+                                IconText(symbol: "clock", text: Reset.clock(m.resetAt, now: now), size: 11)
+                                    .foregroundStyle(Tok.tertiary)
+                                IconText(symbol: "gauge.with.needle",
+                                         text: Reset.remaining(m.resetAt, now: now, fallbackWindow: windowFallback(m)), size: 11)
+                                    .foregroundStyle(Tok.secondary)
+                            }
+                            HStack(alignment: .firstTextBaseline, spacing: 1) {
+                                Text("\(m.percent)").font(.system(size: 40, weight: .light)).tracking(-0.5).monospacedDigit()
+                                Text("%").font(.system(size: 22, weight: .light))
+                            }
+                            .foregroundStyle(faceColor)
+                            // Top-aligned line boxes put the 40pt digits' cap top ~7pt below the
+                            // 11pt clock's; lift by that so the digits span clock-top to countdown-
+                            // baseline, and the header, clock and number all start on one line.
+                            .frame(height: 30, alignment: .top)
+                            .offset(y: -7)
+                        }
+                        .opacity(metric.isStale ? 0.55 : 1)
+                    }
                 }
                 .padding(16)
 
@@ -235,25 +263,6 @@ private struct MediumView: View {
                     .padding(16).padding(.top, 34)
                 } else {
                     Group {
-                        // Fixed top-right: clock over countdown, and the number sized to span
-                        // exactly those two lines (digits at 40pt ≈ two 11pt lines + gap).
-                        HStack(alignment: .center, spacing: 10) {
-                            VStack(alignment: .trailing, spacing: 4) {
-                                IconText(symbol: "clock", text: Reset.clock(m.resetAt, now: now), size: 11)
-                                    .foregroundStyle(Tok.tertiary)
-                                IconText(symbol: "gauge.with.needle",
-                                         text: Reset.remaining(m.resetAt, now: now, fallbackWindow: windowFallback(m)), size: 11)
-                                    .foregroundStyle(Tok.secondary)
-                            }
-                            HStack(alignment: .firstTextBaseline, spacing: 1) {
-                                Text("\(m.percent)").font(.system(size: 40, weight: .light)).tracking(-0.5).monospacedDigit()
-                                Text("%").font(.system(size: 22, weight: .light))
-                            }
-                            .foregroundStyle(faceColor)
-                        }
-                        .frame(maxWidth: .infinity, alignment: .trailing)
-                        .padding(.horizontal, 16).padding(.top, 14)
-
                         if let weekly {
                             let barColor = statusColor(weekly.percent)
                             VStack(alignment: .leading, spacing: 6) {
@@ -261,11 +270,12 @@ private struct MediumView: View {
                                     Capsule().fill(Tok.track)
                                     let barW = max(22, (geo.size.width - 32) * CGFloat(clampPct(weekly.percent)) / 100)
                                     Capsule().fill(barColor).frame(width: barW)
-                                    // Percent rides the fill: centred in it when it fits, else just past it.
+                                    // Percent at the fill's left end, knocked out white on the colour —
+                                    // the one place it reads in both modes over the tinted face. Too
+                                    // little fill to hold it → just past the fill, in label colour.
                                     Text("\(weekly.percent)%").font(.system(size: 12, weight: .semibold)).monospacedDigit()
-                                        .foregroundStyle(barW >= 48 ? .white.opacity(0.92) : barColor)
-                                        .frame(width: barW >= 48 ? barW : nil, alignment: .center)
-                                        .offset(x: barW >= 48 ? 0 : barW + 6)
+                                        .foregroundStyle(barW >= 48 ? .white.opacity(0.92) : Tok.primary)
+                                        .padding(.leading, barW >= 48 ? 10 : barW + 6)
                                 }
                                 .frame(height: 22)
                                 HStack(spacing: 10) {
