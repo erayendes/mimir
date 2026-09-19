@@ -9,6 +9,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [2.18] - 2026-09-19
+
+#### Added
+- **Introducing the Medium widget.** One model's whole story, on one surface. The five-hour window becomes the widget itself: what's left of your quota is how much of the face it covers, from the left. The number sits top right, with the reset time and the countdown beside it — all three on one line, the way they should be. The week runs along the bottom as a capsule bar: its percent inside the fill, its reset just below, weekday included. You know without looking; when you look, it's all there. Right-click, Edit Widget, pick your model.
+- **Resets now name the day.** "Friday 19:00" instead of "19:00". A reset three days out no longer looks like this evening's. The Small widget gets this too.
+
+#### Fixed
+- Re-opening a running Mimir no longer shows an empty "Settings" window. Mimir lives in the menu bar; there was nothing to open.
+
 ### [2.17] - 2026-09-14
 
 #### Fixed
@@ -460,6 +469,15 @@ Bu projedeki tüm önemli değişiklikler bu dosyada belgelenecektir.
 
 Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
+
+### [2.18] - 2026-09-19
+
+#### Eklendi
+- **Tanışın: Orta boy widget.** Tek bir modelin bütün hikâyesi, tek bir yüzeyde. Beş saatlik pencere widget'ın kendisine dönüşüyor: kalan kota, yüzeyi soldan ne kadar kaplıyorsa o kadar. Sayı sağ üstte, yanında saat ve kalan süre — üçü aynı çizgide, tam olması gerektiği gibi. Hafta ise altta, bir kapsül bar olarak: yüzdesi dolgunun içinde, sıfırlanması hemen altında, gün adıyla. Bakmadan bilirsiniz; baktığınızda her şey oradadır. Sağ tık, Widget'ı Düzenle, modelinizi seçin.
+- **Sıfırlanma artık gün söylüyor.** "19:00" yerine "Cuma 19:00". Üç gün sonraki bir sıfırlanma, bu akşamınki gibi görünmüyor. Small widget da bundan yararlanıyor.
+
+#### Düzeltildi
+- Çalışan Mimir'i yeniden açınca beliren boş "Ayarlar" penceresi artık belirmiyor. Mimir menü çubuğunda yaşar; açılacak bir penceresi yok.
 
 ### [2.17] - 2026-09-14
 
