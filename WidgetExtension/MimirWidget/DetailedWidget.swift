@@ -266,16 +266,22 @@ private struct MediumView: View {
                         if let weekly {
                             let barColor = statusColor(weekly.percent)
                             VStack(alignment: .leading, spacing: 6) {
+                                let barW = max(22, (geo.size.width - 32) * CGFloat(clampPct(weekly.percent)) / 100)
+                                let label = Text("\(weekly.percent)%").font(.system(size: 12, weight: .semibold)).monospacedDigit()
                                 ZStack(alignment: .leading) {
                                     Capsule().fill(Tok.track)
-                                    let barW = max(22, (geo.size.width - 32) * CGFloat(clampPct(weekly.percent)) / 100)
-                                    Capsule().fill(barColor).frame(width: barW)
-                                    // Percent at the fill's left end, knocked out white on the colour —
-                                    // the one place it reads in both modes over the tinted face. Too
-                                    // little fill to hold it → just past the fill, in label colour.
-                                    Text("\(weekly.percent)%").font(.system(size: 12, weight: .semibold)).monospacedDigit()
-                                        .foregroundStyle(barW >= 48 ? .white.opacity(0.92) : Tok.primary)
-                                        .padding(.leading, barW >= 48 ? 10 : barW + 6)
+                                    // Percent at the fill's left end, punched OUT of the fill rather
+                                    // than painted on it: the vibrant (desktop, unfocused) and accented
+                                    // modes flatten every colour to white, so any painted label on the
+                                    // fill vanished; a hole shows the backdrop through in every mode.
+                                    ZStack(alignment: .leading) {
+                                        Capsule().fill(barColor)
+                                        if barW >= 48 { label.padding(.leading, 10).blendMode(.destinationOut) }
+                                    }
+                                    .compositingGroup()
+                                    .frame(width: barW)
+                                    // Too little fill to hold it → just past the fill, in label colour.
+                                    if barW < 48 { label.foregroundStyle(Tok.primary).padding(.leading, barW + 6) }
                                 }
                                 .frame(height: 22)
                                 HStack(spacing: 10) {
