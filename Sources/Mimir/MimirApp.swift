@@ -879,6 +879,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private static let notificationClock: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "HH:mm"; return f
+    }()
+
     private func sendNotification(identifier: String, window: String? = nil, title: String, body: String) {
         // Derive a categorical type from the identifier: "Claude-5h", "Codex-weekly-refilled", etc.
         let parts = identifier.split(separator: "-")
@@ -892,7 +896,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let content = UNMutableNotificationContent()
         content.title = title
-        content.body = body
+        // Stamp the send time: the stacked banner shows no age, so "back to 100%" read the same
+        // whether it arrived a minute or four hours ago.
+        content.body = "\(body) · \(Self.notificationClock.string(from: Date()))"
         content.sound = .default
         let req = UNNotificationRequest(identifier: identifier, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(req)
