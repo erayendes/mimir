@@ -24,9 +24,9 @@ Gemini, Claude and GPT) — without leaving your workflow.
 
 - **Menu bar at a glance** — all your AI service statuses in a single popover
 - **Live limits** — session and weekly quotas, per-model rows and credit balances, updated in real time
-- **Desktop widget** — a Small widget that tracks the popover
+- **Desktop widgets** — Small and Medium, one model each, the face washed by its session quota
 - **Reset countdowns** — know exactly when each limit refreshes
-- **Color status dots** — green / amber / red based on remaining quota
+- **Status colours** — green / amber / red based on remaining quota, in the popover and the widgets
 - **Minimalist design** — monochrome icon, full macOS light/dark mode support
 - **No backend** — Mimir talks only to each provider's own endpoint, with that provider's own token; your quota figures and tokens go nowhere else
 
@@ -87,9 +87,9 @@ Stuck on something? → [Support & FAQ](../.github/SUPPORT.md).
 
 ### Reading the menu bar
 
-Mimir's entire UI lives in the menu bar: a small **Mimir glyph** and a vertical **column of colored dots**, one per service (Claude, Codex, Antigravity — Antigravity's dot reflects its most-constrained group). Each dot follows that service's session window, falling back to its weekly quota when there is no session window — which was the case for Codex while OpenAI's 5-hour limit was withdrawn. Since August 2026 Plus accounts report it again and the dot follows it; Pro accounts still fall back to the weekly quota. A dot appears only for services with an active reading, so the count matches the LLMs you actually use.
+Mimir's entire UI lives in the menu bar as a small **Mimir glyph**. Click it for the popover; the desktop widgets carry the at-a-glance numbers.
 
-**Dot colors** — based on the remaining percentage in the window the dot is tracking:
+**Status colours** — based on the remaining percentage of the window shown:
 
 | Color | Remaining | Meaning |
 |:---:|---|---|
@@ -127,7 +127,7 @@ GET https://api.anthropic.com/api/oauth/usage
 
 **Tokens are read, never refreshed.** Anthropic rotates the refresh token single-use, so a refresh from outside would sign Claude Code out. Mimir only reads the token Claude Code currently holds and uses it while valid; once it has expired, the card shows **token expired — open Claude Code** and Claude Code refreshes it on its own next use.
 
-**What's shown.** Session (5-hour) and weekly remaining percentages with reset times. The **Claude dot** in the menu bar is colored by the session percentage.
+**What's shown.** Session (5-hour) and weekly remaining percentages with reset times.
 
 | Symptom | Likely cause / fix |
 |---|---|
@@ -181,7 +181,7 @@ Mimir shows group-based quotas for **Antigravity**. Antigravity no longer manage
 4. **Local language server** data. Several can be running at once — the desktop app and the IDE each start their own, and both report the same account quota — so Mimir asks each in turn until one answers. A server that has just launched can reply with an auth error while its sibling serves fine, and stopping at the first one would drop the whole source.
 5. **Last snapshot** — when the IDE/Cockpit is closed, valid until its reset time passes.
 
-**The menu bar dot.** Since Antigravity has **two session groups** (Gemini, Claude/GPT), the single Antigravity dot shows the color of the **most constrained** group. When the IDE or Cockpit is closed, Mimir shows the **last snapshot**; if there is no account info at all, the card shows **open Antigravity or Cockpit**.
+**When the IDE is closed.** When the IDE or Cockpit is closed, Mimir shows the **last snapshot**; if there is no account info at all, the card shows **open Antigravity or Cockpit**.
 
 | Symptom | Likely cause / fix |
 |---|---|
@@ -277,9 +277,9 @@ anlık olarak gösteren hafif bir uygulamadır.
 
 - **Menü çubuğunda tek bakış** — tüm AI servislerinizin durumu tek bir popover'da
 - **Anlık limitler** — seans ve haftalık kotalar, model bazlı satırlar ve kredi bakiyeleri gerçek zamanlı güncellenir
-- **Masaüstü widget'ı** — popover'ı takip eden Small boyut
+- **Masaüstü widget'ları** — Small ve Medium, her biri tek model, yüzeyi seans kotasıyla yıkanmış
 - **Geri sayım** — her limitin tam olarak ne zaman yenileneceğini gösterir
-- **Renkli durum noktaları** — kalan kotaya göre yeşil / amber / kırmızı
+- **Durum renkleri** — kalan kotaya göre yeşil / amber / kırmızı, popover'da ve widget'larda
 - **Minimalist tasarım** — monokrom ikon, macOS açık/koyu tema desteği
 - **Arka uç yok** — Mimir yalnızca her sağlayıcının kendi uç noktasına, o sağlayıcının kendi token'ıyla bağlanır; kota bilgileriniz ve token'larınız başka hiçbir yere gitmez
 
@@ -340,9 +340,9 @@ Takıldığınız bir nokta olursa → [Destek & SSS](../.github/SUPPORT.md).
 
 ### Menü çubuğunu okuma
 
-Mimir'in tüm arayüzü menü çubuğunda yaşar: küçük bir **Mimir simgesi** ve yanında dikey bir **renkli nokta sütunu** — her servis için bir nokta (Claude, Codex, Antigravity — Antigravity noktası en kısıtlı grubunu yansıtır). Her nokta o servisin seans penceresini izler; seans penceresi yoksa haftalık kotaya düşer — OpenAI 5 saatlik limiti kaldırdığı dönemde Codex'te durum buydu. Ağustos 2026'dan beri Plus hesaplar bu pencereyi yeniden bildiriyor ve nokta onu izliyor; Pro hesaplarda hâlâ haftalık kotaya düşülüyor. Nokta yalnızca aktif okuması olan servisler için görünür; yani nokta sayısı kullandığınız LLM sayısına eşittir.
+Mimir'in tüm arayüzü menü çubuğunda küçük bir **Mimir simgesi** olarak yaşar. Tıklayınca popover açılır; bakışta görülecek sayılar masaüstü widget'larında.
 
-**Nokta renkleri** — noktanın izlediği penceredeki kalan yüzdeye göre:
+**Durum renkleri** — gösterilen penceredeki kalan yüzdeye göre:
 
 | Renk | Kalan | Anlamı |
 |:---:|---|---|
@@ -380,7 +380,7 @@ GET https://api.anthropic.com/api/oauth/usage
 
 **Token okunur, yenilenmez.** Anthropic refresh token'ı tek kullanımlık döndürür; dışarıdan yapılan bir yenileme Claude Code'un oturumunu düşürür. Mimir yalnızca Claude Code'un elindeki token'ı okur ve geçerli olduğu sürece kullanır; süresi dolunca kart **token süresi doldu — Claude Code'u aç** der ve Claude Code bir sonraki kullanımında token'ı kendisi yeniler.
 
-**Gösterilen bilgiler.** Seans (5 saatlik) ve haftalık kalan yüzdeleri ile sıfırlanma zamanları. Menü çubuğundaki **Claude noktası** seans yüzdesine göre renklenir.
+**Gösterilen bilgiler.** Seans (5 saatlik) ve haftalık kalan yüzdeleri ile sıfırlanma zamanları.
 
 | Belirti | Olası neden / çözüm |
 |---|---|
@@ -434,7 +434,7 @@ Mimir, **Antigravity** için grup bazlı kotaları gösterir. Antigravity kotay�
 4. **Yerel dil sunucusu** (language server) verisi. Aynı anda birden fazlası çalışıyor olabilir — masaüstü uygulaması ve IDE ayrı ayrı kendi sunucusunu başlatır, ikisi de aynı hesap kotasını bildirir — bu yüzden Mimir cevap alana kadar hepsini sırayla dener. Yeni başlamış bir sunucu kimlik doğrulama hatası döndürürken diğeri sorunsuz cevap verebilir; ilkinde durmak kaynağın tamamını düşürürdü.
 5. **Son anlık görüntü** (snapshot) — IDE/Cockpit kapalıysa, sıfırlanma zamanı geçene kadar geçerli.
 
-**Menü çubuğundaki nokta.** Antigravity'nin **iki seans grubu** olduğundan (Gemini, Claude/GPT), tek Antigravity noktası **en kısıtlı** grubun rengini gösterir. IDE veya Cockpit kapalıyken Mimir **son anlık görüntüyü** gösterir; hiç hesap bilgisi yoksa kart **Antigravity veya Cockpit'i aç** notunu verir.
+**IDE kapalıyken.** IDE veya Cockpit kapalıyken Mimir **son anlık görüntüyü** gösterir; hiç hesap bilgisi yoksa kart **Antigravity veya Cockpit'i aç** notunu verir.
 
 | Belirti | Olası neden / çözüm |
 |---|---|

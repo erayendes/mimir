@@ -115,7 +115,7 @@ enum ModelWindow {
 }
 
 /// The single top→bottom display order for the three services, read by BOTH the popover cards
-/// (`PopoverView.contentView`) and the menu-bar dots (`menuBarDots`). Keeping it in one place is
+/// (`PopoverView.contentView`) and the widget bridge. Keeping it in one place is
 /// load-bearing: when the two defined the order independently they drifted, and a yellow dot lined
 /// up with the wrong card. Change the order here and both move together.
 let serviceDisplayOrder = ["Claude", "Codex", "Antigravity"]
@@ -160,50 +160,6 @@ extension ServiceStatus {
                               weeklyPercent: weeklyRemainingPercent, weeklyResetAt: weeklyResetAt,
                               weeklyWindowSeconds: weeklyWindowSeconds)]
     }
-}
-
-/// One menu-bar status dot per 5-hour session window: its remaining percent (nil = no reading yet →
-/// grey placeholder) and whether the weekly (7g) quota is spent (→ grey lockout, matching the widget/
-/// popover, since a full session can't be used while the week is gone).
-struct MenuBarDot: Equatable {
-    let sessionPercent: Int?
-    var weeklyExhausted: Bool = false
-    /// Live source unreachable too long → the dot greys out (same as no-data) instead of showing a
-    /// last-known colour that would read as "usable".
-    var unavailable: Bool = false
-}
-
-/// The menu-bar dots, ordered to match the popover: `serviceDisplayOrder`, then each service's
-/// families in row order (Antigravity shows one dot per family, not a collapsed worst). A service is
-/// included on the popover's own rule (`isAvailable || isStale`), so a visible one is never silently
-/// dotless — except a service whose unavailable-notice the user dismissed, which is hidden in both
-/// places at once. Pure (no AppKit) → unit-testable.
-func menuBarDots(from services: [ServiceStatus], dismissed: Set<String> = []) -> [MenuBarDot] {
-    var dots: [MenuBarDot] = []
-    for name in serviceDisplayOrder {
-        guard let svc = services.first(where: { $0.name == name }),
-              svc.isAvailable || svc.isStale else { continue }
-        // Dismissing the "couldn't fetch" banner hides the service everywhere, dots included —
-        // a grey dot with no notice explaining it reads as a bug. The dismissal is dropped as soon
-        // as the service reports data again, so the dot returns with it.
-        if svc.dataUnavailable, dismissed.contains(name) { continue }
-        dots.append(contentsOf: svc.sessionWindows.map {
-            // When a window has no 5h reading (Codex since OpenAI's July 2026 removal of the 5-hour
-            // limit), colour the dot by the weekly quota instead of greying out — the weekly cap is the
-            // real binding limit now. `weeklyExhausted` still greys it when the week itself is spent.
-            MenuBarDot(sessionPercent: $0.sessionPercent ?? $0.weeklyPercent,
-                       weeklyExhausted: $0.weeklyPercent == 0,
-                       unavailable: svc.dataUnavailable)
-        })
-    }
-    return dots
-}
-
-/// How many columns the menu-bar dot grid uses for `n` dots: a single vertical column up to 3
-/// dots (the familiar look), then 2 columns from 4 on (so 4 lands as a 2×2). Beyond 4 the 2
-/// columns keep filling row-major and the stack grows taller. Pure → unit-testable.
-func menuBarColumnCount(for n: Int) -> Int {
-    n <= 3 ? 1 : 2
 }
 
 struct ModelStatus: Identifiable {
