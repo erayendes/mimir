@@ -7,7 +7,53 @@
     <link>https://github.com/erayendes/mimir</link>
     <description>Mimir update feed</description>
     <language>en</language>
-                                                                                                                                <item>
+                                                                                                                                    <item>
+      <title>Mimir 2.20</title>
+      <sparkle:version>2020000</sparkle:version>
+      <sparkle:shortVersionString>2.20</sparkle:shortVersionString>
+      <pubDate>Sun, 20 Sep 2026 18:13:05 +0000</pubDate>
+      <description><![CDATA[
+<p><b>Added</b></p>
+<ul>
+<li><b>The Small widget now tells the whole story.</b> The same language as Medium, stacked for a square: the face washed from the left by your five-hour quota, the number under the model's name with the reset time and the countdown beside it, and the week along the bottom as a capsule bar with its reset — weekday included. The week used to be invisible on Small; now it's there.</li>
+<li><b>Notifications say when they arrived.</b> Every notification ends with its time — "· 16:42" — so a "back to 100%" from four hours ago no longer reads like it just happened.</li>
+</ul>
+<p><b>Changed</b></p>
+<ul>
+<li><b>The menu bar is the Mimir glyph alone.</b> The column of coloured dots is gone; the widgets carry the colour now, and the dots cost width on every menu bar.</li>
+<li>Widgets show at most 99% — a third digit never fit the Small face, and nobody acts differently on 100 versus 99. The data, the bars, and the notifications keep the real number.</li>
+</ul>
+<p><b>Fixed</b></p>
+<ul>
+<li>On Small, a long weekday ("Cumartesi 11:58") pushed the capsule and the reset time past the edge, and a three-digit number squeezed the rest into "9…%". Weekdays are abbreviated there ("Cmt"), and the number never yields.</li>
+<li>The weekly percent on the capsule was too pale to read on a light face. It's white again in full colour; the cut-out is kept only for the modes that flatten colours.</li>
+</ul>
+<hr>
+<p><b>Eklendi</b></p>
+<ul>
+<li><b>Small widget artık bütün hikâyeyi anlatıyor.</b> Medium'la aynı dil, kareye göre üst üste: yüzey soldan beş saatlik kotanızla yıkanmış, sayı modelin adının altında, yanında sıfırlanma saati ve geri sayım, hafta ise altta kapsül bar olarak, sıfırlanmasıyla — gün adı dahil. Hafta Small'da görünmezdi; artık orada.</li>
+<li><b>Bildirimler ne zaman geldiğini söylüyor.</b> Her bildirim saatiyle bitiyor — "· 16:42" — dört saat önceki "%100 oldu" artık az önce olmuş gibi okunmuyor.</li>
+</ul>
+<p><b>Değişti</b></p>
+<ul>
+<li><b>Menü çubuğunda yalnız Mimir simgesi.</b> Renkli nokta sütunu kalktı; rengi artık widget'lar taşıyor, noktalar da her menü çubuğunda yer yiyordu.</li>
+<li>Widget'lar en fazla %99 gösteriyor — üçüncü hane Small yüzeyine sığmıyordu, %100 ile %99 arasında da kimse farklı davranmıyor. Veri, barlar ve bildirimler gerçek sayıyı tutuyor.</li>
+</ul>
+<p><b>Düzeltildi</b></p>
+<ul>
+<li>Small'da uzun gün adı ("Cumartesi 11:58") kapsülü ve sıfırlanma saatini kenarın dışına itiyor, üç haneli sayı kalanı "9…%" diye sıkıştırıyordu. Gün adları orada kısaltılıyor ("Cmt"), sayı asla yer vermiyor.</li>
+<li>Kapsüldeki haftalık yüzde açık yüzeyde okunamayacak kadar soluktu. Tam renkte yeniden beyaz; kesik yalnız renkleri düzleştiren modlarda.</li>
+</ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v2.20/Mimir.zip"
+        sparkle:edSignature="yeKZxlLi83GM+/DuKANJ5qgdXxr9gmIqy+Gnp4v3Rx1G+FbB9qrbhzHe7GjDQTaZiPFE1pbs1IbhRRJK6JQ6AA=="
+        length="6671991"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 2.19</title>
       <sparkle:version>2019000</sparkle:version>
       <sparkle:shortVersionString>2.19</sparkle:shortVersionString>
