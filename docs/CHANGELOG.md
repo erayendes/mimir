@@ -9,6 +9,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [2.20] - 2026-09-20
+
+#### Added
+- **The Small widget now tells the whole story.** The same language as Medium, stacked for a square: the face washed from the left by your five-hour quota, the number under the model's name with the reset time and the countdown beside it, and the week along the bottom as a capsule bar with its reset — weekday included. The week used to be invisible on Small; now it's there.
+- **Notifications say when they arrived.** Every notification ends with its time — "· 16:42" — so a "back to 100%" from four hours ago no longer reads like it just happened.
+
+#### Changed
+- **The menu bar is the Mimir glyph alone.** The column of coloured dots is gone; the widgets carry the colour now, and the dots cost width on every menu bar.
+- Widgets show at most 99% — a third digit never fit the Small face, and nobody acts differently on 100 versus 99. The data, the bars, and the notifications keep the real number.
+
+#### Fixed
+- On Small, a long weekday ("Cumartesi 11:58") pushed the capsule and the reset time past the edge, and a three-digit number squeezed the rest into "9…%". Weekdays are abbreviated there ("Cmt"), and the number never yields.
+- The weekly percent on the capsule was too pale to read on a light face. It's white again in full colour; the cut-out is kept only for the modes that flatten colours.
+
 ### [2.19] - 2026-09-19
 
 #### Fixed
@@ -474,6 +488,20 @@ Bu projedeki tüm önemli değişiklikler bu dosyada belgelenecektir.
 
 Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
+
+### [2.20] - 2026-09-20
+
+#### Eklendi
+- **Small widget artık bütün hikâyeyi anlatıyor.** Medium'la aynı dil, kareye göre üst üste: yüzey soldan beş saatlik kotanızla yıkanmış, sayı modelin adının altında, yanında sıfırlanma saati ve geri sayım, hafta ise altta kapsül bar olarak, sıfırlanmasıyla — gün adı dahil. Hafta Small'da görünmezdi; artık orada.
+- **Bildirimler ne zaman geldiğini söylüyor.** Her bildirim saatiyle bitiyor — "· 16:42" — dört saat önceki "%100 oldu" artık az önce olmuş gibi okunmuyor.
+
+#### Değişti
+- **Menü çubuğunda yalnız Mimir simgesi.** Renkli nokta sütunu kalktı; rengi artık widget'lar taşıyor, noktalar da her menü çubuğunda yer yiyordu.
+- Widget'lar en fazla %99 gösteriyor — üçüncü hane Small yüzeyine sığmıyordu, %100 ile %99 arasında da kimse farklı davranmıyor. Veri, barlar ve bildirimler gerçek sayıyı tutuyor.
+
+#### Düzeltildi
+- Small'da uzun gün adı ("Cumartesi 11:58") kapsülü ve sıfırlanma saatini kenarın dışına itiyor, üç haneli sayı kalanı "9…%" diye sıkıştırıyordu. Gün adları orada kısaltılıyor ("Cmt"), sayı asla yer vermiyor.
+- Kapsüldeki haftalık yüzde açık yüzeyde okunamayacak kadar soluktu. Tam renkte yeniden beyaz; kesik yalnız renkleri düzleştiren modlarda.
 
 ### [2.19] - 2026-09-19
 
