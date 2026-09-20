@@ -542,7 +542,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func refreshStatusTitle() {
-        let image = buildMenuBarImage(dotColors: menuBarDotColors())
+        let image = buildMenuBarImage()
         statusItem?.button?.image = image
         statusItem?.button?.contentTintColor = nil
         statusItem?.button?.title = ""
@@ -552,63 +552,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         checkNotifications()
     }
 
-    /// One colour per dot from `menuBarDots` (the popover-matching service set, ordered by the shared
-    /// `serviceDisplayOrder`: Claude, Codex, Antigravity). The selection logic lives in that pure helper so it
-    /// can be unit-tested; here we only colour each: a 5-hour percent → its status colour, `nil`
-    /// (no 5h reading yet, or the fetch hasn't landed) → a neutral grey placeholder. It recolours on
-    /// the next refresh.
-    private func menuBarDotColors() -> [NSColor] {
-        menuBarDots(from: store.services, dismissed: store.dismissedUnavailable).map { dot in
-            // Data unavailable (source down too long) or 7g spent → grey lockout, matching the
-            // widget/popover; else the 5h status colour, or the neutral grey with no 5h reading yet.
-            if dot.unavailable || dot.weeklyExhausted { return Self.noDataDotColor }
-            return dot.sessionPercent.map(statusNSColor) ?? Self.noDataDotColor
-        }
-    }
-
-    /// Neutral grey dot, reused for two inactive states: a visible service whose 5-hour reading is
-    /// missing ("no data yet"), and a model whose weekly (7g) quota is spent (the lockout grey, see
-    /// `menuBarDotColors`). Appearance-aware (resolved at `setFill` time inside the menu-bar draw
-    /// pass): a darker grey on the light menu bar, a lighter grey on the dark one, so it stays legible
-    /// either way — unlike the saturated status colours, a single fixed grey washes out against one
-    /// of the two backgrounds.
-    private static let noDataDotColor = NSColor(name: "mimirNoData") { appearance in
-        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            ? NSColor(hex: 0x9A9AA0)   // lighter grey for the dark menu bar
-            : NSColor(hex: 0x6E6E73)   // darker grey for the light menu bar
-    }
-
-    private func statusNSColor(_ percent: Int) -> NSColor {
-        switch max(0, min(100, percent)) {
-        case 40...100: return NSColor(hex: 0x3FB984)  // green
-        case 10..<40:  return NSColor(hex: 0xE0A93C)  // amber
-        default:       return NSColor(hex: 0xE5564E)  // red
-        }
-    }
-
-    /// Menu-bar image: the Mimir glyph plus a grid of status dots — one per 5-hour session window
-    /// (Claude, Codex, then each Antigravity family), coloured by its 5-hour quota or grey when the
-    /// reading is missing. The grid is `menuBarColumnCount` wide (a single column up to 3 dots, 2
-    /// columns from 4 on so four land as a 2×2), filled row-major, and is dropped entirely when there
-    /// are none so the glyph stays centred. Non-template so the dots keep their colour; in light mode
-    /// the glyph is filled black for contrast, in dark mode the source artwork is drawn as-is.
-    private func buildMenuBarImage(dotColors: [NSColor]) -> NSImage {
+    /// Menu-bar image: the Mimir glyph alone. Non-template; in light mode the glyph is filled black
+    /// for contrast, in dark mode the source artwork is drawn as-is.
+    private func buildMenuBarImage() -> NSImage {
         let iconW: CGFloat = 22
         let height: CGFloat = 22
-        let gap: CGFloat = 3.5
-        let dot: CGFloat = 3.5
-        let dotGapV: CGFloat = 2.2
-        let dotGapH: CGFloat = 2.2
-        let n = dotColors.count
-        let cols = menuBarColumnCount(for: n)
-        let rows = n > 0 ? (n + cols - 1) / cols : 0
-        let gridW = dot * CGFloat(cols) + dotGapH * CGFloat(cols - 1)
-        let totalW = n > 0 ? iconW + gap + gridW : iconW
-
-        let img = NSImage(size: NSSize(width: totalW, height: height), flipped: false) { [iconSource] _ in
+        let img = NSImage(size: NSSize(width: iconW, height: height), flipped: false) { [iconSource] _ in
             guard let ctx = NSGraphicsContext.current else { return true }
             ctx.imageInterpolation = .high
-
             if let source = iconSource {
                 let iconRect = NSRect(x: 0, y: (height - iconW) / 2, width: iconW, height: iconW)
                 NSGraphicsContext.saveGraphicsState()
@@ -622,20 +573,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     ctx.compositingOperation = .sourceOver
                 }
                 NSGraphicsContext.restoreGraphicsState()
-            }
-
-            if n > 0 {
-                let dotsX = iconW + gap
-                let gridH = dot * CGFloat(rows) + dotGapV * CGFloat(rows - 1)
-                let topY = (height + gridH) / 2 - dot   // y of the top row
-                for (i, color) in dotColors.enumerated() {
-                    let col = i % cols
-                    let row = i / cols
-                    let x = dotsX + CGFloat(col) * (dot + dotGapH)
-                    let y = topY - CGFloat(row) * (dot + dotGapV)
-                    color.setFill()
-                    NSBezierPath(ovalIn: NSRect(x: x, y: y, width: dot, height: dot)).fill()
-                }
             }
             return true
         }
@@ -879,6 +816,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private static let notificationClock: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "HH:mm"; return f
+    }()
+
     private func sendNotification(identifier: String, window: String? = nil, title: String, body: String) {
         // Derive a categorical type from the identifier: "Claude-5h", "Codex-weekly-refilled", etc.
         let parts = identifier.split(separator: "-")
@@ -892,7 +833,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let content = UNMutableNotificationContent()
         content.title = title
-        content.body = body
+        // Stamp the send time: the stacked banner shows no age, so "back to 100%" read the same
+        // whether it arrived a minute or four hours ago.
+        content.body = "\(body) · \(Self.notificationClock.string(from: Date()))"
         content.sound = .default
         let req = UNNotificationRequest(identifier: identifier, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(req)

@@ -40,23 +40,6 @@ struct WidgetBackground: View {
     }
 }
 
-/// Status-coloured capsule progress bar. Track + fill, fill width = percent of available width.
-struct ProgressBar: View {
-    let percent: Int
-    var height: CGFloat = 5
-    var color: Color? = nil   // override the status colour (e.g. grey for a weekly-locked model)
-    var body: some View {
-        GeometryReader { geo in
-            ZStack(alignment: .leading) {
-                Capsule().fill(Tok.track)
-                Capsule().fill(color ?? statusColor(percent))
-                    .frame(width: max(height, geo.size.width * CGFloat(clampPct(percent)) / 100))
-            }
-        }
-        .frame(height: height)
-    }
-}
-
 /// Provider logo as a template image tinted with the primary text colour (the brand SVGs are
 /// monochrome paths), so it inverts to dark on a light surface.
 struct BrandMark: View {
@@ -93,9 +76,12 @@ enum Reset {
     }
     /// "HH:mm" when the reset lands today, else "EEEE HH:mm" — a weekly reset three days out reads
     /// "Cuma 19:00", not a bare clock that looks like this evening.
-    static func clock(_ resetAt: Date?, now: Date = Date()) -> String? {
+    /// `compact` abbreviates the weekday ("Cmt 11:58") for the Small face, whose 126pt row can't
+    /// hold "Cumartesi" next to a countdown.
+    static func clock(_ resetAt: Date?, now: Date = Date(), compact: Bool = false) -> String? {
         guard let resetAt else { return nil }
-        let f = Calendar.current.isDate(resetAt, inSameDayAs: now) ? clockFormatter : dayClockFormatter
+        let f = Calendar.current.isDate(resetAt, inSameDayAs: now) ? clockFormatter
+            : compact ? shortDayClockFormatter : dayClockFormatter
         return f.string(from: resetAt)
     }
     private static let clockFormatter: DateFormatter = {
@@ -106,6 +92,11 @@ enum Reset {
     private static let dayClockFormatter: DateFormatter = {
         let f = DateFormatter()
         f.setLocalizedDateFormatFromTemplate("EEEE HH:mm")
+        return f
+    }()
+    private static let shortDayClockFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.setLocalizedDateFormatFromTemplate("EEE HH:mm")
         return f
     }()
 }

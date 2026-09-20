@@ -79,17 +79,4 @@ extension DismissBannerTests {
                       models: [], isAvailable: false, statusNote: nil,
                       isStale: true, dataUnavailable: true)
     }
-
-    func testDismissedServiceLosesItsMenuBarDots() {
-        let services = [downService("Antigravity"), service("Codex", down: false)]
-        XCTAssertEqual(menuBarDots(from: services).count, 2)                       // both dotted
-        let kept = menuBarDots(from: services, dismissed: ["Antigravity"])
-        XCTAssertEqual(kept.count, 1)                                             // Antigravity gone
-    }
-
-    /// A dismissal only hides a service that is actually down — it can't blank a healthy one.
-    func testDismissalDoesNotHideAHealthyService() {
-        let services = [service("Codex", down: false)]
-        XCTAssertEqual(menuBarDots(from: services, dismissed: ["Codex"]).count, 1)
-    }
 }

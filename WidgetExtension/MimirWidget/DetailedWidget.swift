@@ -96,25 +96,6 @@ private struct Pill: View {
     }
 }
 
-/// gauge + remaining (left) ·· clock + reset (right). Spec footer for Small. When the provider gives
-/// no reset (Claude's idle 5h window), the remaining falls back to the 5h window length and the clock
-/// is simply omitted — there's no real time to show.
-private struct ResetFooter: View {
-    let resetAt: Date?
-    let now: Date
-    var size: CGFloat = 10
-    var fallbackWindow: TimeInterval = fiveHourWindow
-    var body: some View {
-        HStack(spacing: 0) {
-            IconText(symbol: "gauge.with.needle",
-                     text: Reset.remaining(resetAt, now: now, fallbackWindow: fallbackWindow), size: size)
-            Spacer(minLength: 6)
-            IconText(symbol: "clock", text: Reset.clock(resetAt, now: now), size: size)
-        }
-        .foregroundStyle(Tok.tertiary)
-    }
-}
-
 private struct IconText: View {
     let symbol: String
     let text: String?
@@ -133,58 +114,169 @@ private struct IconText: View {
 
 // MARK: - Small (158×158)
 
+/// The Medium language on a square: the face washed from the left by the 5-hour remaining
+/// percent, the number under the header with the reset clock and countdown beside it, and the
+/// weekly capsule along the bottom with its reset row. A long-window-only service (Codex Go's
+/// 30d) shows that window as the face with a pill in the header and no capsule.
 private struct SmallView: View {
     let metric: FlatMetric
     let now: Date
-    // A spent weekly quota locks the model: grey the number + bar so a full session can't read as
-    // "usable" when the week is gone.
-    private var weeklyExhausted: Bool { metric.metric.weeklyPercent == 0 }
-    private var pct: Int { metric.metric.percent }
+    private var m: WindowMetric { metric.metric }
+    private var weekly: (percent: Int, resetAt: Date?)? {
+        guard !m.isWeekly, let w = m.weeklyPercent else { return nil }
+        return (w, m.weeklyResetAt)
+    }
+    // A spent weekly quota locks the model: grey the face so a full session can't read as usable.
+    private var faceColor: Color { weekly?.percent == 0 ? Tok.passive : statusColor(m.percent) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Model + 5s badge at the top (the clean original face; the "mimir" wordmark is dropped).
-            HStack(spacing: 6) {
-                BrandMark(iconName: metric.iconName, size: 14)
-                Text(metric.metric.label).font(.system(size: 13)).foregroundStyle(Tok.secondary).lineLimit(1)
-                Pill(windowPill(metric.metric))
-            }
-            if metric.unavailable {
-                // Live source unreachable too long → an actionable "couldn't fetch" state (no number).
-                Spacer(minLength: 0)
-                Text(String(localized: "widget.unavailable.title"))
-                    .font(.system(size: 15, weight: .medium)).foregroundStyle(Tok.secondary).lineLimit(1)
-                Text(String(format: String(localized: "widget.unavailable.app"), metric.providerName))
-                    .font(.system(size: 12)).foregroundStyle(Tok.tertiary)
-                    .lineLimit(2).fixedSize(horizontal: false, vertical: true).padding(.top, 3)
-                Spacer(minLength: 0)
-                Rectangle().fill(Tok.track).frame(height: 0.5)
-                Text(String(localized: "widget.unavailable.action"))
-                    .font(.system(size: 12, weight: .medium)).foregroundStyle(Tok.primary).padding(.top, 8)
-            } else {
-                // Stale (last-known) → dim the figure; tapping the face refreshes (see widgetURL).
-                Group {
-                    Spacer(minLength: 0)
-                    // Big percent at weather-widget scale: large digits with a smaller "%" sign for a
-                    // cleaner figure. Greys to passive when the weekly quota is spent.
-                    HStack(alignment: .firstTextBaseline, spacing: 1) {
-                        Text("\(pct)").font(.system(size: 48, weight: .light)).tracking(-0.5).monospacedDigit()
-                        Text("%").font(.system(size: 26, weight: .light))
+        GeometryReader { geo in
+            ZStack(alignment: .topLeading) {
+                FaceWash(color: faceColor, percent: m.percent, width: geo.size.width)
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(spacing: 6) {
+                        BrandMark(iconName: metric.iconName, size: 14)
+                        Text(m.label).font(.system(size: 13)).foregroundStyle(Tok.secondary).lineLimit(1)
+                        if m.isWeekly { Pill(windowPill(m)) }
                     }
-                    .foregroundStyle(weeklyExhausted ? Tok.passive : statusColor(pct))
-                    // Symmetric gaps: the number's font carries ~descender(48pt)≈10pt of slack below the
-                    // digits, so a +2 here visually matches the footer's `.padding(.top, 10)` below the bar.
-                    ProgressBar(percent: pct, height: 6, color: weeklyExhausted ? Tok.passive : nil).padding(.top, 2)
-                    ResetFooter(resetAt: metric.metric.resetAt, now: now, size: 11,
-                                fallbackWindow: windowFallback(metric.metric)).padding(.top, 10)
+                    if metric.unavailable {
+                        // Live source unreachable too long → an actionable "couldn't fetch" state (no number).
+                        Spacer(minLength: 0)
+                        Text(String(localized: "widget.unavailable.title"))
+                            .font(.system(size: 15, weight: .medium)).foregroundStyle(Tok.secondary).lineLimit(1)
+                        Text(String(format: String(localized: "widget.unavailable.app"), metric.providerName))
+                            .font(.system(size: 12)).foregroundStyle(Tok.tertiary)
+                            .lineLimit(2).fixedSize(horizontal: false, vertical: true).padding(.top, 3)
+                        Spacer(minLength: 0)
+                        Rectangle().fill(Tok.track).frame(height: 0.5)
+                        Text(String(localized: "widget.unavailable.action"))
+                            .font(.system(size: 12, weight: .medium)).foregroundStyle(Tok.primary).padding(.top, 8)
+                    } else {
+                        Group {
+                            Spacer(minLength: 0)
+                            HStack(alignment: .top, spacing: 8) {
+                                BigPercent(m.percent, size: 40, color: faceColor)
+                                Spacer(minLength: 0)
+                                ResetColumn(resetAt: m.resetAt, now: now, fallback: windowFallback(m), compact: true)
+                            }
+                            Spacer(minLength: 0)
+                            if let weekly {
+                                WeeklyBar(percent: weekly.percent, resetAt: weekly.resetAt, now: now, height: 18, compact: true)
+                            }
+                        }
+                        .opacity(metric.isStale ? 0.55 : 1)
+                    }
                 }
-                .opacity(metric.isStale ? 0.55 : 1)
+                // Pinned to the face's width so an overlong row can't widen the column and push the
+                // capsule and the reset info past the edge.
+                .frame(width: geo.size.width - 32, alignment: .leading)
+                .padding(16)
             }
         }
-        .padding(16)
         // Unavailable → open the provider's app; stale → refresh in the host (Claude/Codex have no
         // app to open). Both go through the same `mimir://open` scheme; the host routes by provider.
         .widgetURL(metric.unavailable || metric.isStale ? widgetOpenURL(metric.providerName) : nil)
+    }
+}
+
+// MARK: - Shared face pieces
+
+/// The face wash: a light tint spanning that share of the width, edge to edge (the widget's own
+/// mask rounds the corners). Solid at 0.22 went muddy against the face's grey.
+private struct FaceWash: View {
+    let color: Color
+    let percent: Int
+    let width: CGFloat
+    var body: some View {
+        Rectangle().fill(color.opacity(0.12))
+            .frame(width: width * CGFloat(clampPct(percent)) / 100)
+    }
+}
+
+/// Large digits with a smaller "%" sign, lifted so their cap top meets the top of an 11pt line
+/// beside them and their baseline the second line's — the number spans clock-to-countdown.
+/// Display caps at 99: a third digit overruns the Small row, and nobody acts differently on 100
+/// versus 99. The data, the bar, and the notifications keep the real value.
+private struct BigPercent: View {
+    let percent: Int
+    let size: CGFloat
+    let color: Color
+    init(_ percent: Int, size: CGFloat, color: Color) { self.percent = percent; self.size = size; self.color = color }
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 1) {
+            Text("\(min(99, percent))").font(.system(size: size, weight: .light)).tracking(-0.5).monospacedDigit()
+            Text("%").font(.system(size: size * 0.55, weight: .light))
+        }
+        .foregroundStyle(color)
+        .fixedSize()
+        .layoutPriority(1)
+        .frame(height: 30, alignment: .top)
+        .offset(y: -7)
+    }
+}
+
+/// Reset clock over countdown, trailing-aligned.
+private struct ResetColumn: View {
+    let resetAt: Date?
+    let now: Date
+    let fallback: TimeInterval
+    var compact = false
+    var body: some View {
+        VStack(alignment: .trailing, spacing: 4) {
+            IconText(symbol: "clock", text: Reset.clock(resetAt, now: now, compact: compact), size: 11)
+                .foregroundStyle(Tok.tertiary)
+            IconText(symbol: "gauge.with.needle",
+                     text: Reset.remaining(resetAt, now: now, fallbackWindow: fallback), size: 11)
+                .foregroundStyle(Tok.tertiary)
+        }
+    }
+}
+
+/// The weekly capsule: track + fill, the percent on the fill (white in full colour; punched out in
+/// the vibrant/accented modes, which flatten every colour to white), and the reset row underneath.
+/// Too little fill to hold the label → just past the fill, in label colour.
+private struct WeeklyBar: View {
+    @Environment(\.widgetRenderingMode) private var renderingMode
+    let percent: Int
+    let resetAt: Date?
+    let now: Date
+    var height: CGFloat = 22
+    var compact = false
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            GeometryReader { geo in
+                let barW = max(height, geo.size.width * CGFloat(clampPct(percent)) / 100)
+                let label = Text("\(min(99, percent))%").font(.system(size: 12, weight: .semibold)).monospacedDigit()
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Tok.track)
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(statusColor(percent))
+                        if barW >= 48 {
+                            // Full colour: painted white, which reads on every status colour. The
+                            // vibrant/accented modes flatten colours to white, so there the label is
+                            // punched out instead (a hole shows the backdrop); the hole is too pale
+                            // to read over a light face, hence not used in full colour.
+                            if renderingMode == .fullColor {
+                                label.foregroundStyle(.white.opacity(0.92)).padding(.leading, 10)
+                            } else {
+                                label.padding(.leading, 10).blendMode(.destinationOut)
+                            }
+                        }
+                    }
+                    .compositingGroup()
+                    .frame(width: barW)
+                    if barW < 48 { label.foregroundStyle(Tok.primary).padding(.leading, barW + 6) }
+                }
+            }
+            .frame(height: height)
+            HStack(spacing: compact ? 8 : 10) {
+                IconText(symbol: "gauge.with.needle",
+                         text: Reset.remaining(resetAt, now: now, fallbackWindow: weeklyWindow), size: 11)
+                IconText(symbol: "clock", text: Reset.clock(resetAt, now: now, compact: compact), size: 11)
+            }
+            .foregroundStyle(Tok.tertiary)
+            .padding(.horizontal, compact ? 2 : 6)
+        }
     }
 }
 
@@ -204,16 +296,12 @@ private struct MediumView: View {
         return (w, m.weeklyResetAt)
     }
     // A spent weekly quota locks the model: grey the face so a full session can't read as usable.
-    private var weeklyExhausted: Bool { weekly?.percent == 0 }
-    private var faceColor: Color { weeklyExhausted ? Tok.passive : statusColor(m.percent) }
+    private var faceColor: Color { weekly?.percent == 0 ? Tok.passive : statusColor(m.percent) }
 
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .topLeading) {
-                // Edge to edge; the widget's own mask rounds the corners. A light wash rather than a
-                // solid tint — 0.22 went muddy against the face's grey.
-                Rectangle().fill(faceColor.opacity(0.12))
-                    .frame(width: geo.size.width * CGFloat(clampPct(m.percent)) / 100)
+                FaceWash(color: faceColor, percent: m.percent, width: geo.size.width)
 
                 // Header and the top-right block share one row so the clock line's top sits on the
                 // header's top; the number centres on the two info lines beside it.
@@ -228,23 +316,8 @@ private struct MediumView: View {
                     Spacer(minLength: 8)
                     if !metric.unavailable {
                         HStack(alignment: .top, spacing: 10) {
-                            VStack(alignment: .trailing, spacing: 4) {
-                                IconText(symbol: "clock", text: Reset.clock(m.resetAt, now: now), size: 11)
-                                    .foregroundStyle(Tok.tertiary)
-                                IconText(symbol: "gauge.with.needle",
-                                         text: Reset.remaining(m.resetAt, now: now, fallbackWindow: windowFallback(m)), size: 11)
-                                    .foregroundStyle(Tok.secondary)
-                            }
-                            HStack(alignment: .firstTextBaseline, spacing: 1) {
-                                Text("\(m.percent)").font(.system(size: 40, weight: .light)).tracking(-0.5).monospacedDigit()
-                                Text("%").font(.system(size: 22, weight: .light))
-                            }
-                            .foregroundStyle(faceColor)
-                            // Top-aligned line boxes put the 40pt digits' cap top ~7pt below the
-                            // 11pt clock's; lift by that so the digits span clock-top to countdown-
-                            // baseline, and the header, clock and number all start on one line.
-                            .frame(height: 30, alignment: .top)
-                            .offset(y: -7)
+                            ResetColumn(resetAt: m.resetAt, now: now, fallback: windowFallback(m))
+                            BigPercent(m.percent, size: 40, color: faceColor)
                         }
                         .opacity(metric.isStale ? 0.55 : 1)
                     }
@@ -261,43 +334,12 @@ private struct MediumView: View {
                             .font(.system(size: 12, weight: .medium)).foregroundStyle(Tok.primary).padding(.top, 8)
                     }
                     .padding(16).padding(.top, 34)
-                } else {
-                    Group {
-                        if let weekly {
-                            let barColor = statusColor(weekly.percent)
-                            VStack(alignment: .leading, spacing: 6) {
-                                let barW = max(22, (geo.size.width - 32) * CGFloat(clampPct(weekly.percent)) / 100)
-                                let label = Text("\(weekly.percent)%").font(.system(size: 12, weight: .semibold)).monospacedDigit()
-                                ZStack(alignment: .leading) {
-                                    Capsule().fill(Tok.track)
-                                    // Percent at the fill's left end, punched OUT of the fill rather
-                                    // than painted on it: the vibrant (desktop, unfocused) and accented
-                                    // modes flatten every colour to white, so any painted label on the
-                                    // fill vanished; a hole shows the backdrop through in every mode.
-                                    ZStack(alignment: .leading) {
-                                        Capsule().fill(barColor)
-                                        if barW >= 48 { label.padding(.leading, 10).blendMode(.destinationOut) }
-                                    }
-                                    .compositingGroup()
-                                    .frame(width: barW)
-                                    // Too little fill to hold it → just past the fill, in label colour.
-                                    if barW < 48 { label.foregroundStyle(Tok.primary).padding(.leading, barW + 6) }
-                                }
-                                .frame(height: 22)
-                                HStack(spacing: 10) {
-                                    IconText(symbol: "gauge.with.needle",
-                                             text: Reset.remaining(weekly.resetAt, now: now, fallbackWindow: weeklyWindow), size: 11)
-                                    IconText(symbol: "clock", text: Reset.clock(weekly.resetAt, now: now), size: 11)
-                                }
-                                .foregroundStyle(Tok.tertiary)
-                                .padding(.horizontal, 6)
-                            }
-                            .padding(.horizontal, 16)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-                            .padding(.bottom, 12)
-                        }
-                    }
-                    .opacity(metric.isStale ? 0.55 : 1)
+                } else if let weekly {
+                    WeeklyBar(percent: weekly.percent, resetAt: weekly.resetAt, now: now, height: 22)
+                        .padding(.horizontal, 16)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                        .padding(.bottom, 12)
+                        .opacity(metric.isStale ? 0.55 : 1)
                 }
             }
         }
