@@ -76,9 +76,12 @@ enum Reset {
     }
     /// "HH:mm" when the reset lands today, else "EEEE HH:mm" — a weekly reset three days out reads
     /// "Cuma 19:00", not a bare clock that looks like this evening.
-    static func clock(_ resetAt: Date?, now: Date = Date()) -> String? {
+    /// `compact` abbreviates the weekday ("Cmt 11:58") for the Small face, whose 126pt row can't
+    /// hold "Cumartesi" next to a countdown.
+    static func clock(_ resetAt: Date?, now: Date = Date(), compact: Bool = false) -> String? {
         guard let resetAt else { return nil }
-        let f = Calendar.current.isDate(resetAt, inSameDayAs: now) ? clockFormatter : dayClockFormatter
+        let f = Calendar.current.isDate(resetAt, inSameDayAs: now) ? clockFormatter
+            : compact ? shortDayClockFormatter : dayClockFormatter
         return f.string(from: resetAt)
     }
     private static let clockFormatter: DateFormatter = {
@@ -89,6 +92,11 @@ enum Reset {
     private static let dayClockFormatter: DateFormatter = {
         let f = DateFormatter()
         f.setLocalizedDateFormatFromTemplate("EEEE HH:mm")
+        return f
+    }()
+    private static let shortDayClockFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.setLocalizedDateFormatFromTemplate("EEE HH:mm")
         return f
     }()
 }

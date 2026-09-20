@@ -157,16 +157,19 @@ private struct SmallView: View {
                             HStack(alignment: .top, spacing: 8) {
                                 BigPercent(m.percent, size: 40, color: faceColor)
                                 Spacer(minLength: 0)
-                                ResetColumn(resetAt: m.resetAt, now: now, fallback: windowFallback(m))
+                                ResetColumn(resetAt: m.resetAt, now: now, fallback: windowFallback(m), compact: true)
                             }
                             Spacer(minLength: 0)
                             if let weekly {
-                                WeeklyBar(percent: weekly.percent, resetAt: weekly.resetAt, now: now, height: 18)
+                                WeeklyBar(percent: weekly.percent, resetAt: weekly.resetAt, now: now, height: 18, compact: true)
                             }
                         }
                         .opacity(metric.isStale ? 0.55 : 1)
                     }
                 }
+                // Pinned to the face's width so an overlong row can't widen the column and push the
+                // capsule and the reset info past the edge.
+                .frame(width: geo.size.width - 32, alignment: .leading)
                 .padding(16)
             }
         }
@@ -192,6 +195,8 @@ private struct FaceWash: View {
 
 /// Large digits with a smaller "%" sign, lifted so their cap top meets the top of an 11pt line
 /// beside them and their baseline the second line's — the number spans clock-to-countdown.
+/// Display caps at 99: a third digit overruns the Small row, and nobody acts differently on 100
+/// versus 99. The data, the bar, and the notifications keep the real value.
 private struct BigPercent: View {
     let percent: Int
     let size: CGFloat
@@ -199,10 +204,12 @@ private struct BigPercent: View {
     init(_ percent: Int, size: CGFloat, color: Color) { self.percent = percent; self.size = size; self.color = color }
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 1) {
-            Text("\(percent)").font(.system(size: size, weight: .light)).tracking(-0.5).monospacedDigit()
+            Text("\(min(99, percent))").font(.system(size: size, weight: .light)).tracking(-0.5).monospacedDigit()
             Text("%").font(.system(size: size * 0.55, weight: .light))
         }
         .foregroundStyle(color)
+        .fixedSize()
+        .layoutPriority(1)
         .frame(height: 30, alignment: .top)
         .offset(y: -7)
     }
@@ -213,36 +220,48 @@ private struct ResetColumn: View {
     let resetAt: Date?
     let now: Date
     let fallback: TimeInterval
+    var compact = false
     var body: some View {
         VStack(alignment: .trailing, spacing: 4) {
-            IconText(symbol: "clock", text: Reset.clock(resetAt, now: now), size: 11)
+            IconText(symbol: "clock", text: Reset.clock(resetAt, now: now, compact: compact), size: 11)
                 .foregroundStyle(Tok.tertiary)
             IconText(symbol: "gauge.with.needle",
                      text: Reset.remaining(resetAt, now: now, fallbackWindow: fallback), size: 11)
-                .foregroundStyle(Tok.secondary)
+                .foregroundStyle(Tok.tertiary)
         }
     }
 }
 
-/// The weekly capsule: track + fill, the percent punched OUT of the fill (the vibrant and accented
-/// rendering modes flatten every colour to white, so a painted label on the fill vanished; a hole
-/// shows the backdrop through in every mode), and the reset row underneath. Too little fill to
-/// hold the label → just past the fill, in label colour.
+/// The weekly capsule: track + fill, the percent on the fill (white in full colour; punched out in
+/// the vibrant/accented modes, which flatten every colour to white), and the reset row underneath.
+/// Too little fill to hold the label → just past the fill, in label colour.
 private struct WeeklyBar: View {
+    @Environment(\.widgetRenderingMode) private var renderingMode
     let percent: Int
     let resetAt: Date?
     let now: Date
     var height: CGFloat = 22
+    var compact = false
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             GeometryReader { geo in
                 let barW = max(height, geo.size.width * CGFloat(clampPct(percent)) / 100)
-                let label = Text("\(percent)%").font(.system(size: 12, weight: .semibold)).monospacedDigit()
+                let label = Text("\(min(99, percent))%").font(.system(size: 12, weight: .semibold)).monospacedDigit()
                 ZStack(alignment: .leading) {
                     Capsule().fill(Tok.track)
                     ZStack(alignment: .leading) {
                         Capsule().fill(statusColor(percent))
-                        if barW >= 48 { label.padding(.leading, 10).blendMode(.destinationOut) }
+                        if barW >= 48 {
+                            // Full colour: painted white, which reads on every status colour. The
+                            // vibrant/accented modes flatten colours to white, so there the label is
+                            // punched out instead (a hole shows the backdrop); the hole is too pale
+                            // to read over a light face, hence not used in full colour.
+                            if renderingMode == .fullColor {
+                                label.foregroundStyle(.white.opacity(0.92)).padding(.leading, 10)
+                            } else {
+                                label.padding(.leading, 10).blendMode(.destinationOut)
+                            }
+                        }
                     }
                     .compositingGroup()
                     .frame(width: barW)
@@ -250,13 +269,13 @@ private struct WeeklyBar: View {
                 }
             }
             .frame(height: height)
-            HStack(spacing: 10) {
+            HStack(spacing: compact ? 8 : 10) {
                 IconText(symbol: "gauge.with.needle",
                          text: Reset.remaining(resetAt, now: now, fallbackWindow: weeklyWindow), size: 11)
-                IconText(symbol: "clock", text: Reset.clock(resetAt, now: now), size: 11)
+                IconText(symbol: "clock", text: Reset.clock(resetAt, now: now, compact: compact), size: 11)
             }
             .foregroundStyle(Tok.tertiary)
-            .padding(.horizontal, 6)
+            .padding(.horizontal, compact ? 2 : 6)
         }
     }
 }
