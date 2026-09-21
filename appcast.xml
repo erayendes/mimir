@@ -8,7 +8,33 @@
     <description>Mimir update feed</description>
     <language>en</language>
 
-    <item>
+        <item>
+      <title>Mimir 2.22</title>
+      <sparkle:version>2022000</sparkle:version>
+      <sparkle:shortVersionString>2.22</sparkle:shortVersionString>
+      <pubDate>Mon, 21 Sep 2026 07:02:21 +0000</pubDate>
+      <description><![CDATA[
+<p><b>Fixed</b></p>
+<ul>
+<li>After an update, the widget gallery could keep showing only the sizes the previous version had — the Medium widget from 2.18 never appeared on a Mac that updated in place, until a logout. macOS held on to the old extension's registration. Mimir now re-registers its widget extension whenever its version changes, alongside the process restart it already did. Already stuck on 2.21? Run `pluginkit -a /Applications/Mimir.app/Contents/PlugIns/MimirWidgetExtension.appex && killall NotificationCenter`, or log out and back in.</li>
+<li>Publishing a release is retry-safe: the v2.21 release briefly pointed Sparkle at a download that didn't exist yet, so update checks failed until it was repaired.</li>
+</ul>
+<hr>
+<p><b>Düzeltildi</b></p>
+<ul>
+<li>Güncelleme sonrası widget galerisi yalnız önceki sürümün boyutlarını göstermeye devam edebiliyordu — 2.18'deki Medium widget, yerinde güncellenen bir Mac'te oturum kapatılana kadar hiç görünmedi. macOS eski uzantının kaydını tutuyordu. Mimir artık sürümü her değiştiğinde widget uzantısını yeniden kaydettiriyor; zaten yaptığı süreç yenilemesinin yanında. 2.21'de takılı kaldıysanız: `pluginkit -a /Applications/Mimir.app/Contents/PlugIns/MimirWidgetExtension.appex && killall NotificationCenter`, ya da oturumu kapatıp açın.</li>
+<li>Sürüm yayınlama artık yeniden denemeye dayanıklı: v2.21 kısa bir süre Sparkle'ı henüz var olmayan bir indirmeye yönlendirdi, onarılana kadar güncelleme denetimleri başarısız oldu.</li>
+</ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v2.22/Mimir.zip"
+        sparkle:edSignature="EHG0kju8vwe/1etr83OxR112VnXlMGZkHVfsaCvzVdehHCtGq2/A9P2wdP0ZT+5fw1hqKojoskURbMahTkA/Bg=="
+        length="6671822"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 2.21</title>
       <sparkle:version>2021000</sparkle:version>
       <sparkle:shortVersionString>2.21</sparkle:shortVersionString>
