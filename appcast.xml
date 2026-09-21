@@ -7,7 +7,31 @@
     <link>https://github.com/erayendes/mimir</link>
     <description>Mimir update feed</description>
     <language>en</language>
-                                                                                                                                    <item>
+                                                                                                                                        <item>
+      <title>Mimir 2.21</title>
+      <sparkle:version>2021000</sparkle:version>
+      <sparkle:shortVersionString>2.21</sparkle:shortVersionString>
+      <pubDate>Mon, 21 Sep 2026 04:52:05 +0000</pubDate>
+      <description><![CDATA[
+<p><b>Fixed</b></p>
+<ul>
+<li>On the Small widget, a session that reset after midnight showed "Pzt 02:00" beside the number, and the row spilled past the edge — capsule and weekly reset with it. The session clock now shows the time alone; the countdown next to it already says which day.</li>
+</ul>
+<hr>
+<p><b>Düzeltildi</b></p>
+<ul>
+<li>Small widget'ta gece yarısından sonra sıfırlanan seans sayının yanında "Pzt 02:00" gösteriyor, satır kenardan taşıyordu — kapsül ve haftalık sıfırlanma da onunla. Seans saati artık yalnız saati gösteriyor; yanındaki geri sayım hangi gün olduğunu zaten söylüyor.</li>
+</ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v2.21/Mimir.zip"
+        sparkle:edSignature="oPg0exshEg8qkM/dH4UuGNNZ9sNQ42IFB9XOPK8UmbRJllZ+tNiGnssXWgfgCztMwlnEIh+pgDlaiVZkwlCgAQ=="
+        length="6672054"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 2.20</title>
       <sparkle:version>2020000</sparkle:version>
       <sparkle:shortVersionString>2.20</sparkle:shortVersionString>
