@@ -660,23 +660,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Announce a refill when the armed reset has passed, then disarm so the next one can arm cleanly.
     /// `requireDepleted` is false only for Antigravity, whose usage can't be observed while its IDE is
     /// closed — there the reset clock is all we have.
-    /// After an in-place update (Sparkle, or a manual replace) the widget extension process that
-    /// WidgetKit launched at login keeps running the *old* binary against a bundle that no longer
-    /// exists on disk, and every render comes back blank — no crash, no log. Reloading timelines
-    /// doesn't help; the stale process has to go. It's our own process, so kill it: WidgetKit
-    /// respawns it from the new bundle on the next reload, which we request right away. Gated on
-    /// a version change so a routine launch doesn't flicker the widgets.
+    /// After an in-place update (Sparkle, or a manual replace) two things go stale: the widget
+    /// extension process WidgetKit launched at login keeps running the *old* binary against a bundle
+    /// that no longer exists on disk (every render blank — no crash, no log), and PlugInKit keeps the
+    /// old appex's registration, so a widget family added in the update (Medium in 2.18) never
+    /// appears in the gallery. Reloading timelines fixes neither. So, on a version change: re-register
+    /// the appex (`pluginkit -a`, public CLI — PlugInKit and chronod pick the new bundle up), kill our
+    /// own stale process (WidgetKit respawns it from the new bundle on the next reload, requested
+    /// right away). Gated on the version so a routine launch doesn't flicker the widgets.
     private func relaunchWidgetExtensionIfUpdated() {
         let key = "widget.lastLaunchedVersion"
         let current = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
         guard UserDefaults.standard.string(forKey: key) != current else { return }
         UserDefaults.standard.set(current, forKey: key)
         let appex = Bundle.main.bundleURL.appendingPathComponent("Contents/PlugIns/MimirWidgetExtension.appex").path
-        let kill = Process()
-        kill.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
-        kill.arguments = ["-f", appex]
-        try? kill.run()
-        kill.waitUntilExit()
+        for (tool, args) in [("/usr/bin/pluginkit", ["-a", appex]), ("/usr/bin/pkill", ["-f", appex])] {
+            let p = Process()
+            p.executableURL = URL(fileURLWithPath: tool)
+            p.arguments = args
+            try? p.run()
+            p.waitUntilExit()
+        }
         WidgetCenter.shared.reloadAllTimelines()
     }
 
