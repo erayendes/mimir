@@ -9,6 +9,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [2.21] - 2026-09-21
+
+#### Fixed
+- On the Small widget, a session that reset after midnight showed "Pzt 02:00" beside the number, and the row spilled past the edge — capsule and weekly reset with it. The session clock now shows the time alone; the countdown next to it already says which day.
+
 ### [2.20] - 2026-09-20
 
 #### Added
@@ -488,6 +493,11 @@ Bu projedeki tüm önemli değişiklikler bu dosyada belgelenecektir.
 
 Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
+
+### [2.21] - 2026-09-21
+
+#### Düzeltildi
+- Small widget'ta gece yarısından sonra sıfırlanan seans sayının yanında "Pzt 02:00" gösteriyor, satır kenardan taşıyordu — kapsül ve haftalık sıfırlanma da onunla. Seans saati artık yalnız saati gösteriyor; yanındaki geri sayım hangi gün olduğunu zaten söylüyor.
 
 ### [2.20] - 2026-09-20
 
