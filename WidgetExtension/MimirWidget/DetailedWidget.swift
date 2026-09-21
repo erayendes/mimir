@@ -223,7 +223,7 @@ private struct ResetColumn: View {
     var compact = false
     var body: some View {
         VStack(alignment: .trailing, spacing: 4) {
-            IconText(symbol: "clock", text: Reset.clock(resetAt, now: now, compact: compact), size: 11)
+            IconText(symbol: "clock", text: Reset.clock(resetAt, now: now, weekday: !compact), size: 11)
                 .foregroundStyle(Tok.tertiary)
             IconText(symbol: "gauge.with.needle",
                      text: Reset.remaining(resetAt, now: now, fallbackWindow: fallback), size: 11)
