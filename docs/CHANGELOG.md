@@ -9,6 +9,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [2.22] - 2026-09-21
+
+#### Fixed
+- After an update, the widget gallery could keep showing only the sizes the previous version had — the Medium widget from 2.18 never appeared on a Mac that updated in place, until a logout. macOS held on to the old extension's registration. Mimir now re-registers its widget extension whenever its version changes, alongside the process restart it already did. Already stuck on 2.21? Run `pluginkit -a /Applications/Mimir.app/Contents/PlugIns/MimirWidgetExtension.appex && killall NotificationCenter`, or log out and back in.
+- Publishing a release is retry-safe: the v2.21 release briefly pointed Sparkle at a download that didn't exist yet, so update checks failed until it was repaired.
+
 ### [2.21] - 2026-09-21
 
 #### Fixed
@@ -493,6 +499,12 @@ Bu projedeki tüm önemli değişiklikler bu dosyada belgelenecektir.
 
 Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
+
+### [2.22] - 2026-09-21
+
+#### Düzeltildi
+- Güncelleme sonrası widget galerisi yalnız önceki sürümün boyutlarını göstermeye devam edebiliyordu — 2.18'deki Medium widget, yerinde güncellenen bir Mac'te oturum kapatılana kadar hiç görünmedi. macOS eski uzantının kaydını tutuyordu. Mimir artık sürümü her değiştiğinde widget uzantısını yeniden kaydettiriyor; zaten yaptığı süreç yenilemesinin yanında. 2.21'de takılı kaldıysanız: `pluginkit -a /Applications/Mimir.app/Contents/PlugIns/MimirWidgetExtension.appex && killall NotificationCenter`, ya da oturumu kapatıp açın.
+- Sürüm yayınlama artık yeniden denemeye dayanıklı: v2.21 kısa bir süre Sparkle'ı henüz var olmayan bir indirmeye yönlendirdi, onarılana kadar güncelleme denetimleri başarısız oldu.
 
 ### [2.21] - 2026-09-21
 
