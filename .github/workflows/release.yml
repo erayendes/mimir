@@ -190,13 +190,35 @@ jobs:
           git commit -m "chore: appcast v$VERSION" || echo "appcast unchanged"
           git push origin main
 
+      # Retry-safe: the appcast entry is already on main by now, so a failed release means every
+      # Sparkle check 404s until it exists (v2.21 died here on a connection reset). A reset can land
+      # after GitHub has created the release, so each attempt first checks for it and completes it
+      # (upload + edit) instead of calling create again.
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.VERSION }}
           SHA256: ${{ steps.pkg.outputs.SHA256 }}
         run: |
+          set -euo pipefail
           { cat /tmp/release_notes.md; printf '\n\n**SHA256:** `%s`\n' "$SHA256"; } > /tmp/gh_notes.md
-          gh release create "v${VERSION}" dist/Mimir.zip \
-            --title "Mimir v${VERSION}" \
-            --notes-file /tmp/gh_notes.md
+          TAG="v${VERSION}"
+          TITLE="Mimir v${VERSION}"
+          complete() {
+            gh release upload "$TAG" dist/Mimir.zip --clobber
+            gh release edit "$TAG" --title "$TITLE" --notes-file /tmp/gh_notes.md
+          }
+          for attempt in 1 2 3 4 5; do
+            if gh release view "$TAG" >/dev/null 2>&1; then
+              echo "Release $TAG exists; completing it."; complete; exit 0
+            fi
+            if gh release create "$TAG" dist/Mimir.zip --title "$TITLE" --notes-file /tmp/gh_notes.md; then
+              exit 0
+            fi
+            if gh release view "$TAG" >/dev/null 2>&1; then
+              echo "Release appeared after a failed request; completing it."; complete; exit 0
+            fi
+            [ "$attempt" -lt 5 ] && { echo "GitHub API failed; retrying in $((attempt * 15))s"; sleep $((attempt * 15)); }
+          done
+          echo "::error::Unable to create or update release $TAG after 5 attempts"
+          exit 1
