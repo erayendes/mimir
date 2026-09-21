@@ -77,10 +77,12 @@ enum Reset {
     /// "HH:mm" when the reset lands today, else "EEEE HH:mm" — a weekly reset three days out reads
     /// "Cuma 19:00", not a bare clock that looks like this evening.
     /// `compact` abbreviates the weekday ("Cmt 11:58") for the Small face, whose 126pt row can't
-    /// hold "Cumartesi" next to a countdown.
-    static func clock(_ resetAt: Date?, now: Date = Date(), compact: Bool = false) -> String? {
+    /// hold "Cumartesi" next to a countdown; `weekday: false` drops it altogether — Small's session
+    /// clock sits beside a countdown that already says how far off it is, and "Pzt 02:00" next to
+    /// the number overran the row.
+    static func clock(_ resetAt: Date?, now: Date = Date(), compact: Bool = false, weekday: Bool = true) -> String? {
         guard let resetAt else { return nil }
-        let f = Calendar.current.isDate(resetAt, inSameDayAs: now) ? clockFormatter
+        let f = !weekday || Calendar.current.isDate(resetAt, inSameDayAs: now) ? clockFormatter
             : compact ? shortDayClockFormatter : dayClockFormatter
         return f.string(from: resetAt)
     }
