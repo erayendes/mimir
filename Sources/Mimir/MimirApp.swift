@@ -548,31 +548,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem?.button?.title = ""
         statusItem?.button?.imagePosition = .imageOnly
         statusItem?.button?.toolTip = "mimir by milowda"
-        statusItem?.length = image.size.width + 8
+        statusItem?.length = image.size.width + 6
         checkNotifications()
     }
 
     /// Menu-bar image: the Mimir glyph alone. Non-template; in light mode the glyph is filled black
-    /// for contrast, in dark mode the source artwork is drawn as-is.
+    /// for contrast, in dark mode the source artwork is drawn as-is. The source PNG carries wide
+    /// transparent margins, so only the glyph's own bounds are drawn — the status item hugs it.
     private func buildMenuBarImage() -> NSImage {
-        let iconW: CGFloat = 22
-        let height: CGFloat = 22
-        let img = NSImage(size: NSSize(width: iconW, height: height), flipped: false) { [iconSource] _ in
+        // Glyph bounds inside the 1024×1024 source (bottom-left origin), with a hair of margin.
+        let glyph = NSRect(x: 270, y: 140, width: 490, height: 738)
+        let height: CGFloat = 18
+        let width = ceil(height * glyph.width / glyph.height)
+        let img = NSImage(size: NSSize(width: width, height: height), flipped: false) { [iconSource] rect in
             guard let ctx = NSGraphicsContext.current else { return true }
             ctx.imageInterpolation = .high
             if let source = iconSource {
-                let iconRect = NSRect(x: 0, y: (height - iconW) / 2, width: iconW, height: iconW)
-                NSGraphicsContext.saveGraphicsState()
-                NSBezierPath(ovalIn: iconRect).addClip()
-                source.draw(in: iconRect, from: .zero, operation: .sourceOver, fraction: 1.0)
+                source.draw(in: rect, from: glyph, operation: .sourceOver, fraction: 1.0)
                 let isDark = NSAppearance.currentDrawing().bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
                 if !isDark {
                     ctx.compositingOperation = .sourceAtop
                     NSColor.black.setFill()
-                    NSBezierPath(ovalIn: iconRect).fill()
+                    rect.fill()
                     ctx.compositingOperation = .sourceOver
                 }
-                NSGraphicsContext.restoreGraphicsState()
             }
             return true
         }
