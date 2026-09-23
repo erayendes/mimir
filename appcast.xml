@@ -8,7 +8,51 @@
     <description>Mimir update feed</description>
     <language>en</language>
 
-        <item>
+            <item>
+      <title>Mimir 2.23</title>
+      <sparkle:version>2023000</sparkle:version>
+      <sparkle:shortVersionString>2.23</sparkle:shortVersionString>
+      <pubDate>Wed, 23 Sep 2026 06:38:40 +0000</pubDate>
+      <description><![CDATA[
+<p><b>Added</b></p>
+<ul>
+<li><b>Antigravity quota without the IDE.</b> If you use only the `agy` CLI, Mimir had no way to see your quota: every source it tried looked for the IDE's separate language-server process or the Cockpit directory, and a CLI-only machine has neither. Mimir now asks the CLI itself, and the Antigravity card appears with the same grouped Gemini and Claude/GPT rows the IDE shows.</li>
+</ul>
+<p><b>Changed</b></p>
+<ul>
+<li><b>The menu bar glyph sits tighter.</b> The icon was drawn inside a square of empty space, leaving it small and adrift between its neighbours. It's now cropped to the glyph itself, so Mimir takes about as much room as the icons beside it — requested by [@ilkerutlu](https://github.com/ilkerutlu).</li>
+</ul>
+<p><b>Fixed</b></p>
+<ul>
+<li>Clicking the menu bar icon while the panel was open reopened it instead of closing it. One click opens, the next closes.</li>
+<li>⌘, opened a blank settings window. Mimir's settings live in the menu bar icon's right-click menu; the empty window is gone.</li>
+<li>Claude Code's `CLAUDE_CONFIG_DIR` is honoured. If you point Claude Code at a directory other than `~/.claude`, Mimir looks there too — the prompt-free status line hook was being written where Claude Code would never read it, so it silently did nothing.</li>
+</ul>
+<hr>
+<p><b>Eklendi</b></p>
+<ul>
+<li><b>IDE olmadan Antigravity kotası.</b> Yalnız `agy` komut satırını kullanıyorsanız Mimir kotanızı hiç göremiyordu: denediği her kaynak ya IDE'nin ayrı dil sunucusu sürecini ya da Cockpit dizinini arıyordu, komut satırı kullanıcısında ikisi de yok. Mimir artık doğrudan komut satırına soruyor; Antigravity kartı, IDE'dekiyle aynı Gemini ve Claude/GPT satırlarıyla geliyor.</li>
+</ul>
+<p><b>Değiştirildi</b></p>
+<ul>
+<li><b>Menü çubuğundaki simge daha derli toplu.</b> Simge boş bir karenin içine çiziliyordu; hem küçük kalıyor hem komşularının arasında savruk duruyordu. Artık simgenin kendi sınırlarına kırpılıyor, Mimir yanındaki simgeler kadar yer kaplıyor — [@ilkerutlu](https://github.com/ilkerutlu)'nun isteği üzerine.</li>
+</ul>
+<p><b>Düzeltildi</b></p>
+<ul>
+<li>Panel açıkken menü çubuğu simgesine tıklamak paneli kapatmak yerine yeniden açıyordu. Artık bir tık açıyor, sonraki kapatıyor.</li>
+<li>⌘, boş bir ayarlar penceresi açıyordu. Mimir'in ayarları menü çubuğu simgesine sağ tıkta; boş pencere kaldırıldı.</li>
+<li>Claude Code'un `CLAUDE_CONFIG_DIR` değişkeni artık dikkate alınıyor. Claude Code'u `~/.claude` dışında bir dizine yönlendirdiyseniz Mimir de oraya bakıyor — istemsiz durum satırı kancası Claude Code'un hiç okumayacağı bir yere yazılıyor, yani sessizce hiçbir şey yapmıyordu.</li>
+</ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v2.23/Mimir.zip"
+        sparkle:edSignature="8UVtPyWAQGtiwxTOtNmMnDiLu20/yhKevgUD0OpTECC7lY5Rr/wSh5swiUIj7lkJQlmovc724XXZUk4MMoE8Ag=="
+        length="6673457"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 2.22</title>
       <sparkle:version>2022000</sparkle:version>
       <sparkle:shortVersionString>2.22</sparkle:shortVersionString>
