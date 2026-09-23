@@ -52,9 +52,6 @@ extension LiveUsageDataSource {
 
             // Before trusting anything cached, make sure it belongs to this account.
             noteClaudeAccount(uuid)
-            if let org = orgs.first(where: { $0["uuid"] as? String == uuid }) {
-                cacheClaudePlanLabel(Self.claudePlanLabel(fromOrganization: org))
-            }
             writeClaudeUsageCache(usageData)
             let status = buildClaudeStatus(from: root, note: "claude.ai desktop")
             saveSnapshot(status)
