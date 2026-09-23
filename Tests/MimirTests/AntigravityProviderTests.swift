@@ -76,3 +76,50 @@ final class AntigravityProviderTests: XCTestCase {
         XCTAssertEqual(rows.first { $0.window == .weekly }?.remainingPercent, 40)
     }
 }
+
+/// The `agy` CLI (`agy -p /usage --output-format json`) reports the same buckets as the IDE's gRPC
+/// call, but spells every field in snake_case and names the group `name` rather than `displayName`.
+/// The row builder reads both spellings so one parser serves both sources; these lock that in with a
+/// verbatim response captured from agy 1.2.5 (2026-09-23).
+final class AntigravityCLIShapeTests: XCTestCase {
+    private let ds = LiveUsageDataSource()
+
+    private var cliGroups: [[String: Any]] {
+        [
+            [
+                "name": "Gemini Models",
+                "buckets": [
+                    ["id": "gemini-weekly", "name": "Weekly Limit Remaining", "window": "weekly",
+                     "remaining_fraction": 0.9947847723960876, "reset_time": "2026-09-23T16:24:41Z"],
+                    ["id": "gemini-5h", "name": "Five Hour Limit Remaining", "window": "5h",
+                     "remaining_fraction": 1, "reset_time": "2026-09-21T12:49:40Z"],
+                ],
+            ],
+            [
+                "name": "Claude and GPT models",
+                "buckets": [
+                    ["id": "3p-weekly", "name": "Weekly Limit Remaining", "window": "weekly",
+                     "remaining_fraction": 0.5, "reset_time": "2026-09-28T07:49:40Z"],
+                    ["id": "3p-5h", "name": "Five Hour Limit Remaining", "window": "5h",
+                     "remaining_fraction": 1, "reset_time": "2026-09-21T12:49:40Z"],
+                ],
+            ],
+        ]
+    }
+
+    func testSnakeCaseFieldsAndGroupNameAreRead() {
+        let rows = ds.antigravityQuotaSummaryRows(groups: cliGroups)
+        XCTAssertEqual(rows.count, 4)
+        // A dropped `remaining_fraction` would silently skip the bucket, so assert the numbers.
+        XCTAssertEqual(rows.first { $0.name.contains("Gemini") && $0.window == .weekly }?.remainingPercent, 99)
+        XCTAssertEqual(rows.first { $0.name.contains("Gemini") && $0.window == .session }?.remainingPercent, 100)
+        XCTAssertNotNil(rows.first?.resetAt, "reset_time must parse; a nil reset drops the countdown")
+    }
+
+    func testBothGroupsSurviveAsSeparateFamilies() {
+        let rows = ds.antigravityQuotaSummaryRows(groups: cliGroups)
+        XCTAssertEqual(Set(rows.map(\.name)).count, 2)
+        XCTAssertEqual(rows.filter { $0.window == .weekly }.count, 2)
+        XCTAssertEqual(rows.filter { $0.window == .session }.count, 2)
+    }
+}

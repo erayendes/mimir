@@ -10,6 +10,13 @@ extension LiveUsageDataSource {
             saveAntigravitySnapshot(summary)
             return summary
         }
+        // No IDE running? The CLI carries the same numbers. `agy` users have no language server
+        // process, no CSRF token and no Cockpit directory, so every source around this one misses
+        // them entirely and their card never appears.
+        if let cli = fetchAntigravityCLI() {
+            saveAntigravitySnapshot(cli)
+            return cli
+        }
         if let authorized = await fetchAntigravityAuthorized(models: defaults) {
             saveAntigravitySnapshot(authorized)
             return authorized
@@ -32,6 +39,49 @@ extension LiveUsageDataSource {
             : "antigravity auth failed"
         return unavailableService(name: "Antigravity", iconName: "antigravity", models: defaults, note: note)
     }
+    /// Antigravity's own CLI: `agy -p /usage` prints the same grouped buckets the IDE's quota page
+    /// shows. It authenticates with the token it holds in-process, so unlike every other source here
+    /// there is no CSRF token to scrape, no Cockpit directory to read and no credential for Mimir to
+    /// hold — the command answers and exits.
+    ///
+    /// It costs a process spawn and a second or two, so it sits behind the IDE's local gRPC source
+    /// (free when the IDE is open) and is throttled: these buckets move on 5-hour and weekly clocks,
+    /// so asking more than once every few minutes only burns battery. Between runs the chain falls
+    /// through to the snapshot this saved, which is exactly what the snapshot is for.
+    private func fetchAntigravityCLI() -> ServiceStatus? {
+        let now = Date()
+        // Throttle failures too: a machine with no `agy` installed would otherwise spawn a login
+        // shell on every refresh tick forever, to learn "still not installed".
+        guard now.timeIntervalSince(Self.antigravityCLILastRun) >= 5 * 60 else { return nil }
+        Self.antigravityCLILastRun = now
+
+        let out = runShell("command -v agy >/dev/null 2>&1 && agy -p /usage --output-format json --print-timeout 30s")
+        guard let data = out.data(using: .utf8),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              root["status"] as? String == "SUCCESS",
+              let command = root["command"] as? [String: Any],
+              command["name"] as? String == "usage",
+              let payload = command["data"] as? [String: Any],
+              let groups = payload["groups"] as? [[String: Any]] else {
+            return nil
+        }
+
+        let models = antigravityQuotaSummaryRows(groups: groups)
+        guard !models.isEmpty else { return nil }
+        return ServiceStatus(
+            name: "Antigravity",
+            iconName: "antigravity",
+            sessionResetAt: models.compactMap(\.resetAt).min(),
+            weeklyResetAt: nil,
+            models: models,
+            isAvailable: true,
+            statusNote: "antigravity cli"
+        )
+    }
+
+    /// Written and read only from the Antigravity fetch, which the store runs one at a time.
+    nonisolated(unsafe) private static var antigravityCLILastRun = Date.distantPast
+
     private func fetchAntigravityAuthorized(models defaults: [String]) async -> ServiceStatus? {
         guard let account = readAntigravityCockpitAccount(),
               let token = await antigravityAccessToken(from: account) else {
@@ -217,13 +267,19 @@ extension LiveUsageDataSource {
     func antigravityQuotaSummaryRows(groups: [[String: Any]]) -> [ModelStatus] {
         var rows: [ModelStatus] = []
         for group in groups {
-            let family = antigravityFamilyLabel(group["displayName"] as? String ?? "")
+            // The gRPC response is camelCase, the CLI's JSON snake_case, and the group's label is
+            // `displayName` in one and `name` in the other. Reading both spellings here keeps one
+            // row builder for both sources instead of a near-copy that drifts.
+            let label = (group["displayName"] as? String) ?? (group["name"] as? String) ?? ""
+            let family = antigravityFamilyLabel(label)
             let buckets = (group["buckets"] as? [[String: Any]] ?? [])
                 .sorted { !antigravityBucketIsWeekly($0) && antigravityBucketIsWeekly($1) }
             for bucket in buckets {
-                guard let fraction = doubleValue(bucket["remainingFraction"]) else { continue }
+                guard let fraction = doubleValue(bucket["remainingFraction"])
+                    ?? doubleValue(bucket["remaining_fraction"]) else { continue }
                 let percent = Int((min(1, max(0, fraction)) * 100).rounded())
-                let reset = (bucket["resetTime"] as? String).flatMap { parseISO8601($0) }
+                let reset = ((bucket["resetTime"] as? String) ?? (bucket["reset_time"] as? String))
+                    .flatMap { parseISO8601($0) }
                 let window: ModelWindow = antigravityBucketIsWeekly(bucket) ? .weekly : .session
                 rows.append(ModelStatus(name: family, remainingPercent: percent, resetAt: reset, window: window))
             }
@@ -241,7 +297,7 @@ extension LiveUsageDataSource {
     /// is kept as a last-resort fallback for any account that still reports it.
     private func antigravityBucketIsWeekly(_ bucket: [String: Any]) -> Bool {
         let id = ((bucket["bucketId"] as? String) ?? (bucket["id"] as? String)
-            ?? (bucket["displayName"] as? String) ?? "").lowercased()
+            ?? (bucket["displayName"] as? String) ?? (bucket["name"] as? String) ?? "").lowercased()
         if id.contains("weekly") || id.contains("7d") { return true }
         if id.contains("5h") || id.contains("session") || id.contains("hour") { return false }
         return (bucket["window"] as? String) == "weekly"
