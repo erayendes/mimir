@@ -8,17 +8,6 @@ import SwiftUI
 import UserNotifications
 import WidgetKit
 
-@main
-struct MimirApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-
-    var body: some Scene {
-        Settings {
-            EmptyView()
-        }
-    }
-}
-
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let store = UsageStore()
@@ -413,9 +402,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         if panel.isVisible {
             hidePanel()
-        } else {
-            openPanelUserInitiated()
+            return
         }
+        // The same click that reaches this action has usually already closed the panel: clicking the
+        // status item deactivates the app (the menu bar's own process takes over), and the
+        // resign-active observer — plus the outside-click monitors — hide the panel before the
+        // button's action fires. `panel.isVisible` is then false and the click reads as "open",
+        // so the panel shut and reopened in one click and never toggled. Anything that closed the
+        // panel a moment ago was this click, so treat it as the close it was.
+        guard Date().timeIntervalSince(lastPanelHide) > 0.3 else { return }
+        openPanelUserInitiated()
     }
 
     /// Show the panel with a user-initiated refresh. Opening the panel is a deliberate user action,
@@ -450,8 +446,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func hidePanel() {
         panel.orderOut(nil)
+        lastPanelHide = Date()
         stopPopoverDismissMonitors()
     }
+
+    /// When the panel last closed, so a status-item click that already dismissed it isn't read as a
+    /// request to open it again. See `togglePopover`.
+    private var lastPanelHide = Date.distantPast
 
     /// Grow/shrink to fit content, keeping the top edge fixed so the panel hangs down
     /// from the menu bar rather than drifting.
