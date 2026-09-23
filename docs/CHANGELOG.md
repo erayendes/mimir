@@ -9,6 +9,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [2.23] - 2026-09-23
+
+#### Added
+- **Antigravity quota without the IDE.** If you use only the `agy` CLI, Mimir had no way to see your quota: every source it tried looked for the IDE's separate language-server process or the Cockpit directory, and a CLI-only machine has neither. Mimir now asks the CLI itself, and the Antigravity card appears with the same grouped Gemini and Claude/GPT rows the IDE shows.
+
+#### Changed
+- **The menu bar glyph sits tighter.** The icon was drawn inside a square of empty space, leaving it small and adrift between its neighbours. It's now cropped to the glyph itself, so Mimir takes about as much room as the icons beside it — requested by [@ilkerutlu](https://github.com/ilkerutlu).
+
+#### Fixed
+- Clicking the menu bar icon while the panel was open reopened it instead of closing it. One click opens, the next closes.
+- ⌘, opened a blank settings window. Mimir's settings live in the menu bar icon's right-click menu; the empty window is gone.
+- Claude Code's `CLAUDE_CONFIG_DIR` is honoured. If you point Claude Code at a directory other than `~/.claude`, Mimir looks there too — the prompt-free status line hook was being written where Claude Code would never read it, so it silently did nothing.
+
 ### [2.22] - 2026-09-21
 
 #### Fixed
@@ -499,6 +512,19 @@ Bu projedeki tüm önemli değişiklikler bu dosyada belgelenecektir.
 
 Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
+
+### [2.23] - 2026-09-23
+
+#### Eklendi
+- **IDE olmadan Antigravity kotası.** Yalnız `agy` komut satırını kullanıyorsanız Mimir kotanızı hiç göremiyordu: denediği her kaynak ya IDE'nin ayrı dil sunucusu sürecini ya da Cockpit dizinini arıyordu, komut satırı kullanıcısında ikisi de yok. Mimir artık doğrudan komut satırına soruyor; Antigravity kartı, IDE'dekiyle aynı Gemini ve Claude/GPT satırlarıyla geliyor.
+
+#### Değiştirildi
+- **Menü çubuğundaki simge daha derli toplu.** Simge boş bir karenin içine çiziliyordu; hem küçük kalıyor hem komşularının arasında savruk duruyordu. Artık simgenin kendi sınırlarına kırpılıyor, Mimir yanındaki simgeler kadar yer kaplıyor — [@ilkerutlu](https://github.com/ilkerutlu)'nun isteği üzerine.
+
+#### Düzeltildi
+- Panel açıkken menü çubuğu simgesine tıklamak paneli kapatmak yerine yeniden açıyordu. Artık bir tık açıyor, sonraki kapatıyor.
+- ⌘, boş bir ayarlar penceresi açıyordu. Mimir'in ayarları menü çubuğu simgesine sağ tıkta; boş pencere kaldırıldı.
+- Claude Code'un `CLAUDE_CONFIG_DIR` değişkeni artık dikkate alınıyor. Claude Code'u `~/.claude` dışında bir dizine yönlendirdiyseniz Mimir de oraya bakıyor — istemsiz durum satırı kancası Claude Code'un hiç okumayacağı bir yere yazılıyor, yani sessizce hiçbir şey yapmıyordu.
 
 ### [2.22] - 2026-09-21
 
