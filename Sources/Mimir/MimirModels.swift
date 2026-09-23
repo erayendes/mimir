@@ -31,6 +31,9 @@ struct ServiceStatus: Identifiable {
     /// message / popover banner) instead of stale numbers. The model labels are kept so
     /// those surfaces still know which rows to render.
     let dataUnavailable: Bool
+    /// Short plan name shown beside the card title ("Max 5x", "Pro"). nil = unknown, and the header
+    /// simply omits it — never a placeholder, since a wrong plan reads worse than no plan.
+    let planLabel: String?
 
     init(
         name: String,
@@ -46,7 +49,8 @@ struct ServiceStatus: Identifiable {
         isStale: Bool = false,
         infoText: String? = nil,
         cooldownHint: TimeInterval? = nil,
-        dataUnavailable: Bool = false
+        dataUnavailable: Bool = false,
+        planLabel: String? = nil
     ) {
         self.name = name
         self.iconName = iconName
@@ -62,6 +66,7 @@ struct ServiceStatus: Identifiable {
         self.infoText = infoText
         self.cooldownHint = cooldownHint
         self.dataUnavailable = dataUnavailable
+        self.planLabel = planLabel
     }
 
     /// Return a copy with `infoText` attached. Lets the data layer set the explainer once
@@ -102,7 +107,8 @@ struct ServiceStatus: Identifiable {
             isStale: isStale,
             infoText: infoText ?? self.infoText,
             cooldownHint: cooldownHint ?? self.cooldownHint,
-            dataUnavailable: dataUnavailable
+            dataUnavailable: dataUnavailable,
+            planLabel: planLabel
         )
     }
 }

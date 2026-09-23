@@ -98,6 +98,7 @@ extension LiveUsageDataSource {
                 return claudeFailure(note: "claude response parse fail")
             }
             writeClaudeUsageCache(data)
+            await refreshClaudePlanLabelIfStale(accessToken: token.accessToken)
             let status = buildClaudeStatus(from: root, note: "oauth usage api")
             saveSnapshot(status)
             return status.withCooldownHint(0)   // live success → clear any cooldown
@@ -192,7 +193,8 @@ extension LiveUsageDataSource {
                 name: "Claude", iconName: "claude",
                 sessionResetAt: fiveHour.resetAt, weeklyResetAt: sevenDay.resetAt,
                 sessionRemainingPercent: sessionPct, weeklyRemainingPercent: weeklyPct,
-                models: models, isAvailable: true, statusNote: note)
+                models: models, isAvailable: true, statusNote: note,
+                planLabel: Self.cachedClaudePlanLabel)
         }
 
         // Stale fallback: a window whose reset has already passed is blanked (it refilled) rather than
@@ -370,8 +372,7 @@ extension LiveUsageDataSource {
     /// `resets_at` here is epoch SECONDS (a number), unlike the OAuth API's ISO string.
     func readClaudeHookUsage(maxAge: TimeInterval)
         -> (five: (used: Double, reset: Date?)?, seven: (used: Double, reset: Date?)?)? {
-        let url = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".claude/mimir-usage.json")
+        let url = URL(fileURLWithPath: MimirStatusLineHook.usagePath)
         guard let vals = try? url.resourceValues(forKeys: [.contentModificationDateKey]),
               let mtime = vals.contentModificationDate,
               Date().timeIntervalSince(mtime) <= maxAge,
@@ -435,9 +436,83 @@ extension LiveUsageDataSource {
         return buildClaudeStatus(from: root, note: "statusline hook", live: true)
     }
 
+    /// The account's plan, from `/api/oauth/profile` — the sibling of the usage endpoint we already
+    /// call, on the same host with the same token. Claude Code writes the plan into its credential
+    /// file only at login and never updates it, so that copy goes stale the moment a user changes
+    /// plan; this endpoint is live. A bonus reading: any failure leaves the last known label in
+    /// place and never touches the usage fetch.
+    ///
+    /// Persisted in UserDefaults rather than held in memory so `buildClaudeStatus` — which is
+    /// synchronous and also runs for cached/hook/snapshot cards — can label them all without a
+    /// fetch, and so the label survives a relaunch.
+    static var cachedClaudePlanLabel: String? {
+        UserDefaults.standard.string(forKey: claudePlanLabelKey)
+    }
+    private static let claudePlanLabelKey = "claudePlanLabel"
+    private static let claudePlanFetchedAtKey = "claudePlanFetchedAt"
+
+    /// Refresh the plan at most once a day. A plan changes on the order of months, and the label is
+    /// cosmetic — polling it on every usage tick would spend a request per refresh to learn nothing.
+    func refreshClaudePlanLabelIfStale(accessToken: String) async {
+        let last = UserDefaults.standard.double(forKey: Self.claudePlanFetchedAtKey)
+        let age = Date().timeIntervalSince1970 - last
+        guard last == 0 || age >= 24 * 3600 else { return }
+
+        var req = URLRequest(url: URL(string: "https://api.anthropic.com/api/oauth/profile")!, timeoutInterval: 10)
+        req.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        req.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
+        guard let (data, response) = try? await URLSession.shared.data(for: req),
+              (response as? HTTPURLResponse).map({ 200 ... 299 ~= $0.statusCode }) == true,
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+
+        // Only a successful parse re-arms the 24h clock: a transient failure should be retried on the
+        // next tick, not sat out for a day.
+        guard let label = Self.claudePlanLabel(fromProfile: root) else { return }
+        cacheClaudePlanLabel(label)
+    }
+
+    /// Store a derived plan label (and re-arm the 24h clock). A nil label — a plan family we don't
+    /// recognise — is ignored rather than clearing a good one we already had.
+    func cacheClaudePlanLabel(_ label: String?) {
+        guard let label else { return }
+        UserDefaults.standard.set(label, forKey: Self.claudePlanLabelKey)
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: Self.claudePlanFetchedAtKey)
+    }
+
+    /// "Max 5x" / "Pro" / "Team" from the profile's `organization`. The plan family comes from
+    /// `organization_type` (`claude_max`, `claude_pro`, …) and the multiplier — the part users
+    /// actually distinguish — from the trailing `…_5x` / `…_20x` of `rate_limit_tier`. Derived
+    /// generically so a tier Anthropic ships tomorrow labels itself instead of needing a new case;
+    /// an unrecognised family returns nil and the card simply shows no plan.
+    static func claudePlanLabel(fromProfile root: [String: Any]) -> String? {
+        guard let org = root["organization"] as? [String: Any] else { return nil }
+        return claudePlanLabel(fromOrganization: org)
+    }
+
+    /// Same derivation from a bare organization object, so the desktop path can label its card from
+    /// the `claude.ai/api/organizations` response it already fetches — no second request, and no
+    /// badge at all when that response happens not to carry the fields.
+    static func claudePlanLabel(fromOrganization org: [String: Any]) -> String? {
+        let type = (org["organization_type"] as? String)?.lowercased() ?? ""
+        let family: String
+        switch true {
+        case type.contains("max"): family = "Max"
+        case type.contains("pro"): family = "Pro"
+        case type.contains("team"): family = "Team"
+        case type.contains("enterprise"): family = "Enterprise"
+        case type.contains("free"): family = "Free"
+        default: return nil
+        }
+
+        let tier = (org["rate_limit_tier"] as? String)?.lowercased() ?? ""
+        guard let last = tier.split(separator: "_").last,
+              last.hasSuffix("x"), Int(last.dropLast()) != nil else { return family }
+        return "\(family) \(last)"
+    }
+
     /// The OAuth token from the on-disk credential file only (no keychain, so no prompt).
     private func readClaudeCredentialFileToken() -> ClaudeToken? {
-        let credPath = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude/.credentials.json")
+        let credPath = URL(fileURLWithPath: MimirStatusLineHook.claudePath(".credentials.json"))
         guard let data = try? Data(contentsOf: credPath),
               let raw = String(data: data, encoding: .utf8) else { return nil }
         return parseClaudeToken(raw)

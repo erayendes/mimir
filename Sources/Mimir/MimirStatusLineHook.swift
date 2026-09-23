@@ -12,8 +12,37 @@ import Foundation
 /// disable/upgrade can reconstruct or restore it, and `settings.json` is backed up before the first
 /// write and never clobbered when it doesn't parse.
 enum MimirStatusLineHook {
+    /// Claude Code's config directory. `CLAUDE_CONFIG_DIR` is Anthropic's own override and points
+    /// every Claude path — credentials, settings, our hook's output — somewhere other than
+    /// `~/.claude`. Launched from Finder the app inherits no shell environment, so a variable the
+    /// user exported in their profile is invisible here; `launchctl getenv` is the one place a
+    /// GUI-launched process can still see it. Resolved once: the variable doesn't change under a
+    /// running app, and `launchctl` is a subprocess we'd rather not spawn on every path lookup.
+    static let claudeDir: String = {
+        if let env = ProcessInfo.processInfo.environment["CLAUDE_CONFIG_DIR"], !env.isEmpty { return env }
+        if let launchd = launchctlEnv("CLAUDE_CONFIG_DIR"), !launchd.isEmpty { return launchd }
+        return (NSHomeDirectory() as NSString).appendingPathComponent(".claude")
+    }()
+
     static func claudePath(_ component: String) -> String {
-        (NSHomeDirectory() as NSString).appendingPathComponent(".claude/\(component)")
+        (claudeDir as NSString).appendingPathComponent(component)
+    }
+
+    /// One `launchctl getenv KEY`. Any failure — missing binary, non-zero exit, empty value — reads
+    /// as "not set" and the caller falls back, so this can never be the reason a path stops resolving.
+    private static func launchctlEnv(_ key: String) -> String? {
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+        task.arguments = ["getenv", key]
+        let pipe = Pipe()
+        task.standardOutput = pipe
+        task.standardError = FileHandle.nullDevice
+        guard (try? task.run()) != nil else { return nil }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        task.waitUntilExit()
+        guard task.terminationStatus == 0 else { return nil }
+        let value = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (value?.isEmpty == false) ? value : nil
     }
     static var scriptPath: String { claudePath("mimir-statusline.sh") }
     static var usagePath: String { claudePath("mimir-usage.json") }

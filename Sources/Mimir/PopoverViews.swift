@@ -278,6 +278,20 @@ struct ServiceCard: View {
                     .tracking(0.9)
                     .foregroundStyle(Color.primary.opacity(0.5))
                     .lineLimit(1)
+                // The plan rides the eyebrow, quieter than the provider name: it's context for the
+                // numbers below, not a second title.
+                if let plan = service.planLabel {
+                    Text(plan)
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(Color.primary.opacity(0.42))
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(
+                            RoundedRectangle(cornerRadius: 3, style: .continuous)
+                                .fill(Color.primary.opacity(0.07))
+                        )
+                        .lineLimit(1)
+                }
             }
             .padding(.bottom, 9)
 

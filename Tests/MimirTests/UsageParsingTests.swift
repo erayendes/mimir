@@ -671,3 +671,28 @@ final class ClaudeCacheFreshnessTests: XCTestCase {
             launchedAt: launch, writtenThisSession: true))
     }
 }
+
+// MARK: - Claude plan label (/api/oauth/profile)
+
+final class ClaudePlanLabelTests: XCTestCase {
+    private func label(type: String, tier: String?) -> String? {
+        var org: [String: Any] = ["organization_type": type]
+        if let tier { org["rate_limit_tier"] = tier }
+        return LiveUsageDataSource.claudePlanLabel(fromProfile: ["organization": org])
+    }
+
+    func testMultiplierComesFromTheRateLimitTier() {
+        XCTAssertEqual(label(type: "claude_max", tier: "default_claude_max_5x"), "Max 5x")
+        XCTAssertEqual(label(type: "claude_max", tier: "default_claude_max_20x"), "Max 20x")
+    }
+
+    func testFamilyAloneWhenTheTierCarriesNoMultiplier() {
+        XCTAssertEqual(label(type: "claude_pro", tier: "default_claude_pro"), "Pro")
+        XCTAssertEqual(label(type: "claude_team", tier: nil), "Team")
+    }
+
+    func testUnknownFamilyIsNoLabelRatherThanAGuess() {
+        XCTAssertNil(label(type: "something_new", tier: "default_something_new_5x"))
+        XCTAssertNil(LiveUsageDataSource.claudePlanLabel(fromProfile: [:]))
+    }
+}
