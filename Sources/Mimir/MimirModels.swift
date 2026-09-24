@@ -178,9 +178,14 @@ struct ModelStatus: Identifiable {
     let caption: String?
     /// SF Symbol drawn left of a `valueText` row's label. nil → no icon.
     let symbol: String?
+    /// Heading this row belongs under ("Renewal credit", "Cloud session credits"). Rows sharing one
+    /// are drawn as a group: the heading once, carrying the icon, then a line each. nil → the row
+    /// stands on its own. Lets a provider name its own group instead of the view hardcoding one.
+    let groupLabel: String?
 
     init(name: String, remainingPercent: Int, resetAt: Date?, valueText: String? = nil, isLow: Bool = false,
-         window: ModelWindow? = nil, caption: String? = nil, symbol: String? = nil) {
+         window: ModelWindow? = nil, caption: String? = nil, symbol: String? = nil,
+         groupLabel: String? = nil) {
         self.name = name
         self.remainingPercent = remainingPercent
         self.resetAt = resetAt
@@ -189,6 +194,7 @@ struct ModelStatus: Identifiable {
         self.window = window
         self.caption = caption
         self.symbol = symbol
+        self.groupLabel = groupLabel
     }
 }
 

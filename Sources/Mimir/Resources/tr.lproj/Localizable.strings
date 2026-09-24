@@ -96,3 +96,5 @@
 "Renewal credit" = "Yenileme hakkı";
 "⏳ Reset credit expires in %@" = "⏳ Yenileme hakkı %@ sonra doluyor";
 "You have %@ waiting. Spend one now and it clears a used-up window — unused, it just lapses." = "Bekleyen %@ hakkın var. Şimdi kullanırsan tükenmiş pencereyi sıfırlar; kullanmazsan yanar.";
+"Cloud session credits" = "Bulut oturum kredisi";
+"expires %@" = "bitiş %@";

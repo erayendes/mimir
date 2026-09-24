@@ -176,6 +176,7 @@ extension LiveUsageDataSource {
         // new model tier shows up with no code change, instead of needing another hardcoded key
         // every time Anthropic ships one.
         var models: [ModelStatus] = claudeScopedModelRows(root["limits"], weeklyResetAt: sevenDay.resetAt)
+        models.append(contentsOf: claudeDollarCreditRows(root))
         if let billing = claudeBillingRow(root) {
             models.append(billing)
         }
@@ -219,6 +220,38 @@ extension LiveUsageDataSource {
             let percent = doubleValue(entry["percent"]) ?? 0
             let resetAt = (entry["resets_at"] as? String).flatMap(parseISO8601) ?? weeklyResetAt
             return ModelStatus(name: displayName, remainingPercent: remainingPercent(fromUsed: percent), resetAt: resetAt)
+        }
+    }
+
+    /// Dollar-denominated credit windows — Claude Code's usage panel calls the one that exists today
+    /// "Cloud session credits" ($250, expiring on its own date, spent before the plan's own quota).
+    ///
+    /// The usage response carries these under rotating internal code names (`iguana_necktie` at the
+    /// time of writing, alongside a dozen other codenamed keys that are null for most accounts), so
+    /// matching by name would break the first time Anthropic renames one — and a new credit type
+    /// would need a code change to appear at all. What identifies them is their shape: a top-level
+    /// object carrying a `limit_dollars`. Reading the shape means any such credit shows up on its
+    /// own, and a renamed one keeps working.
+    func claudeDollarCreditRows(_ root: [String: Any]) -> [ModelStatus] {
+        // Sorted by key so two credits never swap places between refreshes for no reason.
+        root.keys.sorted().compactMap { key -> ModelStatus? in
+            guard let obj = root[key] as? [String: Any],
+                  let limit = doubleValue(obj["limit_dollars"]), limit > 0 else { return nil }
+            // Prefer the API's own remaining figure; fall back to limit − used so a response that
+            // ships only one of the two still reads correctly.
+            let remaining = doubleValue(obj["remaining_dollars"])
+                ?? limit - (doubleValue(obj["used_dollars"]) ?? 0)
+            let text = "\(formattedMoney(remaining, currency: "USD")) / \(formattedMoney(limit, currency: "USD"))"
+            // Drawn as its own group: the heading carries the icon and the name, the line below it
+            // carries the expiry date on the left and what's left of the credit on the right. The
+            // date is the row's `name` for exactly that reason. `resetAt` stays nil — it would turn
+            // the right-hand side into a countdown, and the amount is the point here.
+            let expiry = (obj["resets_at"] as? String).flatMap(parseISO8601)
+            return ModelStatus(name: expiry.map(Self.creditDateFormatter.string(from:)) ?? "",
+                               remainingPercent: 0, resetAt: nil,
+                               valueText: text, isLow: remaining <= 0,
+                               symbol: "cloud",
+                               groupLabel: String(localized: "Cloud session credits"))
         }
     }
 

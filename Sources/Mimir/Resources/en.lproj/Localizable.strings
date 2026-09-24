@@ -96,3 +96,5 @@
 "Renewal credit" = "Renewal credit";
 "⏳ Reset credit expires in %@" = "⏳ Reset credit expires in %@";
 "You have %@ waiting. Spend one now and it clears a used-up window — unused, it just lapses." = "You have %@ waiting. Spend one now and it clears a used-up window — unused, it just lapses.";
+"Cloud session credits" = "Cloud session credits";
+"expires %@" = "expires %@";

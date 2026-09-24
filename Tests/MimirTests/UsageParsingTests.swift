@@ -671,3 +671,54 @@ final class ClaudeCacheFreshnessTests: XCTestCase {
             launchedAt: launch, writtenThisSession: true))
     }
 }
+
+// MARK: - Claude dollar credit rows ("Cloud session credits")
+
+/// The usage response carries dollar-denominated credits under rotating internal code names, so the
+/// row is built from the shape (`limit_dollars`) rather than the key. Verbatim field values captured
+/// from a live /api/oauth/usage response, 2026-09-24.
+final class ClaudeDollarCreditTests: XCTestCase {
+    private let ds = LiveUsageDataSource()
+
+    private var live: [String: Any] {
+        [
+            "five_hour": ["utilization": 11, "limit_dollars": NSNull(), "resets_at": "2026-09-24T17:09:59Z"],
+            "nimbus_quill": ["utilization": 0, "limit_dollars": NSNull()],
+            "iguana_necktie": ["utilization": 0, "limit_dollars": 250, "used_dollars": 0,
+                               "remaining_dollars": 250, "resets_at": "2026-11-05T07:59:00+00:00"],
+        ]
+    }
+
+    func testReadsTheCreditWhateverItsKeyIsCalled() {
+        let rows = ds.claudeDollarCreditRows(live)
+        XCTAssertEqual(rows.count, 1, "only the object carrying limit_dollars is a credit")
+        XCTAssertEqual(rows.first?.valueText, "$250 / $250")
+        XCTAssertEqual(rows.first?.symbol, "cloud")
+    }
+
+    func testTheRowIsTheExpiryDateUnderItsOwnHeading() {
+        // The heading names the credit; the line under it is the date, with the amount on the right.
+        // `resetAt` must stay nil — it would replace the amount with a countdown.
+        let row = ds.claudeDollarCreditRows(live).first
+        XCTAssertEqual(row?.name, "05.11.2026")
+        XCTAssertNil(row?.resetAt)
+        XCTAssertEqual(row?.groupLabel, String(localized: "Cloud session credits"))
+    }
+
+    func testRemainingFallsBackToLimitMinusUsed() {
+        let root: [String: Any] = ["some_key": ["limit_dollars": 250, "used_dollars": 60]]
+        let row = ds.claudeDollarCreditRows(root).first
+        XCTAssertEqual(row?.valueText, "$190 / $250")
+        XCTAssertFalse(row?.isLow ?? true)
+    }
+
+    func testSpentCreditReadsAsLow() {
+        let root: [String: Any] = ["k": ["limit_dollars": 250, "remaining_dollars": 0]]
+        XCTAssertEqual(ds.claudeDollarCreditRows(root).first?.isLow, true)
+    }
+
+    func testNoCreditsMeansNoRows() {
+        XCTAssertTrue(ds.claudeDollarCreditRows(["five_hour": ["utilization": 11]]).isEmpty)
+        XCTAssertTrue(ds.claudeDollarCreditRows(["k": ["limit_dollars": 0]]).isEmpty)
+    }
+}

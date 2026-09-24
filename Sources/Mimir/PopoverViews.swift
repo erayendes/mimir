@@ -345,17 +345,17 @@ struct ServiceCard: View {
                     ForEach(valueRows) { row in
                         valueRow(row)
                     }
-                    if !creditRows.isEmpty {
-                        // One heading for the whole group, then a line per credit — repeating the icon
-                        // and the label on every line read as noise.
+                    // One heading per group, then a line per credit — repeating the icon and the
+                    // label on every line read as noise.
+                    ForEach(creditGroups, id: \.label) { group in
                         HStack(spacing: 8) {
-                            Image(systemName: "plus.circle").font(.system(size: 11, weight: .regular))
+                            Image(systemName: group.symbol).font(.system(size: 11, weight: .regular))
                                 .frame(width: Self.iconColumn)
-                            Text(String(localized: "Renewal credit"))
+                            Text(group.label)
                         }
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(Color.primary.opacity(0.58))
-                        ForEach(creditRows) { row in
+                        ForEach(group.rows) { row in
                             creditRow(row)
                         }
                     }
@@ -427,10 +427,10 @@ struct ServiceCard: View {
     /// no level for a status colour to describe.
     private func creditRow(_ row: ModelStatus) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Circle()
-                .fill(quotaStatusColor(100))
-                .frame(width: 7, height: 7)
-                .frame(width: Self.iconColumn)
+            // No status dot: a credit is either there or it isn't, so there was no level for a
+            // colour to describe — it only added a column of green that meant nothing. The empty
+            // column stays, so the line still hangs under its heading.
+            Color.clear.frame(width: Self.iconColumn, height: 1)
             Text(row.name)
                 .font(.system(size: 11, weight: .medium).monospacedDigit())
                 .foregroundStyle(Color.primary.opacity(0.58))
@@ -487,12 +487,25 @@ struct ServiceCard: View {
     /// Credit / reset-credit rows, in provider order. Empty → the whole section is skipped.
     /// Value rows that stand on their own (the credit balance): a labelled row with its own icon.
     private var valueRows: [ModelStatus] {
-        service.models.filter { $0.valueText != nil && $0.resetAt == nil }
+        service.models.filter { $0.valueText != nil && $0.resetAt == nil && $0.groupLabel == nil }
     }
 
-    /// Renewal credits: a `valueText` row that also carries an expiry. Grouped under one heading.
+    /// Rows that name a heading to sit under (renewal credits, cloud session credits).
     private var creditRows: [ModelStatus] {
-        service.models.filter { $0.valueText != nil && $0.resetAt != nil }
+        service.models.filter { $0.groupLabel != nil }
+    }
+
+    /// Those rows bucketed by heading, in first-seen order so the card doesn't reshuffle between
+    /// refreshes. The symbol comes from the first row of each group; they share one.
+    private var creditGroups: [(label: String, symbol: String, rows: [ModelStatus])] {
+        var order: [String] = []
+        var byLabel: [String: [ModelStatus]] = [:]
+        for row in creditRows {
+            guard let label = row.groupLabel else { continue }
+            if byLabel[label] == nil { order.append(label) }
+            byLabel[label, default: []].append(row)
+        }
+        return order.map { ($0, byLabel[$0]?.first?.symbol ?? "plus.circle", byLabel[$0] ?? []) }
     }
 
     /// Antigravity grouped by family, preserving first-seen order, each family carrying
