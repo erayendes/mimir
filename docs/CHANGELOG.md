@@ -9,6 +9,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [2.24] - 2026-09-28
+
+#### Added
+- **Join the beta, from the menu.** Right-click the menu bar icon and there's a switch for it. Turn it on and Mimir starts offering the beta releases of the next version; leave it off and nothing changes — a beta is never offered to anyone who didn't ask. Joining doesn't strand you either: when the next version ships for real, everyone lands on it together.
+- **Codex says when its login has run out.** The card now names the fix — `codex login` — instead of quietly showing numbers that stopped moving.
+- **Claude's cloud credit is on the card.** The credit that pays for cloud sessions, with what's left of it and the date it lapses — until now it was only visible inside Claude Code's own usage panel.
+
+#### Changed
+- The green dots beside the renewal credits are gone. A credit is either there or it isn't; there was no level for a colour to describe, so they were a column of green that meant nothing.
+
+#### Fixed
+- Mimir no longer refreshes Codex's login token or writes to the CLI's own `auth.json`. OpenAI hands out a refresh token that works exactly once, and Codex refreshes often; Mimir doing it in the background could take the token the CLI still held and sign you out of your own terminal. It reads that file now, and nothing more — the same rule the Claude side has always followed.
+- A crash on launch that could be reached by pointing `CLAUDE_CONFIG_DIR` somewhere other than `~/.claude`.
+
 ### [2.23] - 2026-09-23
 
 #### Added
@@ -512,6 +526,20 @@ Bu projedeki tüm önemli değişiklikler bu dosyada belgelenecektir.
 
 Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
+
+### [2.24] - 2026-09-28
+
+#### Eklendi
+- **Menüden beta'ya katıl.** Menü çubuğu simgesine sağ tıkla, orada bir anahtar var. Açarsan Mimir bir sonraki sürümün beta'larını sunmaya başlar; kapalı bırakırsan hiçbir şey değişmez — beta, istemeyen hiç kimseye önerilmez. Katılmak seni yalnız da bırakmaz: sonraki sürüm gerçekten çıktığında herkes aynı yerde buluşur.
+- **Codex oturumu bittiğinde söylüyor.** Kart artık çözümü de yazıyor — `codex login` — donmuş sayıları sessizce göstermek yerine.
+- **Claude'un bulut kredisi kartta.** Bulut oturumlarını karşılayan kredi, kalanı ve biteceği tarihle birlikte — şimdiye kadar yalnızca Claude Code'un kendi kullanım panelinde görünüyordu.
+
+#### Değiştirildi
+- Yenileme haklarının yanındaki yeşil noktalar kaldırıldı. Bir hak ya vardır ya yoktur; rengin anlatacağı bir seviye yoktu, sadece anlamsız bir yeşil sütundu.
+
+#### Düzeltildi
+- Mimir artık Codex'in oturum jetonunu yenilemiyor ve CLI'ın kendi `auth.json` dosyasına yazmıyor. OpenAI'ın verdiği yenileme jetonu tam bir kez çalışıyor ve Codex sık sık yeniliyor; Mimir'in arka planda aynı şeyi yapması, CLI'ın elindeki jetonu tüketip seni kendi terminalinden çıkarabiliyordu. Artık o dosyayı yalnızca okuyor — Claude tarafının baştan beri uyduğu kuralın aynısı.
+- `CLAUDE_CONFIG_DIR` değişkenini `~/.claude` dışına yönlendirenlerde açılışta çökmeye yol açabilen bir hata.
 
 ### [2.23] - 2026-09-23
 
