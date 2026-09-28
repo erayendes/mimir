@@ -98,3 +98,4 @@
 "You have %@ waiting. Spend one now and it clears a used-up window — unused, it just lapses." = "You have %@ waiting. Spend one now and it clears a used-up window — unused, it just lapses.";
 "Cloud session credits" = "Cloud session credits";
 "expires %@" = "expires %@";
+"token expired — run codex login" = "token expired — run codex login";

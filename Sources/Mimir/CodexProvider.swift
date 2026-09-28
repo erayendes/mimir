@@ -13,8 +13,20 @@ extension LiveUsageDataSource {
             return local
         }
 
+        // Mimir never refreshes Codex's token (see `codexAccessToken(from:)`), so an expired one
+        // stays expired until the user runs the CLI. Say that, rather than leaving them with a
+        // silently ageing snapshot and no idea what to do about it.
+        let note = codexTokenExpired ? String(localized: "token expired — run codex login") : nil
         // Both live sources failed — show the last-known snapshot instead of vanishing.
-        return loadSnapshot(for: "Codex", iconName: "codex") ?? local
+        let snapshot = loadSnapshot(for: "Codex", iconName: "codex",
+                                    staleNote: note ?? String(localized: "out of date"))
+        return snapshot ?? local
+    }
+
+    /// Set by the token read: the CLI is logged in, but the token it holds has run out.
+    private var codexTokenExpired: Bool {
+        guard let state = readCodexAuthState(), let token = codexAccessToken(in: state.auth) else { return false }
+        return jwtExpiry(token).map { $0.timeIntervalSinceNow <= 30 } ?? false
     }
 
     private func fetchCodexLocalSessions() -> ServiceStatus {
@@ -89,19 +101,11 @@ extension LiveUsageDataSource {
 
     private func fetchCodexUsageAPI() async -> ServiceStatus? {
         guard let authState = readCodexAuthState(),
-              let accessToken = await codexAccessToken(from: authState) else {
+              let accessToken = codexAccessToken(from: authState) else {
             return nil
         }
 
-        if let status = await fetchCodexUsageAPI(accessToken: accessToken, accountID: codexAccountID(from: authState.auth)) {
-            return status
-        }
-
-        guard let refreshed = await refreshCodexAccessToken(authState: authState) else {
-            return nil
-        }
-
-        return await fetchCodexUsageAPI(accessToken: refreshed, accountID: codexAccountID(from: authState.auth))
+        return await fetchCodexUsageAPI(accessToken: accessToken, accountID: codexAccountID(from: authState.auth))
     }
 
     private func fetchCodexUsageAPI(accessToken: String, accountID: String?) async -> ServiceStatus? {
@@ -307,7 +311,7 @@ extension LiveUsageDataSource {
         for path in paths {
             guard let data = try? Data(contentsOf: path),
                   let auth = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  codexAccessToken(in: auth) != nil || codexRefreshToken(in: auth) != nil else {
+                  codexAccessToken(in: auth) != nil else {
                 continue
             }
             return CodexAuthState(path: path, auth: auth)
@@ -315,14 +319,20 @@ extension LiveUsageDataSource {
         return nil
     }
 
-    private func codexAccessToken(from state: CodexAuthState) async -> String? {
-        guard let accessToken = codexAccessToken(in: state.auth) else {
-            return await refreshCodexAccessToken(authState: state)
-        }
-
-        if let expiresAt = jwtExpiry(accessToken), expiresAt.timeIntervalSinceNow <= 300 {
-            return await refreshCodexAccessToken(authState: state) ?? accessToken
-        }
+    /// Read whatever token the Codex CLI currently holds; never refresh it, never write it back.
+    ///
+    /// OpenAI rotates Codex's refresh token single-use (openai/codex#46028: reusing one outside a
+    /// ~30s tolerance window returns `invalid_grant`; OpenHands/enterprise#426 quotes Codex's own
+    /// `auth/manager.rs`). Mimir refreshing in the background therefore consumes the token the CLI
+    /// still holds and can log the user out of their own terminal — and the CLI refreshes often,
+    /// up to six times in a single failed turn (openai/codex#48303). This is the same posture the
+    /// Claude side already takes, and for the same reason.
+    ///
+    /// A token within 30s of expiry is treated as gone rather than used: it would likely die
+    /// mid-request, and there is nothing to fall back to but the same dead token.
+    private func codexAccessToken(from state: CodexAuthState) -> String? {
+        guard let accessToken = codexAccessToken(in: state.auth) else { return nil }
+        if let expiresAt = jwtExpiry(accessToken), expiresAt.timeIntervalSinceNow <= 30 { return nil }
         return accessToken
     }
 
@@ -336,15 +346,6 @@ extension LiveUsageDataSource {
         return nil
     }
 
-    private func codexRefreshToken(in auth: [String: Any]) -> String? {
-        if let token = auth["refresh_token"] as? String, !token.isEmpty { return token }
-        if let tokens = auth["tokens"] as? [String: Any],
-           let token = tokens["refresh_token"] as? String,
-           !token.isEmpty {
-            return token
-        }
-        return nil
-    }
 
     private func codexAccountID(from auth: [String: Any]) -> String? {
         if let accountID = auth["account_id"] as? String, !accountID.isEmpty { return accountID }
@@ -372,67 +373,8 @@ extension LiveUsageDataSource {
         return accountID
     }
 
-    private func refreshCodexAccessToken(authState: CodexAuthState) async -> String? {
-        guard let refreshToken = codexRefreshToken(in: authState.auth) else {
-            return codexAccessToken(in: authState.auth)
-        }
-
-        var req = URLRequest(url: URL(string: "https://auth.openai.com/oauth/token")!, timeoutInterval: 10)
-        req.httpMethod = "POST"
-        req.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        let body = [
-            "grant_type": "refresh_token",
-            "client_id": "app_EMoamEEZ73f0CkXaXp7hrann",
-            "refresh_token": refreshToken
-        ]
-            .map { "\($0.key)=\(urlEncode($0.value))" }
-            .joined(separator: "&")
-        req.httpBody = body.data(using: .utf8)
-
-        do {
-            let (data, response) = try await URLSession.shared.data(for: req)
-            guard (response as? HTTPURLResponse).map({ 200 ... 299 ~= $0.statusCode }) == true,
-                  let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let accessToken = root["access_token"] as? String,
-                  !accessToken.isEmpty else {
-                return codexAccessToken(in: authState.auth)
-            }
-            writeCodexAuth(existing: authState, refreshed: root)
-            return accessToken
-        } catch {
-            return codexAccessToken(in: authState.auth)
-        }
-    }
-
-    private func writeCodexAuth(existing state: CodexAuthState, refreshed: [String: Any]) {
-        var auth = state.auth
-        var tokens = auth["tokens"] as? [String: Any] ?? [:]
-        if let token = refreshed["access_token"] as? String {
-            tokens["access_token"] = token
-            auth["access_token"] = token
-        }
-        if let token = refreshed["refresh_token"] as? String {
-            tokens["refresh_token"] = token
-            auth["refresh_token"] = token
-        }
-        if let token = refreshed["id_token"] as? String {
-            tokens["id_token"] = token
-            auth["id_token"] = token
-        }
-        if !tokens.isEmpty {
-            auth["tokens"] = tokens
-        }
-        auth["last_refresh"] = ISO8601DateFormatter().string(from: Date())
-
-        guard JSONSerialization.isValidJSONObject(auth),
-              let data = try? JSONSerialization.data(withJSONObject: auth, options: [.prettyPrinted, .sortedKeys]) else {
-            return
-        }
-        // Token file → secure atomic write so the refreshed token never sits in a 0644 file between
-        // write and chmod (TOCTOU). Replaces write(.atomic) + setAttributes.
-        try? Self.secureAtomicWrite(data: data, to: state.path, permissions: 0o600)
-    }
 }
+
 
 private struct CodexSessionRecord: Decodable {
     let type: String?
