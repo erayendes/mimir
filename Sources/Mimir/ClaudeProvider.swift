@@ -572,8 +572,7 @@ extension LiveUsageDataSource {
     }
 
     private func claudeAccountFileURL() -> URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/Mimir/claude_account")
+        LiveUsageDataSource.supportDirectory.appendingPathComponent("claude_account")
     }
 
     /// The cached usage JSON regardless of age — used as a deep fallback that is trusted not by
@@ -601,8 +600,7 @@ extension LiveUsageDataSource {
     }
 
     private func claudeUsageCacheURL() -> URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/Mimir/claude_usage.json")
+        LiveUsageDataSource.supportDirectory.appendingPathComponent("claude_usage.json")
     }
 
     private func parseClaudeToken(_ raw: String) -> ClaudeToken? {

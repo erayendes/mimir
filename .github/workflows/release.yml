@@ -185,11 +185,14 @@ jobs:
           # Stamp the citation metadata from the tag so "Cite this repository" can't go stale.
           # CITATION.cff has to stay at the repo root — GitHub doesn't read it from .github/.
           # Fail loudly if the substitution misses: a silent no-op would ship a wrong version.
-          RELEASE_DATE="$(date -u +%F)"
-          sed -i '' -e "s/^version: .*/version: \"$VERSION\"/" \
-                    -e "s/^date-released: .*/date-released: \"$RELEASE_DATE\"/" CITATION.cff
-          grep -qx "version: \"$VERSION\"" CITATION.cff || { echo "::error::CITATION.cff version stamp failed"; exit 1; }
-          grep -qx "date-released: \"$RELEASE_DATE\"" CITATION.cff || { echo "::error::CITATION.cff date stamp failed"; exit 1; }
+          # A beta isn't the version to cite: stamp stable releases only.
+          if [[ "$VERSION" != *-* ]]; then
+            RELEASE_DATE="$(date -u +%F)"
+            sed -i '' -e "s/^version: .*/version: \"$VERSION\"/" \
+                      -e "s/^date-released: .*/date-released: \"$RELEASE_DATE\"/" CITATION.cff
+            grep -qx "version: \"$VERSION\"" CITATION.cff || { echo "::error::CITATION.cff version stamp failed"; exit 1; }
+            grep -qx "date-released: \"$RELEASE_DATE\"" CITATION.cff || { echo "::error::CITATION.cff date stamp failed"; exit 1; }
+          fi
 
           git add appcast.xml CITATION.cff
           git commit -m "chore: appcast v$VERSION" || echo "appcast unchanged"

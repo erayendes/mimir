@@ -36,7 +36,8 @@ INFO_PLIST="$APP_CONTENTS/Info.plist"
 
 cd "$ROOT_DIR"
 
-pkill -x "$PRODUCT" >/dev/null 2>&1 || true
+# Only this bundle's process: every build is named "Mimir", so `pkill -x` also quit the installed app.
+pkill -f "$APP_BINARY" >/dev/null 2>&1 || true
 
 # Derleme yap ve yolu al
 swift build -c release
