@@ -110,6 +110,7 @@ struct PopoverView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .contentShape(Rectangle())
                             .onTapGesture { AppTarget.open(svc.name) }
+                            .pointingHandCursor()
                         // Dismissing is per-service and lasts only until that service reports data
                         // again (see UsageStore.forgetRecoveredDismissals), so hiding this notice
                         // can't permanently mute a provider that is genuinely broken.
@@ -416,9 +417,14 @@ extension View {
         }
     }
 
+    /// Set, not pushed: the panel never becomes key, so AppKit keeps resetting the cursor to the
+    /// arrow and a one-off push on entry was lost straight away. Setting it on every move holds.
     func pointingHandCursor() -> some View {
-        onHover { hovering in
-            if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+        onContinuousHover { phase in
+            switch phase {
+            case .active: NSCursor.pointingHand.set()
+            case .ended: NSCursor.arrow.set()
+            }
         }
     }
 }
@@ -583,6 +589,7 @@ struct ServiceCard: View {
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
+        .pointingHandCursor()
         .help(passesOpen ? "" : String(localized: "Renewal credit"))
     }
 
