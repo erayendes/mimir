@@ -18,11 +18,25 @@ enum MimirStatusLineHook {
     /// user exported in their profile is invisible here; `launchctl getenv` is the one place a
     /// GUI-launched process can still see it. Resolved once: the variable doesn't change under a
     /// running app, and `launchctl` is a subprocess we'd rather not spawn on every path lookup.
-    static let claudeDir: String = {
-        if let env = ProcessInfo.processInfo.environment["CLAUDE_CONFIG_DIR"], !env.isEmpty { return env }
-        if let launchd = launchctlEnv("CLAUDE_CONFIG_DIR"), !launchd.isEmpty { return launchd }
-        return (NSHomeDirectory() as NSString).appendingPathComponent(".claude")
-    }()
+    /// Memoised by hand rather than as a `static let`: that form resolves under `dispatch_once`,
+    /// and this resolution spawns `launchctl`. Called the first time from a SwiftUI body, the once
+    /// token deadlocked and trapped the app on launch. A plain cache has no such rule — the value
+    /// is computed at most twice in the worst case and never blocks anyone.
+    nonisolated(unsafe) private static var cachedClaudeDir: String?
+
+    static var claudeDir: String {
+        if let cachedClaudeDir { return cachedClaudeDir }
+        let resolved: String
+        if let env = ProcessInfo.processInfo.environment["CLAUDE_CONFIG_DIR"], !env.isEmpty {
+            resolved = env
+        } else if let launchd = launchctlEnv("CLAUDE_CONFIG_DIR"), !launchd.isEmpty {
+            resolved = launchd
+        } else {
+            resolved = (NSHomeDirectory() as NSString).appendingPathComponent(".claude")
+        }
+        cachedClaudeDir = resolved
+        return resolved
+    }
 
     static func claudePath(_ component: String) -> String {
         (claudeDir as NSString).appendingPathComponent(component)
