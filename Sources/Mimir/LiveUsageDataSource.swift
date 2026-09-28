@@ -3,7 +3,12 @@ import Security
 
 @MainActor
 final class UsageStore: ObservableObject {
-    @Published var services: [ServiceStatus] = LiveUsageDataSource.fallbackServices()
+    /// Launch shows the last-known readings straight away. The first refresh waits for all three
+    /// providers — up to their 8-second timeouts — and until then the popover had nothing to draw
+    /// but a spinner, on every launch and after every update.
+    @Published var services: [ServiceStatus] = LiveUsageDataSource.fallbackServices().map {
+        LiveUsageDataSource().snapshotOrFallback($0.name, iconName: $0.iconName)
+    }
     @Published var isRefreshing = false
     private let source = LiveUsageDataSource()
     /// Per-service fetch cooldown: while `Date()` is before the stored value, that service is
