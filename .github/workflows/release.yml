@@ -167,7 +167,11 @@ jobs:
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git checkout main
+          # Land on what main is NOW, not on whatever the job's checkout happened to fetch. A tag
+          # pushed while main is still in flight (v2.24 did exactly this) left the job writing the
+          # appcast onto a stale main, and the push was rejected as non-fast-forward.
+          git fetch origin main
+          git checkout -B main origin/main
           python3 script/gen_appcast_item.py \
             --version "$VERSION" \
             --build-number "$BUILD_NUMBER" \
@@ -189,7 +193,16 @@ jobs:
 
           git add appcast.xml CITATION.cff
           git commit -m "chore: appcast v$VERSION" || echo "appcast unchanged"
-          git push origin main
+          # Someone else may land on main between the fetch above and this push. Rebase onto them
+          # and try again rather than failing the release: without the appcast entry every Sparkle
+          # check 404s, so this step failing is worse than it looks.
+          for attempt in 1 2 3; do
+            git push origin main && exit 0
+            echo "push rejected (attempt $attempt); rebasing onto origin/main"
+            git fetch origin main && git rebase origin/main || { echo "::error::rebase failed"; exit 1; }
+            sleep $((attempt * 5))
+          done
+          echo "::error::could not push the appcast to main"; exit 1
 
       # Retry-safe: the appcast entry is already on main by now, so a failed release means every
       # Sparkle check 404s until it exists (v2.21 died here on a connection reset). A reset can land
