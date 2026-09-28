@@ -16,6 +16,11 @@ struct PopoverView: View {
     /// Which face is up. The settings live on the back of the same card — flipping to them keeps
     /// the popover one surface instead of dropping a second window on top of it.
     @State private var showingSettings = false
+    /// Natural heights of the two faces. The panel is the quota face's height; the settings face
+    /// is at least that tall (its card stretches to the footer) and grows past it only when its
+    /// rows need the room.
+    @State private var quotaHeight: CGFloat = 0
+    @State private var settingsHeight: CGFloat = 0
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { context in
@@ -24,22 +29,34 @@ struct PopoverView: View {
                     .contentShape(Rectangle())
                     .onTapGesture(perform: onDismiss)
 
+                // Both faces stay mounted so each keeps its state; only the one up is shown. Each is
+                // its own scroll view, so neither can push the other out of the panel — a fixed-height
+                // settings list in a ZStack with the quotas once overflowed a short panel and was
+                // centred into it, clipping the header off the top.
                 ZStack(alignment: .top) {
                     quotaFace(now: context.date)
                         .opacity(showingSettings ? 0 : 1)
                         .allowsHitTesting(!showingSettings)
-                    SettingsFace(settings: settings, onBack: { flip() })
-                        .rotation3DEffect(.degrees(180), axis: (x: 0, y: 1, z: 0))
-                        .opacity(showingSettings ? 1 : 0)
-                        .allowsHitTesting(showingSettings)
+                    ScrollView(showsIndicators: false) {
+                        SettingsFace(settings: settings, onBack: { flip() })
+                            .frame(minHeight: quotaHeight, alignment: .top)
+                            .measuringHeight { settingsHeight = $0; reportHeight() }
+                    }
+                    .opacity(showingSettings ? 1 : 0)
+                    .allowsHitTesting(showingSettings)
                 }
-                .rotation3DEffect(.degrees(showingSettings ? 180 : 0), axis: (x: 0, y: 1, z: 0))
             }
         }
     }
 
+    /// Straight swap, no animation: the settings are a place you go, not a trick the card does.
     private func flip() {
-        withAnimation(.easeInOut(duration: 0.35)) { showingSettings.toggle() }
+        showingSettings.toggle()
+        reportHeight()
+    }
+
+    private func reportHeight() {
+        onContentHeightChange(showingSettings ? max(settingsHeight, quotaHeight) : quotaHeight)
     }
 
     @ViewBuilder
@@ -52,18 +69,7 @@ struct PopoverView: View {
                         MilowdaMark(checkForUpdates: settings.checkForUpdates)
                     }
                     .padding(.vertical, 4)
-                    // The panel is sized to this face alone. Measuring whichever side was up let
-                    // the settings face (the shorter one) shrink the panel, and flipping back then
-                    // left the quotas in a box too small for them, scrolling.
-                    .background {
-                        GeometryReader { proxy in
-                            Color.clear
-                                .onAppear { onContentHeightChange(proxy.size.height) }
-                                .onChange(of: proxy.size.height) { _, height in
-                                    onContentHeightChange(height)
-                                }
-                        }
-                    }
+                    .measuringHeight { quotaHeight = $0; reportHeight() }
                 }
     }
 
@@ -234,6 +240,9 @@ struct SettingsFace: View {
                     shortcut: "⌘Q", action: settings.quit)
             }
             .padding(.vertical, 4)
+            // Down to the footer, like the cards on the front: the panel keeps the quotas' height
+            // and this card fills what the rows leave of it.
+            .frame(maxHeight: .infinity, alignment: .top)
             .background(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .fill(.regularMaterial)
@@ -397,6 +406,17 @@ struct BrandingHeader: View {
 extension View {
     /// Show the link/pointing-hand cursor while hovering — the default cursor behaviour
     /// for clickable text, which SwiftUI doesn't apply on its own here.
+    /// Calls `onChange` with this view's laid-out height, now and whenever it changes.
+    func measuringHeight(_ onChange: @escaping (CGFloat) -> Void) -> some View {
+        background {
+            GeometryReader { proxy in
+                Color.clear
+                    .onAppear { onChange(proxy.size.height) }
+                    .onChange(of: proxy.size.height) { _, height in onChange(height) }
+            }
+        }
+    }
+
     func pointingHandCursor() -> some View {
         onHover { hovering in
             if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
