@@ -284,12 +284,13 @@ extension LiveUsageDataSource {
             // ships only one of the two still reads correctly.
             let remaining = doubleValue(obj["remaining_dollars"])
                 ?? limit - (doubleValue(obj["used_dollars"]) ?? 0)
-            let text = "\(formattedMoney(remaining, currency: "USD")) / \(formattedMoney(limit, currency: "USD"))"
+            // Whole dollars: cents push the row past its width and say nothing at this scale.
+            let text = "\(formattedMoney(remaining.rounded(), currency: "USD")) / \(formattedMoney(limit.rounded(), currency: "USD"))"
             // One row: the name carries the date it lapses, the value carries what's left. No
             // group heading — a single credit doesn't need a section to sit under.
             let expiry = (obj["resets_at"] as? String).flatMap(parseISO8601)
             let label = String(localized: "Cloud credit")
-            let name = expiry.map { "\(label) (\(Self.shortDateFormatter.string(from: $0)))" } ?? label
+            let name = expiry.map { "\(label) \(Self.shortDateFormatter.string(from: $0))" } ?? label
             return ModelStatus(name: name, remainingPercent: 0, resetAt: nil,
                                valueText: text, isLow: remaining <= 0, symbol: "cloud")
         }
