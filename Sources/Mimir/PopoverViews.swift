@@ -53,7 +53,7 @@ struct PopoverView: View {
     private func quotaFace(now: Date) -> some View {
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 0) {
-                        BrandingHeader(onGear: { flip() })
+                        BrandingHeader(onGear: { flip() }, refreshing: store.isRefreshing)
                         notificationBanner
                         contentView(now: now)
                         MilowdaMark(checkForUpdates: settings.checkForUpdates)
@@ -356,12 +356,24 @@ struct MilowdaMark: View {
 struct BrandingHeader: View {
     /// The gear flips between the faces, both ways.
     let onGear: () -> Void
+    /// While a refresh is out, a wave runs through the wordmark left to right, letter by letter; it
+    /// settles when the numbers are in. Opening the popover is itself the refresh, so this is the
+    /// whole of the refresh UI — no button, no timestamp.
+    var refreshing = false
 
     var body: some View {
         HStack(spacing: 7) {
-            Text("mimir")
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(Color.primary.opacity(0.55))
+            TimelineView(.animation(paused: !refreshing)) { context in
+                HStack(spacing: 0) {
+                    ForEach(Array("mimir".enumerated()), id: \.offset) { index, letter in
+                        Text(String(letter))
+                            .opacity(refreshing ? Self.wave(context.date, index) : 1)
+                    }
+                }
+            }
+            .font(.system(size: 15, weight: .medium))
+            .foregroundStyle(Color.primary.opacity(0.55))
+            .animation(.easeOut(duration: 0.25), value: refreshing)
 
             Spacer(minLength: 6)
 
@@ -380,6 +392,13 @@ struct BrandingHeader: View {
         .padding(.horizontal, 22)
         .padding(.top, 10)
         .padding(.bottom, 6)
+    }
+
+    /// Opacity of letter `index` at `date`: one dip per 1.2s cycle, each letter 0.12s behind the
+    /// one on its left, so the dip travels m → i → m → i → r.
+    static func wave(_ date: Date, _ index: Int) -> Double {
+        let phase = date.timeIntervalSinceReferenceDate / 1.2 - Double(index) * 0.1
+        return 0.3 + 0.7 * (0.5 + 0.5 * cos(2 * .pi * phase))
     }
 }
 
