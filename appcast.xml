@@ -8,7 +8,26 @@
     <description>Mimir update feed</description>
     <language>en</language>
 
-                    <item>
+                        <item>
+      <title>Mimir 3.0.0-beta.2</title>
+      <sparkle:channel>beta</sparkle:channel>
+      <sparkle:version>299999002</sparkle:version>
+      <sparkle:shortVersionString>3.0.0-beta.2</sparkle:shortVersionString>
+      <pubDate>Mon, 28 Sep 2026 20:11:04 +0000</pubDate>
+      <description><![CDATA[
+<p>Small improvements.</p>
+<hr>
+<p>Küçük iyileştirmeler.</p>
+      ]]></description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v3.0.0-beta.2/Mimir.zip"
+        sparkle:edSignature="RHAnuWATSr5Z0+iiejcW8LkxT47rC5/fqoE5A/PpZDoNTvfhV3phO57uQjXtu/TKeEvJ8O6cD9DDQwKNvKllBw=="
+        length="6729772"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 3.0.0-beta.1</title>
       <sparkle:channel>beta</sparkle:channel>
       <sparkle:version>299999001</sparkle:version>
