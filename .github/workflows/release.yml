@@ -175,6 +175,7 @@ jobs:
             --signature "$ED_SIG" \
             --length "$LENGTH" \
             --notes "$NOTES" \
+            $( [[ "$VERSION" == *-* ]] && echo --channel beta ) \
             --appcast appcast.xml
 
           # Stamp the citation metadata from the tag so "Cite this repository" can't go stale.
@@ -212,7 +213,8 @@ jobs:
             if gh release view "$TAG" >/dev/null 2>&1; then
               echo "Release $TAG exists; completing it."; complete; exit 0
             fi
-            if gh release create "$TAG" dist/Mimir.zip --title "$TITLE" --notes-file /tmp/gh_notes.md; then
+            if gh release create "$TAG" dist/Mimir.zip --title "$TITLE" --notes-file /tmp/gh_notes.md \
+                 $( [[ "$TAG" == *-* ]] && echo --prerelease ); then
               exit 0
             fi
             if gh release view "$TAG" >/dev/null 2>&1; then

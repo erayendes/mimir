@@ -66,10 +66,15 @@ def md_to_html(text):
     return "\n".join(out)
 
 
-def build_item(version, build_number, url, signature, length, notes, pub_date):
+def build_item(version, build_number, url, signature, length, notes, pub_date, channel=None):
+    # An item with no channel is the default one — everybody sees it. An item in a channel is
+    # shown only to installs that asked for that channel, which is how a beta can sit in the same
+    # feed as a stable release without being offered to people who didn't opt in.
+    channel_line = f"      <sparkle:channel>{channel}</sparkle:channel>\n" if channel else ""
     return (
         f"    <item>\n"
         f"      <title>Mimir {version}</title>\n"
+        f"{channel_line}"
         f"      <sparkle:version>{build_number}</sparkle:version>\n"
         f"      <sparkle:shortVersionString>{version}</sparkle:shortVersionString>\n"
         f"      <pubDate>{pub_date}</pubDate>\n"
@@ -94,6 +99,8 @@ def main():
     parser.add_argument("--notes", required=True)
     parser.add_argument("--appcast", required=True)
     parser.add_argument("--date", default=None)
+    parser.add_argument("--channel", default=None,
+                        help="Sparkle channel for this item (e.g. beta). Omit for the default channel.")
     args = parser.parse_args()
 
     pub_date = args.date or datetime.datetime.utcnow().strftime(
@@ -118,7 +125,7 @@ def main():
 
     new_item = build_item(
         args.version, args.build_number, args.url,
-        args.signature, args.length, args.notes, pub_date
+        args.signature, args.length, args.notes, pub_date, args.channel
     )
     updated = content[:insert_at] + new_item + "\n" + content[insert_at:]
 

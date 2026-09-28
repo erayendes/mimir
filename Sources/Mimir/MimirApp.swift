@@ -9,7 +9,7 @@ import UserNotifications
 import WidgetKit
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     private let store = UsageStore()
     /// Borderless translucent panel instead of NSPopover: NSPopover paints an opaque
     /// system background that blocks behind-window blur, so the desktop can never read
@@ -128,7 +128,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         updaterController = SPUStandardUpdaterController(
             startingUpdater: true,
-            updaterDelegate: nil,
+            updaterDelegate: self,
             userDriverDelegate: nil
         )
 
@@ -334,6 +334,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(hook)
         menu.addItem(.separator())
 
+        let beta = NSMenuItem(title: String(localized: "Join the beta"),
+                              action: #selector(toggleBetaChannel), keyEquivalent: "")
+        beta.target = self
+        beta.state = Self.betaChannelEnabled ? .on : .off
+        menu.addItem(beta)
+
         let update = NSMenuItem(title: String(localized: "Check for updates"),
                                 action: #selector(menuCheckForUpdates), keyEquivalent: "")
         update.target = self
@@ -346,6 +352,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         item.menu = menu
         item.button?.performClick(nil)
         item.menu = nil
+    }
+
+    /// Which Sparkle channels this install accepts. An appcast item with no channel is the default
+    /// one and reaches everybody; a beta item carries `beta` and reaches only the installs that ask
+    /// for it here. Asked on every check, so switching the setting takes effect immediately.
+    ///
+    /// Build numbers put a beta just under the final it leads to and above the last stable release
+    /// (see `script/build_number.sh`), so joining moves you along 3.0.0-beta.1 → beta.2 → 3.0.0,
+    /// and a 2.24 shipped meanwhile is behind you rather than an update. Leaving the channel does
+    /// not roll you back — Sparkle never downgrades — so a beta install simply waits for the final.
+    func allowedChannels(for updater: SPUUpdater) -> Set<String> {
+        Self.betaChannelEnabled ? ["beta"] : []
+    }
+
+    /// Off unless the user opted in; the key only ever records joining.
+    private static let betaChannelKey = "betaChannelEnabled"
+    static var betaChannelEnabled: Bool {
+        UserDefaults.standard.bool(forKey: betaChannelKey)
+    }
+
+    @objc func toggleBetaChannel() {
+        let joining = !Self.betaChannelEnabled
+        UserDefaults.standard.set(joining, forKey: Self.betaChannelKey)
+        Telemetry.signal("beta.channel", parameters: ["joined": joining ? "1" : "0"])
+        // Joining is a request for the beta, so go and look for it now rather than at the next tick.
+        if joining { updaterController?.checkForUpdates(nil) }
     }
 
     @objc private func toggleTelemetry() {
