@@ -23,3 +23,10 @@ WidgetExtension/*.xcodeproj
 .build/widget/
 .build/widget-dd/
 WidgetExtension/build/
+
+# Design exploration: pen.dev mockups and their .pen sources (large, encrypted,
+# and superseded the moment a design lands in the app)
+designs/
+
+# Transcripts of multi-agent deliberations — working notes, not project docs
+docs/cogitors-decisions/

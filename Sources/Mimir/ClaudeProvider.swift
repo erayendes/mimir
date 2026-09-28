@@ -176,6 +176,7 @@ extension LiveUsageDataSource {
         // new model tier shows up with no code change, instead of needing another hardcoded key
         // every time Anthropic ships one.
         var models: [ModelStatus] = claudeScopedModelRows(root["limits"], weeklyResetAt: sevenDay.resetAt)
+        models.append(contentsOf: claudeResetGrantRows(root))
         models.append(contentsOf: claudeDollarCreditRows(root))
         if let billing = claudeBillingRow(root) {
             models.append(billing)
@@ -223,6 +224,48 @@ extension LiveUsageDataSource {
         }
     }
 
+    /// Usage-limit reset grants — the "Resets" card on claude.ai: a one-shot pass that clears the
+    /// spent five-hour and weekly windows, with its own expiry. This is Codex's renewal credit in
+    /// all but name, so it carries the same heading and the same icon: one thing, named once,
+    /// wherever it comes from.
+    ///
+    /// Only the desktop path carries this (`ClaudeDesktopSession` asks for `?cedar_ember=1`); the
+    /// CLI's endpoint gates the same field behind Claude Code's own User-Agent, so on that path the
+    /// key is simply absent and no row appears.
+    ///
+    /// A grant is listed only while it can actually be used: unspent, unexpired and not paused.
+    /// `usable_now` is the API's own verdict and wins when present — a grant can be withheld for
+    /// reasons we don't model (a cooldown, a limit that must be hit first) and guessing past that
+    /// would promise the user something the button won't honour.
+    func claudeResetGrantRows(_ root: [String: Any], now: Date = Date()) -> [ModelStatus] {
+        guard let cedar = root["cedar_ember"] as? [String: Any],
+              let grants = cedar["grants"] as? [[String: Any]] else { return [] }
+
+        return grants.compactMap { grant -> (date: Date, rows: [ModelStatus])? in
+            let left = (doubleValue(grant["resets_left"])).map(Int.init) ?? 0
+            guard left > 0, grant["paused"] as? Bool != true else { return nil }
+            guard let endsAt = (grant["ends_at"] as? String).flatMap(parseISO8601), endsAt > now else { return nil }
+            if let usable = grant["usable_now"] as? Bool, !usable { return nil }
+
+            // One line per usable reset, shaped exactly like Codex's renewal credits: the date it
+            // lapses on the left, a live countdown to that date on the right. A grant holding two
+            // passes draws two lines for the same reason Codex does — a line is a pass you can
+            // still spend, and a count tucked into one line reads as a quantity, not as two things
+            // you could use on two different days.
+            // One line per pass. The chip above them carries the count; these carry the dates.
+            let date = Self.shortDateFormatter.string(from: endsAt)
+            return (endsAt, (0 ..< left).map { _ in
+                ModelStatus(name: date, remainingPercent: 0, resetAt: endsAt,
+                            valueText: TimeFormatter.duration(from: endsAt.timeIntervalSince(now)),
+                            symbol: "plus.circle",
+                            groupLabel: String(localized: "Renewal credit"))
+            })
+        }
+        // Soonest to expire first: the one you'd lose next is the one worth seeing.
+        .sorted { $0.date < $1.date }
+        .flatMap(\.1)
+    }
+
     /// Dollar-denominated credit windows — Claude Code's usage panel calls the one that exists today
     /// "Cloud session credits" ($250, expiring on its own date, spent before the plan's own quota).
     ///
@@ -242,16 +285,13 @@ extension LiveUsageDataSource {
             let remaining = doubleValue(obj["remaining_dollars"])
                 ?? limit - (doubleValue(obj["used_dollars"]) ?? 0)
             let text = "\(formattedMoney(remaining, currency: "USD")) / \(formattedMoney(limit, currency: "USD"))"
-            // Drawn as its own group: the heading carries the icon and the name, the line below it
-            // carries the expiry date on the left and what's left of the credit on the right. The
-            // date is the row's `name` for exactly that reason. `resetAt` stays nil — it would turn
-            // the right-hand side into a countdown, and the amount is the point here.
+            // One row: the name carries the date it lapses, the value carries what's left. No
+            // group heading — a single credit doesn't need a section to sit under.
             let expiry = (obj["resets_at"] as? String).flatMap(parseISO8601)
-            return ModelStatus(name: expiry.map(Self.creditDateFormatter.string(from:)) ?? "",
-                               remainingPercent: 0, resetAt: nil,
-                               valueText: text, isLow: remaining <= 0,
-                               symbol: "cloud",
-                               groupLabel: String(localized: "Cloud session credits"))
+            let label = String(localized: "Cloud credit")
+            let name = expiry.map { "\(label) (\(Self.shortDateFormatter.string(from: $0)))" } ?? label
+            return ModelStatus(name: name, remainingPercent: 0, resetAt: nil,
+                               valueText: text, isLow: remaining <= 0, symbol: "cloud")
         }
     }
 

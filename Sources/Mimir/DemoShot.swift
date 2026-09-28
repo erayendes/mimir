@@ -8,17 +8,28 @@ enum DemoShot {
     @MainActor
     static func render(to path: String) {
         let now = Date()
+        // A tight day: the quotas that make the extra rows earn their place.
+        let tight = ProcessInfo.processInfo.environment["MIMIR_DEMO_TIGHT"] != nil
         let claude = ServiceStatus(
             name: "Claude", iconName: "claude",
             sessionResetAt: now.addingTimeInterval(4 * 3600 + 23 * 60),
             weeklyResetAt: now.addingTimeInterval(3 * 86_400 + 19 * 3600),
-            sessionRemainingPercent: 92, weeklyRemainingPercent: 99,
+            sessionRemainingPercent: tight ? 14 : 92, weeklyRemainingPercent: tight ? 8 : 99,
             models: [
                 ModelStatus(name: "Fable", remainingPercent: 100,
                             resetAt: now.addingTimeInterval(3 * 86_400 + 19 * 3600), window: .weekly),
                 ModelStatus(name: String(localized: "Spending"), remainingPercent: 0, resetAt: nil,
                             valueText: "$18.40 / $40", symbol: "dollarsign.circle"),
-            ],
+            ] + LiveUsageDataSource().claudeResetGrantRows([
+                "cedar_ember": ["grants": [
+                    ["resets_left": 2, "resets_total": 2, "paused": false, "usable_now": true,
+                     "ends_at": iso(now.addingTimeInterval(26 * 86_400 + 8 * 3600))],
+                ]],
+            ], now: now)
+              + LiveUsageDataSource().claudeDollarCreditRows([
+                  "iguana_necktie": ["limit_dollars": 250, "used_dollars": 60,
+                                     "resets_at": iso(now.addingTimeInterval(40 * 86_400))],
+              ]),
             isAvailable: true, statusNote: "demo")
 
         let credits = LiveUsageDataSource().codexResetCreditRows(fromRoot: [
@@ -32,7 +43,7 @@ enum DemoShot {
             name: "Codex", iconName: "codex",
             sessionResetAt: now.addingTimeInterval(13 * 60),
             weeklyResetAt: now.addingTimeInterval(6 * 86_400 + 13 * 3600),
-            sessionRemainingPercent: 91, weeklyRemainingPercent: 91,
+            sessionRemainingPercent: tight ? 31 : 91, weeklyRemainingPercent: tight ? 12 : 91,
             weeklyWindowSeconds: 2_592_000,
             models: [ModelStatus(name: String(localized: "Credit balance"), remainingPercent: 0,
                                  resetAt: nil, valueText: "42 kredi", symbol: "dollarsign.circle")] + credits,
@@ -53,7 +64,7 @@ enum DemoShot {
                 ModelStatus(name: "Claude/GPT", remainingPercent: 9,
                             resetAt: now.addingTimeInterval(4 * 86_400), window: .weekly),
                 ModelStatus(name: String(localized: "AI credit"), remainingPercent: 0, resetAt: nil,
-                            valueText: "1250", symbol: "sparkles"),
+                            valueText: "1250", symbol: "dollarsign.circle"),
             ],
             isAvailable: true, statusNote: "demo")
 

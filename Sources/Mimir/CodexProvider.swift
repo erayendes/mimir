@@ -215,23 +215,25 @@ extension LiveUsageDataSource {
         // "Renewal credits" heading, so neither the icon nor the label repeats. `resetAt` carries the
         // expiry: the line draws a live countdown off it, and the expiry warning reads it from here
         // rather than from the formatted text.
+        // One line per credit: the chip above them carries the count, these carry the dates.
         return expiries.map { expiresAt in
-            ModelStatus(name: Self.creditDateFormatter.string(from: expiresAt),
+            ModelStatus(name: Self.shortDateFormatter.string(from: expiresAt),
                         remainingPercent: 0, resetAt: expiresAt,
                         valueText: TimeFormatter.duration(from: expiresAt.timeIntervalSince(now)),
                         symbol: "plus.circle", groupLabel: String(localized: "Renewal credit"))
         }
     }
 
-    /// Fixed dd.MM.yyyy — a credit's expiry is a calendar date, not a countdown, so it reads as one.
-    /// Not the locale's short style: that dropped the leading zero ("8.09.2026"), so a column of dates
-    /// didn't line up. `yyyy` (calendar year), never `YYYY` (week-year, which is off by one in late
+    /// A credit's expiry is a calendar date, not a countdown, so it reads as one: "13.10.26", with
+    /// the century left off since a line that says what the date is for never raises the question.
+    /// Not the locale's short style — that dropped the leading zero ("8.09.26"), so a column of
+    /// dates didn't line up. `yy` (calendar year), never `YY` (week-year, off by one in late
     /// December). POSIX locale so a non-Gregorian regional calendar can't reformat it.
-    static let creditDateFormatter: DateFormatter = {
+    static let shortDateFormatter: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
         f.calendar = Calendar(identifier: .gregorian)
-        f.dateFormat = "dd.MM.yyyy"
+        f.dateFormat = "dd.MM.yy"
         return f
     }()
 

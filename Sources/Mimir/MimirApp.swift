@@ -166,7 +166,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
                 },
                 checkForUpdates: { [weak self] in
                     self?.updaterController?.checkForUpdates(nil)
-                }
+                },
+                settings: PopoverSettings(
+                    version: (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "dev",
+                    launchAtLogin: { SMAppService.mainApp.status == .enabled },
+                    toggleLaunchAtLogin: { [weak self] in self?.toggleLaunchAtLogin() },
+                    notifications: { Self.notificationsEnabled },
+                    toggleNotifications: { [weak self] in self?.toggleNotifications() },
+                    claudeHook: { MimirStatusLineHook.isWired() },
+                    toggleClaudeHook: { [weak self] in self?.toggleClaudeHook() },
+                    telemetry: { Telemetry.enabled },
+                    toggleTelemetry: { [weak self] in self?.toggleTelemetry() },
+                    betaChannel: { Self.betaChannelEnabled },
+                    toggleBetaChannel: { [weak self] in self?.toggleBetaChannel() },
+                    checkForUpdates: { [weak self] in self?.updaterController?.checkForUpdates(nil) },
+                    openIssues: { [weak self] in self?.openIssues() },
+                    openSupport: { [weak self] in self?.openSupport() },
+                    quit: { NSApp.terminate(nil) }
+                )
             )
         )
         host.wantsLayer = true
@@ -288,7 +305,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         }
     }
 
-    private func setLaunchAtLogin(_ enabled: Bool) {
+    /// `notify` is on when a person is watching the switch: a login item that silently refuses to
+    /// register (an unsigned or relocated build, most often) otherwise reads as a broken checkbox.
+    /// The launch-time prompt passes false — there's no switch to explain there.
+    private func setLaunchAtLogin(_ enabled: Bool, notify: Bool = false) {
         do {
             if enabled {
                 if SMAppService.mainApp.status != .enabled {
@@ -298,6 +318,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
                 try SMAppService.mainApp.unregister()
             }
         } catch {
+            if notify {
+                let alert = NSAlert()
+                alert.messageText = String(localized: "Couldn't change the login item")
+                alert.informativeText = error.localizedDescription
+                NSApp.activate(ignoringOtherApps: true)
+                alert.runModal()
+            }
             let crumb = Breadcrumb(level: .warning, category: "launch-at-login")
             crumb.message = "\(enabled ? "register" : "unregister") failed: \(error.localizedDescription)"
             SentrySDK.addBreadcrumb(crumb)
@@ -313,45 +340,76 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         SentrySDK.flush(timeout: 1)
     }
 
-    /// Right-click menu: opt-out toggle, update check, and quit (the app has no other quit path).
-    /// `statusItem.menu` is set only transiently so a left click still toggles the panel.
-    private func showStatusMenu() {
-        guard let item = statusItem else { return }
+    /// The settings menu. One definition, two ways in: the gear in the popover header and a right
+    /// click on the status item — they must not drift apart.
+    private func settingsMenu() -> NSMenu {
         let menu = NSMenu()
 
-        let toggle = NSMenuItem(title: String(localized: "Send anonymous statistics"),
-                                action: #selector(toggleTelemetry), keyEquivalent: "")
-        toggle.target = self
-        toggle.state = Telemetry.enabled ? .on : .off
-        menu.addItem(toggle)
+        func toggle(_ title: String, _ action: Selector, on: Bool) {
+            let item = NSMenuItem(title: title, action: action, keyEquivalent: "")
+            item.target = self
+            item.state = on ? .on : .off
+            menu.addItem(item)
+        }
 
+        toggle(String(localized: "Open at login"), #selector(toggleLaunchAtLogin),
+               on: SMAppService.mainApp.status == .enabled)
+        toggle(String(localized: "Notifications"), #selector(toggleNotifications),
+               on: Self.notificationsEnabled)
         // Prompt-free Claude: a statusLine hook lets Mimir read Claude Code's own usage without ever
         // touching the keychain (no macOS permission prompt). Checkbox reflects whether it's wired.
-        let hook = NSMenuItem(title: String(localized: "Prompt-free Claude tracking"),
-                              action: #selector(toggleClaudeHook), keyEquivalent: "")
-        hook.target = self
-        hook.state = MimirStatusLineHook.isWired() ? .on : .off
-        menu.addItem(hook)
+        toggle(String(localized: "Prompt-free Claude tracking"), #selector(toggleClaudeHook),
+               on: MimirStatusLineHook.isWired())
+        // Kept in the menu although it wasn't in the brief: it is the only way to opt out of
+        // telemetry, and a privacy control the user can't reach is not a privacy control.
+        toggle(String(localized: "Send anonymous statistics"), #selector(toggleTelemetry),
+               on: Telemetry.enabled)
+
         menu.addItem(.separator())
 
-        let beta = NSMenuItem(title: String(localized: "Join the beta"),
-                              action: #selector(toggleBetaChannel), keyEquivalent: "")
-        beta.target = self
-        beta.state = Self.betaChannelEnabled ? .on : .off
-        menu.addItem(beta)
-
-        let update = NSMenuItem(title: String(localized: "Check for updates"),
+        let version = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "dev"
+        let update = NSMenuItem(title: String(format: String(localized: "Version %@ — check for updates"), version),
                                 action: #selector(menuCheckForUpdates), keyEquivalent: "")
         update.target = self
         menu.addItem(update)
 
-        let quit = NSMenuItem(title: String(localized: "Quit Mimir"),
-                              action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        menu.addItem(quit)
+        let report = NSMenuItem(title: String(localized: "Report an issue"),
+                                action: #selector(openIssues), keyEquivalent: "")
+        report.target = self
+        menu.addItem(report)
 
-        item.menu = menu
+        let support = NSMenuItem(title: String(localized: "Support"),
+                                 action: #selector(openSupport), keyEquivalent: "")
+        support.target = self
+        menu.addItem(support)
+
+        menu.addItem(.separator())
+        menu.addItem(NSMenuItem(title: String(localized: "Quit Mimir"),
+                                action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        return menu
+    }
+
+    /// Right click on the status item. `statusItem.menu` is set only transiently so a left click
+    /// still toggles the panel.
+    private func showStatusMenu() {
+        guard let item = statusItem else { return }
+        item.menu = settingsMenu()
         item.button?.performClick(nil)
         item.menu = nil
+    }
+
+    @objc func openIssues() {
+        Telemetry.signal("link.tapped", parameters: ["target": "issues"])
+        NSWorkspace.shared.open(URL(string: "https://github.com/erayendes/mimir/issues/new?template=bug_report.yml")!)
+    }
+
+    @objc func openSupport() {
+        Telemetry.signal("link.tapped", parameters: ["target": "support"])
+        NSWorkspace.shared.open(URL(string: "https://buymeacoffee.com/erayendes")!)
+    }
+
+    @objc func toggleLaunchAtLogin() {
+        setLaunchAtLogin(SMAppService.mainApp.status != .enabled, notify: true)
     }
 
     /// Which Sparkle channels this install accepts. An appcast item with no channel is the default
@@ -380,7 +438,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         if joining { updaterController?.checkForUpdates(nil) }
     }
 
-    @objc private func toggleTelemetry() {
+    /// Notifications are on until the user says otherwise; the key only ever records a refusal.
+    private static let notificationsKey = "notificationsEnabled"
+    static var notificationsEnabled: Bool {
+        UserDefaults.standard.object(forKey: notificationsKey) as? Bool ?? true
+    }
+
+    /// Switching notifications on is only half the story: macOS has its own permission, and Mimir
+    /// can't grant it. If it was refused, the switch would sit there reading "on" while nothing
+    /// ever arrived — so send the user to the one place that can change it. A first-time "not
+    /// determined" is just asked for.
+    @objc func toggleNotifications() {
+        let turningOn = !Self.notificationsEnabled
+        UserDefaults.standard.set(turningOn, forKey: Self.notificationsKey)
+        guard turningOn else { return }
+
+        UNUserNotificationCenter.current().getNotificationSettings { @Sendable settings in
+            switch settings.authorizationStatus {
+            case .notDetermined:
+                UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+            case .denied:
+                Task { @MainActor in Self.openNotificationSettings() }
+            default:
+                break
+            }
+        }
+    }
+
+    /// The Notifications pane, scrolled to Mimir when macOS accepts the anchor; the pane itself
+    /// otherwise. Both beat leaving someone to find it.
+    @MainActor
+    private static func openNotificationSettings() {
+        let id = Bundle.main.bundleIdentifier ?? ""
+        let deep = "x-apple.systempreferences:com.apple.Notifications-Settings.extension?id=\(id)"
+        if let url = URL(string: deep), NSWorkspace.shared.open(url) { return }
+        if let pane = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension") {
+            NSWorkspace.shared.open(pane)
+        }
+    }
+
+    @objc func toggleTelemetry() {
         Telemetry.setEnabled(!Telemetry.enabled)
         if Telemetry.enabled { Telemetry.signal("telemetry.enabled") }
     }
@@ -388,7 +485,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     /// Toggle the prompt-free Claude statusLine hook. Enabling chains any existing statusLine and
     /// modifies ~/.claude/settings.json, so it's a deliberate user action here; disabling restores it.
     /// After wiring, kick a refresh so Claude's card can pick up the hook file on the next tick.
-    @objc private func toggleClaudeHook() {
+    @objc func toggleClaudeHook() {
         let outcome = MimirStatusLineHook.isWired()
             ? MimirStatusLineHook.disable()
             : MimirStatusLineHook.enable()
@@ -619,6 +716,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     }
 
     private func checkNotifications() {
+        guard Self.notificationsEnabled else { return }
         // Only the account-level 5h + weekly windows of genuinely LIVE services notify here. The
         // `!isStale` guard is load-bearing: a card served from a snapshot / a refilled estimate is
         // `isStale`, so a low alert is never raised off an inferred number. Refills fire off the

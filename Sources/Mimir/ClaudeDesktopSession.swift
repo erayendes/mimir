@@ -42,7 +42,13 @@ extension LiveUsageDataSource {
                 return nil
             }
 
-            let (usageData, usageResp) = try await URLSession.shared.data(for: request("https://claude.ai/api/organizations/\(uuid)/usage"))
+            // `?cedar_ember=1` asks the same endpoint to also return the account's usage-limit reset
+            // grants — the "Resets" card claude.ai shows. The field is gated on the *surface* making
+            // the request (the response echoes `event_props.surface`), and this path already IS
+            // claude.ai with the desktop app's own session, so it arrives honestly. The CLI's
+            // `api.anthropic.com` sibling gates the same field behind Claude Code's own User-Agent,
+            // which Mimir will not impersonate — so this is the one path that can carry it.
+            let (usageData, usageResp) = try await URLSession.shared.data(for: request("https://claude.ai/api/organizations/\(uuid)/usage?cedar_ember=1"))
             let usageCode = (usageResp as? HTTPURLResponse)?.statusCode ?? -1
             guard usageCode == 200,
                   let root = try? JSONSerialization.jsonObject(with: usageData) as? [String: Any] else {

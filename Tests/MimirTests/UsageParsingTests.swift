@@ -165,10 +165,10 @@ final class UsageParsingTests: XCTestCase {
         XCTAssertEqual(rows.count, 2)
         XCTAssertEqual(rows.map(\.resetAt), [credalNow.addingTimeInterval(3 * 86_400),
                                              credalNow.addingTimeInterval(6 * 86_400)])
-        // Each line is labelled by the date it lapses, in the locale's own short format.
-        XCTAssertEqual(rows[0].name, LiveUsageDataSource.creditDateFormatter
+        // Each line is labelled by the date it lapses.
+        XCTAssertEqual(rows[0].name, LiveUsageDataSource.shortDateFormatter
             .string(from: credalNow.addingTimeInterval(3 * 86_400)))
-        XCTAssertEqual(rows[1].name, LiveUsageDataSource.creditDateFormatter
+        XCTAssertEqual(rows[1].name, LiveUsageDataSource.shortDateFormatter
             .string(from: credalNow.addingTimeInterval(6 * 86_400)))
         XCTAssertEqual(rows[0].valueText, TimeFormatter.duration(from: 3 * 86_400))
     }
@@ -696,13 +696,13 @@ final class ClaudeDollarCreditTests: XCTestCase {
         XCTAssertEqual(rows.first?.symbol, "cloud")
     }
 
-    func testTheRowIsTheExpiryDateUnderItsOwnHeading() {
-        // The heading names the credit; the line under it is the date, with the amount on the right.
+    func testTheLabelCarriesTheDateAndTheValueTheAmount() {
+        // One row, no heading: the name says what it is and when it lapses, the value what's left.
         // `resetAt` must stay nil — it would replace the amount with a countdown.
         let row = ds.claudeDollarCreditRows(live).first
-        XCTAssertEqual(row?.name, "05.11.2026")
+        XCTAssertEqual(row?.name, "\(String(localized: "Cloud credit")) (05.11.26)")
         XCTAssertNil(row?.resetAt)
-        XCTAssertEqual(row?.groupLabel, String(localized: "Cloud session credits"))
+        XCTAssertNil(row?.groupLabel)
     }
 
     func testRemainingFallsBackToLimitMinusUsed() {
@@ -720,5 +720,97 @@ final class ClaudeDollarCreditTests: XCTestCase {
     func testNoCreditsMeansNoRows() {
         XCTAssertTrue(ds.claudeDollarCreditRows(["five_hour": ["utilization": 11]]).isEmpty)
         XCTAssertTrue(ds.claudeDollarCreditRows(["k": ["limit_dollars": 0]]).isEmpty)
+    }
+}
+
+// MARK: - Codex token is read-only
+
+/// Mimir must never refresh Codex's OAuth token. OpenAI rotates the refresh token single-use
+/// (openai/codex#46028), and the CLI refreshes often — up to six times in one failed turn
+/// (openai/codex#48303) — so a background refresh here consumes the token the CLI still holds and
+/// can log the user out of their own terminal. This is the posture the Claude side already takes.
+/// These tests fail if the refresh/write-back path is ever reintroduced.
+final class CodexReadOnlyTokenTests: XCTestCase {
+    private var source: String {
+        let here = URL(fileURLWithPath: #filePath)
+        let root = here.deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        return (try? String(contentsOf: root.appendingPathComponent("Sources/Mimir/CodexProvider.swift"),
+                            encoding: .utf8)) ?? ""
+    }
+
+    func testTheProviderNeverPostsToTheTokenEndpoint() {
+        XCTAssertFalse(source.isEmpty, "couldn't read CodexProvider.swift")
+        XCTAssertFalse(source.contains("auth.openai.com/oauth/token"),
+                       "Codex's token endpoint is back — Mimir must not refresh a single-use token")
+        XCTAssertFalse(source.contains("grant_type"),
+                       "a refresh grant is back in the Codex provider")
+    }
+
+    func testTheProviderNeverWritesTheCLIsAuthFile() {
+        XCTAssertFalse(source.contains("secureAtomicWrite"),
+                       "Codex's auth.json belongs to the CLI; Mimir reads it and nothing more")
+    }
+}
+
+// MARK: - Claude usage-limit reset grants (cedar_ember)
+
+/// Field values captured verbatim from a live claude.ai `/usage?cedar_ember=1` response, 2026-09-26.
+final class ClaudeResetGrantTests: XCTestCase {
+    private let ds = LiveUsageDataSource()
+    private let now = ISO8601DateFormatter().date(from: "2026-09-26T08:00:00Z")!
+
+    private func root(_ grants: [[String: Any]]) -> [String: Any] {
+        ["cedar_ember": ["eligible": true, "ineligible_reason": NSNull(), "grants": grants]]
+    }
+
+    private var liveGrant: [String: Any] {
+        ["id": "opus55-launch-promax-20260921",
+         "label": "Claude Opus 5.5 launch: one usage-limit reset for Pro and Max",
+         "resets_left": 1, "resets_total": 1, "paused": false, "usable_now": true,
+         "starts_at": "2026-09-22T16:00:00+00:00", "ends_at": "2026-10-22T16:00:00+00:00"]
+    }
+
+    func testOneRowPerUsableGrant() {
+        let rows = ds.claudeResetGrantRows(root([liveGrant]), now: now)
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows.first?.name, "22.10.26")
+        // Same shape as Codex's renewal credits: the expiry drives a live countdown on the right.
+        XCTAssertEqual(rows.first?.resetAt, ISO8601DateFormatter().date(from: "2026-10-22T16:00:00Z"))
+        // Same heading as Codex's renewal credits — it is the same thing under another provider.
+        XCTAssertEqual(rows.first?.groupLabel, String(localized: "Renewal credit"))
+        XCTAssertEqual(rows.first?.symbol, "plus.circle")
+    }
+
+    func testALineForEachPassYouCanStillSpend() {
+        var g = liveGrant
+        g["resets_left"] = 2
+        g["resets_total"] = 3
+        let rows = ds.claudeResetGrantRows(root([g]), now: now)
+        XCTAssertEqual(rows.count, 2, "the chip counts them; the lines carry one date each")
+        XCTAssertEqual(Set(rows.map(\.name)), ["22.10.26"])
+    }
+
+    func testAGrantYouCannotUseIsNotListed() {
+        // Each of these would otherwise promise a reset the button won't honour.
+        for (key, value) in [("resets_left", 0 as Any), ("paused", true as Any), ("usable_now", false as Any)] {
+            var g = liveGrant
+            g[key] = value
+            XCTAssertTrue(ds.claudeResetGrantRows(root([g]), now: now).isEmpty, "\(key) should hide the row")
+        }
+        var expired = liveGrant
+        expired["ends_at"] = "2026-09-01T16:00:00+00:00"
+        XCTAssertTrue(ds.claudeResetGrantRows(root([expired]), now: now).isEmpty)
+    }
+
+    func testSoonestExpiryFirst() {
+        var later = liveGrant
+        later["ends_at"] = "2026-12-01T16:00:00+00:00"
+        let rows = ds.claudeResetGrantRows(root([later, liveGrant]), now: now)
+        XCTAssertEqual(rows.map(\.name), ["22.10.26", "01.12.26"])
+    }
+
+    func testTheCLIPathHasNoSuchFieldAndGetsNoRows() {
+        XCTAssertTrue(ds.claudeResetGrantRows(["five_hour": ["utilization": 11]], now: now).isEmpty)
+        XCTAssertTrue(ds.claudeResetGrantRows(["cedar_ember": ["eligible": false, "grants": []]], now: now).isEmpty)
     }
 }

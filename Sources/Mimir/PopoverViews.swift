@@ -9,6 +9,13 @@ struct PopoverView: View {
     /// Plain callback on purpose — see the note at the construction site.
     let onContentHeightChange: (CGFloat) -> Void
     let checkForUpdates: () -> Void
+    /// Everything the settings side needs. Passed in rather than reached for: the view stays a
+    /// view, and AppKit keeps owning the login item, the hook and the quit.
+    let settings: PopoverSettings
+
+    /// Which face is up. The settings live on the back of the same card — flipping to them keeps
+    /// the popover one surface instead of dropping a second window on top of it.
+    @State private var showingSettings = false
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { context in
@@ -17,13 +24,37 @@ struct PopoverView: View {
                     .contentShape(Rectangle())
                     .onTapGesture(perform: onDismiss)
 
+                ZStack(alignment: .top) {
+                    quotaFace(now: context.date)
+                        .opacity(showingSettings ? 0 : 1)
+                        .allowsHitTesting(!showingSettings)
+                    SettingsFace(settings: settings, onBack: { flip() })
+                        .rotation3DEffect(.degrees(180), axis: (x: 0, y: 1, z: 0))
+                        .opacity(showingSettings ? 1 : 0)
+                        .allowsHitTesting(showingSettings)
+                }
+                .rotation3DEffect(.degrees(showingSettings ? 180 : 0), axis: (x: 0, y: 1, z: 0))
+            }
+        }
+    }
+
+    private func flip() {
+        withAnimation(.easeInOut(duration: 0.35)) { showingSettings.toggle() }
+    }
+
+    @ViewBuilder
+    private func quotaFace(now: Date) -> some View {
                 ScrollView(showsIndicators: false) {
                     VStack(alignment: .leading, spacing: 0) {
+                        BrandingHeader(onGear: { flip() })
                         notificationBanner
-                        contentView(now: context.date)
-                        BrandingFooter(checkForUpdates: checkForUpdates)
+                        contentView(now: now)
+                        MilowdaMark(checkForUpdates: settings.checkForUpdates)
                     }
                     .padding(.vertical, 4)
+                    // The panel is sized to this face alone. Measuring whichever side was up let
+                    // the settings face (the shorter one) shrink the panel, and flipping back then
+                    // left the quotas in a box too small for them, scrolling.
                     .background {
                         GeometryReader { proxy in
                             Color.clear
@@ -34,8 +65,6 @@ struct PopoverView: View {
                         }
                     }
                 }
-            }
-        }
     }
 
     /// Show live services and stale snapshots; hide services that have no data at all.
@@ -126,22 +155,166 @@ struct PopoverView: View {
     }
 }
 
-/// Footer: "mimir" + version badge (tap to check for updates) on the left, the
-/// milowda link on the right. Version comes from the bundle, not hardcoded.
-struct BrandingFooter: View {
-    let checkForUpdates: () -> Void
+/// What the settings face can do. Read the flags through closures rather than copying them in:
+/// the login item, the hook and the telemetry flag all live outside SwiftUI, and a copy taken at
+/// construction would show yesterday's answer.
+struct PopoverSettings {
+    var version: String
+    var launchAtLogin: () -> Bool
+    var toggleLaunchAtLogin: () -> Void
+    var notifications: () -> Bool
+    var toggleNotifications: () -> Void
+    var claudeHook: () -> Bool
+    var toggleClaudeHook: () -> Void
+    var telemetry: () -> Bool
+    var toggleTelemetry: () -> Void
+    var betaChannel: () -> Bool
+    var toggleBetaChannel: () -> Void
+    var checkForUpdates: () -> Void
+    var openIssues: () -> Void
+    var openSupport: () -> Void
+    var quit: () -> Void
+}
 
-    private static let version: String =
-        (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String).map { "v\($0)" } ?? "dev"
+/// The back of the card: every setting in one list, the way a menu-bar app's settings should read
+/// — a row is an icon, what it does, and a line saying what that means. One card, not three: the
+/// groups were separating things nobody needed separated.
+struct SettingsFace: View {
+    let settings: PopoverSettings
+    let onBack: () -> Void
+
+    /// Every flag here lives outside SwiftUI — a login item, a file on disk, a defaults key — so
+    /// none of them can be observed. They're read into state when the face appears and after each
+    /// toggle. An earlier attempt leaned on a counter the body merely mentioned (`let _ = tick`);
+    /// the compiler is free to drop a read into `_`, so nothing depended on it and every row kept
+    /// showing whatever it showed first — a checkmark beside a setting that was actually off.
+    @State private var flags = Flags()
+    @State private var hovered: String?
+
+    private struct Flags {
+        var launchAtLogin = false
+        var notifications = true
+        var claudeHook = false
+        var telemetry = false
+        var betaChannel = false
+    }
+
+    private func reload() {
+        flags = Flags(launchAtLogin: settings.launchAtLogin(),
+                      notifications: settings.notifications(),
+                      claudeHook: settings.claudeHook(),
+                      telemetry: settings.telemetry(),
+                      betaChannel: settings.betaChannel())
+    }
 
     var body: some View {
-        HStack(spacing: 7) {
-            Text("mimir")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(Color.primary.opacity(0.55))
+        VStack(alignment: .leading, spacing: 0) {
+            BrandingHeader(onGear: onBack, back: true)
 
-            Button { checkForUpdates() } label: {
-                Text(Self.version)
+            VStack(spacing: 0) {
+                row("power", String(localized: "Open at login"),
+                    String(localized: "Mimir opens when you sign in."),
+                    checked: flags.launchAtLogin, action: settings.toggleLaunchAtLogin)
+                row("bell", String(localized: "Notifications"),
+                    String(localized: "When a quota is about to run out."),
+                    checked: flags.notifications, action: settings.toggleNotifications)
+                row("lock.open", String(localized: "Prompt-free Claude tracking"),
+                    String(localized: "Reads Claude Code without a keychain prompt."),
+                    checked: flags.claudeHook, action: settings.toggleClaudeHook)
+                row("chart.bar", String(localized: "Send anonymous statistics"),
+                    String(localized: "Usage counts only, never your data."),
+                    checked: flags.telemetry, action: settings.toggleTelemetry)
+                row("arrow.down.circle", String(localized: "Version"),
+                    settings.version, action: settings.checkForUpdates)
+                row("testtube.2", String(localized: "Join the beta"), nil,
+                    checked: flags.betaChannel, action: settings.toggleBetaChannel)
+                row("ladybug", String(localized: "Report an issue"), nil, action: settings.openIssues)
+                row("heart", String(localized: "Support Mimir"), nil, action: settings.openSupport)
+                row("xmark.circle", String(localized: "Quit Mimir"), nil,
+                    shortcut: "⌘Q", action: settings.quit)
+            }
+            .padding(.vertical, 4)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(.regularMaterial)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                    )
+            )
+            .padding(.horizontal, 11)
+
+            MilowdaMark(checkForUpdates: settings.checkForUpdates)
+        }
+        .onAppear(perform: reload)
+    }
+
+    /// One setting. `checked` present makes it a switch (a plain tick, not a control — the row is
+    /// the control); absent makes it an action. `shortcut` shows the key that does the same thing
+    /// without opening this screen.
+    private func row(_ symbol: String, _ title: String, _ subtitle: String?,
+                     checked: Bool? = nil, shortcut: String? = nil,
+                     action: @escaping () -> Void) -> some View {
+        Button {
+            action()
+            reload()
+        } label: {
+            HStack(spacing: 11) {
+                Image(systemName: symbol)
+                    .font(.system(size: 15, weight: .light))
+                    .foregroundStyle(Color.primary.opacity(0.6))
+                    .frame(width: 22, height: 22)
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title)
+                        .font(.system(size: 13, weight: .regular))
+                        .foregroundStyle(Color.primary.opacity(0.92))
+                    if let subtitle {
+                        Text(subtitle)
+                            .font(.system(size: 11, weight: .regular))
+                            .foregroundStyle(Color.primary.opacity(0.45))
+                    }
+                }
+                Spacer(minLength: 8)
+
+                if let shortcut {
+                    Text(shortcut)
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundStyle(Color.primary.opacity(0.35))
+                }
+                if checked == true {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Color.primary.opacity(0.75))
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(hovered == title ? Color.primary.opacity(0.06) : .clear)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .pointingHandCursor()
+        .onHover { hovered = $0 ? title : (hovered == title ? nil : hovered) }
+    }
+}
+
+/// The footer on both faces: which build this is on the left, who made it on the right. The badge
+/// moved down here from the header — beside the wordmark it made "mimir" read as a caption to it.
+struct MilowdaMark: View {
+    let checkForUpdates: () -> Void
+
+    /// "dev" on a development build, the version otherwise.
+    private static let badge: String = {
+        if Bundle.main.bundleIdentifier?.hasSuffix(".dev") ?? false { return "dev" }
+        return (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "dev"
+    }()
+
+    var body: some View {
+        HStack {
+            Button(action: checkForUpdates) {
+                Text(Self.badge)
                     .font(.system(size: 9, weight: .medium).monospacedDigit())
                     .foregroundStyle(Color.primary.opacity(0.4))
                     .padding(.horizontal, 5)
@@ -156,11 +329,10 @@ struct BrandingFooter: View {
             .pointingHandCursor()
             .help(String(localized: "Check for updates"))
 
-            Spacer(minLength: 6)
-
+            Spacer(minLength: 0)
             Button {
                 Telemetry.signal("link.tapped", parameters: ["target": "milowda"])
-                NSWorkspace.shared.open(URL(string: "https://milowda.com/apps/mimir")!)
+                NSWorkspace.shared.open(URL(string: "https://milowda.com")!)
             } label: {
                 Text("milowda")
                     .font(.system(size: 11, weight: .medium))
@@ -169,10 +341,56 @@ struct BrandingFooter: View {
             .buttonStyle(.plain)
             .pointingHandCursor()
         }
-        // Line the footer up with the cards above it: "mimir" starts under the card's brand icon
-        // (panel inset 11 + card padding 11), and "milowda" keeps the same margin on the right.
         .padding(.horizontal, 22)
-        .padding(.vertical, 11)
+        .padding(.top, 9)
+        .padding(.bottom, 11)
+    }
+}
+
+/// Header: "mimir" and its build badge on the left, the settings gear on the right. At the top
+/// rather than the bottom because the gear is the only control in the popover — a control the eye
+/// has to scroll past everything to find is one nobody finds.
+struct BrandingHeader: View {
+    let onGear: () -> Void
+    /// On the settings face the same header goes the other way: a back arrow joins the brand, and
+    /// both it and the gear return to the quotas.
+    var back: Bool = false
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Button(action: onGear) {
+                HStack(spacing: 5) {
+                    if back {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    Text("mimir")
+                        .font(.system(size: 15, weight: .medium))
+                }
+                .foregroundStyle(Color.primary.opacity(0.55))
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .pointingHandCursor()
+            .allowsHitTesting(back)
+
+            Spacer(minLength: 6)
+
+            Button(action: onGear) {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 15, weight: .regular))
+                    .foregroundStyle(Color.primary.opacity(0.55))
+                    .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .pointingHandCursor()
+            .help(String(localized: "Settings"))
+        }
+        // Line the header up with the cards below it: "mimir" starts where a card's brand icon does.
+        .padding(.horizontal, 22)
+        .padding(.top, 10)
+        .padding(.bottom, 6)
     }
 }
 
@@ -259,32 +477,52 @@ struct PopoverBackdrop: View {
     }
 }
 
-/// One provider = one card (design v2.9): brand header, its quota block(s), then any
-/// value rows (credit balance, reset credits) below a hairline.
+/// One provider = one card. The card is the widget: each quota pair is drawn as the medium
+/// widget's face — the five-hour window tints that share of the panel from the left, its number
+/// sits top right with the reset clock and countdown, and the long window rides a capsule below.
+/// Popover and widget then say the same thing the same way. A provider with independent families
+/// (Antigravity) gets one panel per family; everyone else gets one.
+///
+/// Under the panels: the renewal passes as a single chip that opens into its own list, then the
+/// money and balance rows, which are always visible — they're short, they're one per provider, and
+/// hiding a number behind a disclosure only makes it a number nobody checks.
 struct ServiceCard: View {
     let service: ServiceStatus
     let now: Date
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Provider name as a small uppercase eyebrow — the card frame carries the emphasis,
-            // so the header stays quiet and the quota block is the loudest thing on the card.
-            HStack(spacing: 6) {
-                BrandIconView(iconName: service.iconName, size: 11)
-                    .foregroundStyle(Color.primary.opacity(0.5))
-                    .frame(width: 11, height: 11)
-                Text(cardTitle.uppercased())
-                    .font(.system(size: 10, weight: .medium))
-                    .tracking(0.9)
-                    .foregroundStyle(Color.primary.opacity(0.5))
-                    .lineLimit(1)
-            }
-            .padding(.bottom, 9)
+    /// Opens the renewal-pass list. The chip already carries the count and the nearest expiry, so
+    /// the list is for the dates behind them; collapsed is the resting state.
+    @State private var passesOpen = ProcessInfo.processInfo.environment["MIMIR_DEMO_OPEN"] != nil
 
-            cardBody
+    var body: some View {
+        VStack(alignment: .leading, spacing: 9) {
+            ForEach(Array(panels.enumerated()), id: \.offset) { _, panel in
+                ProviderPanel(panel: panel, now: now)
+            }
+
+            if !renewalRows.isEmpty {
+                renewalChip
+                if passesOpen {
+                    VStack(alignment: .leading, spacing: 5) {
+                        ForEach(renewalRows) { row in
+                            renewalLine(row)
+                        }
+                    }
+                    .padding(.leading, Self.chipInset)
+                }
+            }
+
+            if !alwaysRows.isEmpty {
+                VStack(alignment: .leading, spacing: 5) {
+                    ForEach(alwaysRows) { row in
+                        valueRow(row)
+                    }
+                }
+                .padding(.leading, Self.chipInset)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(11)
+        .padding(9)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(.regularMaterial)
@@ -297,149 +535,81 @@ struct ServiceCard: View {
         .opacity(service.isStale ? 0.66 : 1)
     }
 
-    /// Everything under the header, inset from the card edge (design: 11px, no rail).
-    @ViewBuilder
-    private var cardBody: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if hasServiceQuotas {
-                // Claude / Codex: one quota block, then the per-model rows under it.
-                if let hero = sessionHero {
-                    QuotaBlock(label: hero.label, percent: hero.percent, resetAt: hero.resetAt, now: now,
-                               gated: hero.gated, windowFallback: hero.fallback)
-                }
-                if !weeklyEntries.isEmpty {
-                    VStack(spacing: 5) {
-                        ForEach(Array(weeklyEntries.enumerated()), id: \.offset) { _, entry in
-                            modelRow(entry)
-                        }
-                    }
-                    .padding(.top, 9)
-                }
-            } else {
-                // Antigravity: one card, one section per family, separated by a hairline so a
-                // family's model row sits under its own block — not the next family's.
-                ForEach(Array(antigravityFamilies.enumerated()), id: \.offset) { index, family in
-                    VStack(alignment: .leading, spacing: 0) {
-                        if index > 0 {
-                            cardDivider.padding(.top, 13).padding(.bottom, 13)
-                        }
-                        if let session = family.session {
-                            QuotaBlock(label: "\(family.name) 5\(TimeFormatter.hourUnit)",
-                                       percent: session.percent, resetAt: session.resetAt,
-                                       now: now, gated: family.weekly?.percent == 0)
-                        }
-                        if let weekly = family.weekly {
-                            // Antigravity's two rows per family are the same name twice; the window is
-                            // what tells them apart, so each carries it. Its long window is always 7 days.
-                            modelRow((label: "\(family.name) 7\(TimeFormatter.dayUnit)",
-                                      percent: weekly.percent, resetAt: weekly.resetAt))
-                                .padding(.top, family.session != nil ? 9 : 0)
-                        }
-                    }
-                }
-            }
+    // MARK: Renewal passes
 
-            if !valueRows.isEmpty || !creditRows.isEmpty {
-                cardDivider.padding(.top, 11).padding(.bottom, 9)
-                VStack(alignment: .leading, spacing: 7) {
-                    ForEach(valueRows) { row in
-                        valueRow(row)
-                    }
-                    // One heading per group, then a line per credit — repeating the icon and the
-                    // label on every line read as noise.
-                    ForEach(creditGroups, id: \.label) { group in
-                        HStack(spacing: 8) {
-                            Image(systemName: group.symbol).font(.system(size: 11, weight: .regular))
-                                .frame(width: Self.iconColumn)
-                            Text(group.label)
-                        }
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(Color.primary.opacity(0.58))
-                        ForEach(group.rows) { row in
-                            creditRow(row)
-                        }
-                    }
-                }
+    /// The chip: how many passes you hold and how long the nearest one has left, with the chevron
+    /// that opens the rest. Its text takes the urgency colour of that nearest expiry — a pass you
+    /// lose tomorrow should not read the same as one with a month on it.
+    private var renewalChip: some View {
+        Button {
+            withAnimation(.easeOut(duration: 0.16)) { passesOpen.toggle() }
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "plus.circle").font(.system(size: 11, weight: .regular))
+                Text(String(localized: "Renewal credit"))
+                Text("\(renewalRows.count)")
+                    .monospacedDigit()
+                    .padding(.horizontal, 5).padding(.vertical, 1)
+                    .background(Capsule().fill(Color.primary.opacity(0.10)))
+                Text("|").foregroundStyle(Color.primary.opacity(0.18))
+                Text(relDuration(soonestPass, now) ?? "—").monospacedDigit()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 9, weight: .semibold))
+                    .rotationEffect(.degrees(passesOpen ? 90 : 0))
             }
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(expiryColor(soonestPass))
+            .padding(.horizontal, Self.chipInset).padding(.vertical, 4)
+            .background(Capsule().fill(Color.primary.opacity(0.06)))
+            .contentShape(Capsule())
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 11)
+        .buttonStyle(.plain)
+        .help(passesOpen ? "" : String(localized: "Renewal credit"))
     }
 
-    private var cardDivider: some View {
-        Rectangle()
-            .fill(Color.primary.opacity(0.07))
-            .frame(height: 1)
-    }
-
-    /// Width of the leading icon column. Symbols and status dots are different sizes, so both are
-    /// centred in a column of this width — otherwise a 7pt dot sits left of the symbol above it.
-    static let iconColumn: CGFloat = 12
-
-    /// A secondary quota row: status dot + "Name: %X" + its remaining time on the right.
-    private func modelRow(_ entry: (label: String, percent: Int, resetAt: Date?)) -> some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(quotaStatusColor(entry.percent))
-                .frame(width: 7, height: 7)
+    /// One pass: what it is and the date it lapses on the left, how long that is on the right.
+    private func renewalLine(_ row: ModelStatus) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Image(systemName: "plus.circle").font(.system(size: 11, weight: .regular))
                 .frame(width: Self.iconColumn)
-            Text("\(entry.label): ").font(.system(size: 11, weight: .medium))
-                .foregroundStyle(Color.primary.opacity(0.58))
-                + Text("%\(clampPct(entry.percent))").font(.system(size: 11, weight: .medium).monospacedDigit())
-                .foregroundStyle(Color.primary.opacity(0.95))
+            Text(String(localized: "Renewal credit"))
+            Text("(\(row.name))").foregroundStyle(Color.primary.opacity(0.42))
             Spacer(minLength: 6)
-            Text(relDuration(entry.resetAt, now) ?? "—")
-                .font(.system(size: 11, weight: .medium).monospacedDigit())
-                .foregroundStyle(Color.primary.opacity(0.42))
+            Text(relDuration(row.resetAt, now) ?? row.valueText ?? "—")
+                .monospacedDigit()
                 .fixedSize()
         }
+        .font(.system(size: 11, weight: .medium))
+        .foregroundStyle(expiryColor(row.resetAt))
         .lineLimit(1)
     }
 
-    /// A value row (credit balance, reset credits): icon + label left, value right, optional caption.
+    /// Under three days an expiry is worth noticing, under a day it's worth acting on. Above that
+    /// it's just a date, and reads in the same quiet grey as everything else.
+    private func expiryColor(_ at: Date?) -> Color {
+        guard let at else { return Color.primary.opacity(0.58) }
+        let left = at.timeIntervalSince(now)
+        if left <= 24 * 3600 { return quotaStatusColor(0) }
+        if left <= 3 * 86_400 { return quotaStatusColor(20) }
+        return Color.primary.opacity(0.58)
+    }
+
+    /// A money or balance row. Deliberately identical to a renewal line — same icon column, same
+    /// weight, same tone on both sides — because the two sit in one list under the chip and any
+    /// difference reads as a distinction that isn't there. A spent balance is the one exception:
+    /// it takes the red an empty quota would.
     private func valueRow(_ row: ModelStatus) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(alignment: .firstTextBaseline, spacing: 10) {
-                HStack(spacing: 5) {
-                    if let symbol = row.symbol {
-                        Image(systemName: symbol).font(.system(size: 11, weight: .regular))
-                    }
-                    Text(row.name)
-                }
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(Color.primary.opacity(0.58))
-                Spacer(minLength: 6)
-                Text(row.valueText ?? "")
-                    .font(.system(size: 11, weight: .medium).monospacedDigit())
-                    .foregroundStyle(Color.primary.opacity(0.95))
-            }
-            if let caption = row.caption {
-                Text(caption)
-                    .font(.system(size: 10, weight: .medium).monospacedDigit())
-                    .foregroundStyle(Color.primary.opacity(0.42))
-            }
-        }
-        .lineLimit(1)
-    }
-
-    /// One renewal credit: the date it lapses, and how long that is from now. The dot matches the
-    /// model rows' size but never changes colour — a credit is either there or it isn't, so there's
-    /// no level for a status colour to describe.
-    private func creditRow(_ row: ModelStatus) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            // No status dot: a credit is either there or it isn't, so there was no level for a
-            // colour to describe — it only added a column of green that meant nothing. The empty
-            // column stays, so the line still hangs under its heading.
-            Color.clear.frame(width: Self.iconColumn, height: 1)
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Image(systemName: row.symbol ?? "dollarsign.circle").font(.system(size: 11, weight: .regular))
+                .frame(width: Self.iconColumn)
             Text(row.name)
-                .font(.system(size: 11, weight: .medium).monospacedDigit())
-                .foregroundStyle(Color.primary.opacity(0.58))
             Spacer(minLength: 6)
-            // Same quiet grey as a model row's countdown — the date is the content here, not the clock.
-            Text(relDuration(row.resetAt, now) ?? row.valueText ?? "")
-                .font(.system(size: 11, weight: .medium).monospacedDigit())
-                .foregroundStyle(Color.primary.opacity(0.42))
+            Text(row.valueText ?? "")
+                .monospacedDigit()
+                .fixedSize()
         }
+        .font(.system(size: 11, weight: .medium))
+        .foregroundStyle(row.isLow ? quotaStatusColor(0) : Color.primary.opacity(0.58))
         .lineLimit(1)
     }
 
@@ -450,110 +620,225 @@ struct ServiceCard: View {
         service.name == "Codex" ? "ChatGPT" : service.name
     }
 
-    /// Model rows under the quota block. Claude/Codex: the account weekly ("All models") plus any
-    /// per-model weekly (e.g. Fable). Antigravity groups its own, per family.
-    private var weeklyEntries: [(label: String, percent: Int, resetAt: Date?)] {
-        var out: [(label: String, percent: Int, resetAt: Date?)] = []
-        // The account weekly is a row only when there IS a 5h block above it; with no session the
-        // weekly is promoted into the block (see sessionHero), so don't repeat it here.
-        if service.sessionRemainingPercent != nil, let weekly = service.weeklyRemainingPercent {
-            let label = (labelsByWindow ? longWindowLabel : nil) ?? String(localized: "All models")
-            out.append((label, weekly, service.weeklyResetAt))
+    /// One panel per quota pair. Antigravity's families are independent quotas that happen to
+    /// share an account, so each gets its own panel under its own name; every other provider has
+    /// exactly one pair and so exactly one panel.
+    private var panels: [PanelData] {
+        guard hasServiceQuotas else {
+            return antigravityFamilies.map { family in
+                PanelData(title: family.name, iconName: service.iconName,
+                          session: family.session.map { ($0.percent, $0.resetAt) },
+                          weekly: family.weekly.map { ($0.percent, $0.resetAt) },
+                          weeklyLabel: "7\(TimeFormatter.dayUnit)",
+                          sessionFallback: 5 * 3600, weeklyWindow: 7 * 86_400,
+                          gated: family.weekly?.percent == 0)
+            }
         }
-        for model in service.models where model.valueText == nil {
-            out.append((model.name, model.remainingPercent, model.resetAt))
-        }
-        return out
+        return [PanelData(title: cardTitle, iconName: service.iconName,
+                          session: service.sessionRemainingPercent.map { ($0, service.sessionResetAt) },
+                          weekly: service.weeklyRemainingPercent.map { ($0, service.weeklyResetAt) },
+                          weeklyLabel: longWindowLabel ?? "7\(TimeFormatter.dayUnit)",
+                          sessionFallback: 5 * 3600,
+                          weeklyWindow: service.weeklyWindowSeconds ?? 7 * 86_400,
+                          gated: service.weeklyRemainingPercent == 0 && service.sessionRemainingPercent != nil)]
     }
 
-    /// The card's prominent block (Claude/Codex). Normally the 5-hour session; when a service has no
-    /// 5h window (Codex since OpenAI's July 2026 removal) the weekly reading is promoted here, under
-    /// a label that says so, rather than leaving the card without a headline number.
-    private var sessionHero: (label: String, percent: Int, resetAt: Date?, fallback: TimeInterval, gated: Bool)? {
-        if let session = service.sessionRemainingPercent {
-            // Every 5-hour block says so, Claude included: "Current session" named the block without
-            // saying which window it was, next to rows that name theirs.
-            return (sessionWindowLabel, session, service.sessionResetAt,
-                    5 * 3600, service.weeklyRemainingPercent == 0)
-        }
-        if let weekly = service.weeklyRemainingPercent {
-            let label = (labelsByWindow ? longWindowLabel : nil) ?? String(localized: "Usage limits")
-            return (label, weekly, service.weeklyResetAt,
-                    service.weeklyWindowSeconds ?? 7 * 24 * 3600, false)
-        }
-        return nil
+    /// The renewal passes, soonest to lapse first.
+    private var renewalRows: [ModelStatus] {
+        service.models.filter { $0.groupLabel == String(localized: "Renewal credit") }
     }
 
-    /// Credit / reset-credit rows, in provider order. Empty → the whole section is skipped.
-    /// Value rows that stand on their own (the credit balance): a labelled row with its own icon.
-    private var valueRows: [ModelStatus] {
-        service.models.filter { $0.valueText != nil && $0.resetAt == nil && $0.groupLabel == nil }
+    private var soonestPass: Date? {
+        renewalRows.compactMap(\.resetAt).min()
     }
 
-    /// Rows that name a heading to sit under (renewal credits, cloud session credits).
-    private var creditRows: [ModelStatus] {
-        service.models.filter { $0.groupLabel != nil }
-    }
-
-    /// Those rows bucketed by heading, in first-seen order so the card doesn't reshuffle between
-    /// refreshes. The symbol comes from the first row of each group; they share one.
-    private var creditGroups: [(label: String, symbol: String, rows: [ModelStatus])] {
-        var order: [String] = []
-        var byLabel: [String: [ModelStatus]] = [:]
-        for row in creditRows {
-            guard let label = row.groupLabel else { continue }
-            if byLabel[label] == nil { order.append(label) }
-            byLabel[label, default: []].append(row)
-        }
-        return order.map { ($0, byLabel[$0]?.first?.symbol ?? "plus.circle", byLabel[$0] ?? []) }
+    /// Money and balances — always on the card.
+    private var alwaysRows: [ModelStatus] {
+        service.models.filter { $0.valueText != nil && $0.groupLabel != String(localized: "Renewal credit") }
     }
 
     /// Antigravity grouped by family, preserving first-seen order, each family carrying
     /// its own session (5h) and weekly (7g) so they render together.
     private var antigravityFamilies: [(name: String, session: (percent: Int, resetAt: Date?)?, weekly: (percent: Int, resetAt: Date?)?)] {
         var order: [String] = []
-        var sessions: [String: (Int, Date?)] = [:]
-        var weeklies: [String: (Int, Date?)] = [:]
+        var bag: [String: (session: (percent: Int, resetAt: Date?)?, weekly: (percent: Int, resetAt: Date?)?)] = [:]
         for model in service.models where model.valueText == nil {
-            if !order.contains(model.name) { order.append(model.name) }
-            switch model.window {
-            case .session: sessions[model.name] = (model.remainingPercent, model.resetAt)
-            case .weekly:  weeklies[model.name] = (model.remainingPercent, model.resetAt)
-            case .none:    sessions[model.name] = (model.remainingPercent, model.resetAt)
+            if bag[model.name] == nil { order.append(model.name); bag[model.name] = (nil, nil) }
+            if model.window == .weekly {
+                bag[model.name]?.weekly = (model.remainingPercent, model.resetAt)
+            } else {
+                bag[model.name]?.session = (model.remainingPercent, model.resetAt)
             }
         }
-        return order.map { name in
-            (name: name,
-             session: sessions[name].map { (percent: $0.0, resetAt: $0.1) },
-             weekly: weeklies[name].map { (percent: $0.0, resetAt: $0.1) })
+        return order.map { (name: $0, session: bag[$0]?.session ?? nil, weekly: bag[$0]?.weekly ?? nil) }
+    }
+
+    /// True when the provider reports account-level windows (Claude/Codex) rather than per-family
+    /// ones (Antigravity).
+    private var hasServiceQuotas: Bool {
+        service.sessionRemainingPercent != nil || service.weeklyRemainingPercent != nil
+    }
+
+    /// "7d" / "30d", from the window's REAL length. nil when the provider didn't report one.
+    private var longWindowLabel: String? {
+        quotaWindowDays(service.weeklyWindowSeconds).map { "\($0)\(TimeFormatter.dayUnit)" }
+    }
+
+    /// Width of the leading icon column, so a symbol and a status dot line up.
+    static let iconColumn: CGFloat = 12
+    /// The chip's horizontal padding. The lines under it are inset by the same amount so their
+    /// icons sit directly below the chip's own, rather than a step to its left.
+    static let chipInset: CGFloat = 8
+}
+
+/// One quota pair, ready to draw.
+struct PanelData {
+    let title: String
+    let iconName: String
+    let session: (percent: Int, resetAt: Date?)?
+    let weekly: (percent: Int, resetAt: Date?)?
+    let weeklyLabel: String
+    let sessionFallback: TimeInterval
+    let weeklyWindow: TimeInterval
+    let gated: Bool
+}
+
+/// The medium widget, shrunk to fit a card. The panel's face IS the five-hour gauge: what's left
+/// of that window tints the same share of the panel from the left, so the reading is the shape of
+/// the thing, not a bar next to it. Its number sits top right with the reset clock above the
+/// countdown; the long window runs along the bottom as a capsule carrying its own percent.
+///
+/// Deliberately the same geometry as `DetailedWidget`'s medium size — a user who has both on
+/// screen should not have to learn two pictures of one quota.
+struct ProviderPanel: View {
+    let panel: PanelData
+    let now: Date
+
+    private static let clockFormatter: DateFormatter = {
+        let f = DateFormatter(); f.dateFormat = "HH:mm"; return f
+    }()
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            header
+            if let weekly = panel.weekly {
+                capsule(percent: weekly.percent, resetAt: weekly.resetAt)
+            }
+        }
+        .padding(9)
+        .background(
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.05))
+                GeometryReader { geo in
+                    // The wash, not a fill: 12% of the status colour, exactly as the widget paints
+                    // it, so a full window reads as a tinted face rather than a solid block.
+                    Rectangle()
+                        .fill(faceColor.opacity(0.12))
+                        .frame(width: geo.size.width * CGFloat(clampPct(panel.session?.percent ?? 0)) / 100)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        )
+    }
+
+    private var faceColor: Color {
+        panel.gated ? lockedQuotaColor : quotaStatusColor(panel.session?.percent ?? 0)
+    }
+
+    private var header: some View {
+        HStack(alignment: .top, spacing: 8) {
+            HStack(spacing: 6) {
+                BrandIconView(iconName: panel.iconName, size: 13)
+                    .foregroundStyle(Color.primary.opacity(0.9))
+                    .frame(width: 13, height: 13)
+                Text(panel.title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(Color.primary.opacity(0.9))
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 6)
+            if let session = panel.session {
+                VStack(alignment: .trailing, spacing: 1) {
+                    if let clock = clockText(session.resetAt) {
+                        labelled("clock", clock)
+                    }
+                    labelled("timer", relDuration(session.resetAt, now)
+                             ?? TimeFormatter.duration(from: panel.sessionFallback))
+                }
+                .font(.system(size: 10.5, weight: .medium).monospacedDigit())
+                .foregroundStyle(Color.primary.opacity(0.42))
+                .fixedSize()
+
+                // Caps at 99 like the widget: a third digit buys nothing, and nobody acts
+                // differently on 100 versus 99.
+                HStack(alignment: .firstTextBaseline, spacing: 1) {
+                    Text("\(min(99, clampPct(session.percent)))")
+                        .font(.system(size: 30, weight: .semibold)).monospacedDigit().tracking(-0.5)
+                    Text("%").font(.system(size: 16, weight: .semibold))
+                }
+                .foregroundStyle(panel.gated ? lockedQuotaColor : quotaStatusColor(session.percent))
+                .fixedSize()
+                .offset(y: -6)
+                .frame(height: 22, alignment: .top)
+            }
         }
     }
 
-    private var hasServiceQuotas: Bool {
-        service.name == "Claude" || service.name == "Codex"
+    private func labelled(_ symbol: String, _ text: String) -> some View {
+        HStack(spacing: 3) {
+            Image(systemName: symbol).font(.system(size: 9, weight: .regular))
+            Text(text)
+        }
     }
 
-    /// Should the LONG window be labelled by its length ("7d session", "30d session") rather than
-    /// "All models"? Only for ChatGPT, which has no per-model rows to name instead; on Claude those
-    /// rows carry the meaning, so its account row stays "All models". The 5-hour block names its
-    /// window on every provider.
-    private var labelsByWindow: Bool { service.name == "Codex" }
+    /// The long window: a capsule with its percent riding the fill, and the countdown and reset
+    /// clock underneath.
+    private func capsule(percent: Int, resetAt: Date?) -> some View {
+        let color = panel.gated ? lockedQuotaColor : quotaStatusColor(percent)
+        return VStack(alignment: .leading, spacing: 5) {
+            GeometryReader { geo in
+                let fill = max(18, geo.size.width * CGFloat(clampPct(percent)) / 100)
+                let number = Text("\(clampPct(percent))%")
+                    .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.primary.opacity(0.09))
+                    Capsule().fill(color).frame(width: fill)
+                    // White on the fill while it's wide enough to hold the number; past the end
+                    // otherwise, where the fill can't carry it.
+                    if fill >= 46 {
+                        number.foregroundStyle(.white.opacity(0.92)).padding(.leading, 9)
+                    } else {
+                        number.foregroundStyle(Color.primary.opacity(0.9)).padding(.leading, fill + 6)
+                    }
+                }
+            }
+            .frame(height: 18)
 
-    /// "5h session". The session window is whatever the provider reports, but it's only ever
-    /// classified as one at 6h or below (see `codexWindowIsSession`), so 5 is the honest label.
-    private var sessionWindowLabel: String {
-        Self.windowLabel("5\(TimeFormatter.hourUnit)")
+            HStack(spacing: 10) {
+                labelled("timer", relDuration(resetAt, now)
+                         ?? TimeFormatter.duration(from: panel.weeklyWindow))
+                if let clock = dayClockText(resetAt) {
+                    labelled("clock", clock)
+                }
+                Spacer(minLength: 0)
+            }
+            .font(.system(size: 10.5, weight: .medium).monospacedDigit())
+            .foregroundStyle(Color.primary.opacity(0.42))
+        }
     }
 
-    /// "<window> session", the one phrasing every card uses for a quota window.
-    static func windowLabel(_ window: String) -> String {
-        String(format: String(localized: "%@ session"), window)
+    private func clockText(_ at: Date?) -> String? {
+        guard let at, at.timeIntervalSince(now) > 0 else { return nil }
+        return Self.clockFormatter.string(from: at)
     }
 
-    /// "7d session" / "30d session", from the window's REAL length. nil when the provider didn't
-    /// report one — then the caller keeps its generic label rather than printing a guess.
-    private var longWindowLabel: String? {
-        quotaWindowDays(service.weeklyWindowSeconds).map { Self.windowLabel("\($0)\(TimeFormatter.dayUnit)") }
+    /// The long window resets days out, so the weekday is what makes the time mean anything.
+    private func dayClockText(_ at: Date?) -> String? {
+        guard let at, at.timeIntervalSince(now) > 0 else { return nil }
+        let f = DateFormatter()
+        f.locale = Locale.current
+        f.setLocalizedDateFormatFromTemplate("EEEE HH:mm")
+        return f.string(from: at)
     }
 }
 
@@ -613,14 +898,8 @@ struct QuotaBlock: View {
                     Image(systemName: "timer").frame(width: ServiceCard.iconColumn)
                 }
                 Spacer(minLength: 4)
-                if let resetClock {
-                    Label {
-                        Text(resetClock)
-                    } icon: {
-                        Image(systemName: "clock")
-                    }
-                }
             }
+            .help(resetClock.map { String(format: String(localized: "Resets at %@"), $0) } ?? "")
             .font(.system(size: 11, weight: .medium).monospacedDigit())
             .foregroundStyle(Color.primary.opacity(0.9))
             .labelStyle(.titleAndIcon)
@@ -631,6 +910,53 @@ struct QuotaBlock: View {
     private var resetClock: String? {
         guard let resetAt, resetAt.timeIntervalSince(now) > 0 else { return nil }
         return Self.clockFormatter.string(from: resetAt)
+    }
+}
+
+/// The long window as a capsule under the session block — the shape the widgets already use, so
+/// the card and the widget read as one design. Its percent rides the fill when the fill is wide
+/// enough to hold it, and sits just past the end when it isn't; the label and the countdown run
+/// underneath. One picture for the pair of windows instead of a block and a dotted row that looked
+/// like two unrelated readings.
+struct WeeklyCapsule: View {
+    let label: String
+    let percent: Int
+    let resetAt: Date?
+    let now: Date
+    var gated: Bool = false
+
+    private static let height: CGFloat = 16
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            GeometryReader { geo in
+                let color = gated ? lockedQuotaColor : quotaStatusColor(percent)
+                let fill = max(Self.height, geo.size.width * CGFloat(clampPct(percent)) / 100)
+                let number = Text("%\(clampPct(percent))")
+                    .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.primary.opacity(0.09))
+                    Capsule().fill(color).frame(width: fill)
+                    if fill >= 52 {
+                        number.foregroundStyle(Color(nsColor: .windowBackgroundColor)).padding(.leading, 8)
+                    } else {
+                        number.foregroundStyle(Color.primary.opacity(0.9)).padding(.leading, fill + 6)
+                    }
+                }
+            }
+            .frame(height: Self.height)
+
+            HStack(spacing: 8) {
+                Text(label)
+                    .foregroundStyle(Color.primary.opacity(0.58))
+                    .lineLimit(1)
+                Spacer(minLength: 6)
+                Text(relDuration(resetAt, now) ?? "—")
+                    .foregroundStyle(Color.primary.opacity(0.42))
+                    .fixedSize()
+            }
+            .font(.system(size: 11, weight: .medium).monospacedDigit())
+        }
     }
 }
 
