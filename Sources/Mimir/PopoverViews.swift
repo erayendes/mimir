@@ -16,11 +16,9 @@ struct PopoverView: View {
     /// Which face is up. The settings live on the back of the same card — flipping to them keeps
     /// the popover one surface instead of dropping a second window on top of it.
     @State private var showingSettings = false
-    /// Natural heights of the two faces. The panel is the quota face's height; the settings face
-    /// is at least that tall (its card stretches to the footer) and grows past it only when its
-    /// rows need the room.
+    /// The quota face's natural height. The panel is always this tall; the settings face fills it
+    /// (its card stretches to the footer) and scrolls if its rows ever need more.
     @State private var quotaHeight: CGFloat = 0
-    @State private var settingsHeight: CGFloat = 0
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { context in
@@ -40,7 +38,6 @@ struct PopoverView: View {
                     ScrollView(showsIndicators: false) {
                         SettingsFace(settings: settings, onBack: { flip() })
                             .frame(minHeight: quotaHeight, alignment: .top)
-                            .measuringHeight { settingsHeight = $0; reportHeight() }
                     }
                     .opacity(showingSettings ? 1 : 0)
                     .allowsHitTesting(showingSettings)
@@ -50,14 +47,7 @@ struct PopoverView: View {
     }
 
     /// Straight swap, no animation: the settings are a place you go, not a trick the card does.
-    private func flip() {
-        showingSettings.toggle()
-        reportHeight()
-    }
-
-    private func reportHeight() {
-        onContentHeightChange(showingSettings ? max(settingsHeight, quotaHeight) : quotaHeight)
-    }
+    private func flip() { showingSettings.toggle() }
 
     @ViewBuilder
     private func quotaFace(now: Date) -> some View {
@@ -69,7 +59,7 @@ struct PopoverView: View {
                         MilowdaMark(checkForUpdates: settings.checkForUpdates)
                     }
                     .padding(.vertical, 4)
-                    .measuringHeight { quotaHeight = $0; reportHeight() }
+                    .measuringHeight { quotaHeight = $0; onContentHeightChange($0) }
                 }
     }
 
@@ -215,7 +205,7 @@ struct SettingsFace: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            BrandingHeader(onGear: onBack, back: true)
+            BrandingHeader(onGear: onBack)
 
             VStack(spacing: 0) {
                 row("power", String(localized: "Open at login"),
@@ -251,10 +241,14 @@ struct SettingsFace: View {
                             .stroke(Color.primary.opacity(0.08), lineWidth: 1)
                     )
             )
+            // Same insets as the quota cards (contentView), so the card edges line up across faces.
             .padding(.horizontal, 11)
+            .padding(.top, 11)
+            .padding(.bottom, 4)
 
             MilowdaMark(checkForUpdates: settings.checkForUpdates)
         }
+        .padding(.vertical, 4)
         .onAppear(perform: reload)
     }
 
@@ -360,28 +354,14 @@ struct MilowdaMark: View {
 /// rather than the bottom because the gear is the only control in the popover — a control the eye
 /// has to scroll past everything to find is one nobody finds.
 struct BrandingHeader: View {
+    /// The gear flips between the faces, both ways.
     let onGear: () -> Void
-    /// On the settings face the same header goes the other way: a back arrow joins the brand, and
-    /// both it and the gear return to the quotas.
-    var back: Bool = false
 
     var body: some View {
         HStack(spacing: 7) {
-            Button(action: onGear) {
-                HStack(spacing: 5) {
-                    if back {
-                        Image(systemName: "chevron.left")
-                            .font(.system(size: 13, weight: .semibold))
-                    }
-                    Text("mimir")
-                        .font(.system(size: 15, weight: .medium))
-                }
+            Text("mimir")
+                .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(Color.primary.opacity(0.55))
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .pointingHandCursor()
-            .allowsHitTesting(back)
 
             Spacer(minLength: 6)
 

@@ -9,6 +9,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [3.0.0-beta.1] - 2026-09-28
+
+**Mimir 3.0. One glance. Everything.**
+
+**The card is the widget.**
+The popover now speaks the same language as the widget on your desktop. Your five-hour quota fills the card from the left; your week runs beneath it. One number, one picture.
+
+**Your resets, at a glance.**
+One chip shows how many you hold and when the nearest runs out. Its colour follows the urgency, so a reset you lose tomorrow never looks like one with a month to go.
+
+**Claude's usage resets. For the first time.**
+The quota resets Claude grants you are now in Mimir. Read with the Claude desktop app's own session — no disguises, just the honest answer.
+
+**Your balance, always in view.**
+Money and credit lines never hide behind a disclosure.
+
 ### [2.24] - 2026-09-28
 
 #### Added
@@ -526,6 +542,22 @@ Bu projedeki tüm önemli değişiklikler bu dosyada belgelenecektir.
 
 Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
+
+### [3.0.0-beta.1] - 2026-09-28
+
+**Mimir 3.0. Tek bakış. Her şey.**
+
+**Kart, widget'ın ta kendisi.**
+Popover artık masaüstündeki widget'la aynı dili konuşuyor. Beş saatlik kota kartı soldan dolduruyor, haftalık kota altında akıyor. Tek bir sayı, tek bir resim.
+
+**Yenileme hakların, bir bakışta.**
+Kaç hakkın olduğunu ve en yakınının ne zaman bittiğini tek bir çip gösteriyor. Rengi aciliyete göre değişiyor. Yarın bitecek hak, bir ay süresi olan hakla aynı görünmüyor.
+
+**Claude'un sıfırlama hakları, ilk kez.**
+Claude'un tanıdığı kota sıfırlamaları artık Mimir'de. Claude masaüstü uygulamasının kendi oturumuyla okunuyor; kılık değiştirmeden, dürüstçe.
+
+**Bakiyen hep gözünün önünde.**
+Para ve kredi satırları hiçbir açılır menünün arkasına saklanmıyor.
 
 ### [2.24] - 2026-09-28
 
