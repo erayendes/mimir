@@ -10,8 +10,8 @@ macOS menu bar app — Claude Code, Codex ve Antigravity için quota takibi.
 ```
 
 Ayrı bir dev uygulaması yok: yerel build makinedeki Mimir'in yerine kurulur (aynı bundle id,
-widget dahil). Sürümü `<release dalı ya da son tag>-dev` olur — `-dev` Sentry/TelemetryDeck'i
-susturur; footer'da tam sürüm görünür. Build numarası son yayınlanan tag'inkidir (+ zaman damgası), yani
+widget dahil). Sürümü release dalınınkidir (yoksa son tag); Info.plist'teki `MimirLocalBuild`
+Sentry/TelemetryDeck'i susturur. Build numarası son yayınlanan tag'inkidir (+ zaman damgası), yani
 sıradaki beta/stable çıkınca Sparkle yerel build'i o notarize sürümle değiştirir.
 
 ## Release (CI üzerinden)

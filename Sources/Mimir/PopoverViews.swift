@@ -309,7 +309,7 @@ struct SettingsFace: View {
 struct MilowdaMark: View {
     let checkForUpdates: () -> Void
 
-    /// The version — a local build's reads "3.0.0-beta.3-dev", so it says both what and that it's local.
+    /// The version — on a local build, the release it's heading for.
     private static let badge = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "dev"
 
     var body: some View {

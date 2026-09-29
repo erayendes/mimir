@@ -6,9 +6,9 @@ MODE="${1:-run}"
 # signed with Developer ID so the widget and App Group work, installed over /Applications/Mimir.app.
 # There is no separate dev app — stable and beta can't sit side by side anyway (one bundle id).
 #
-# Version: the release branch's version ("release/3.0.0-beta.3" → 3.0.0-beta.3), else the last tag,
-# with a "-dev" suffix. The "-dev" keeps Sentry and TelemetryDeck quiet and marks the version in the
-# footer. The build number is the LAST RELEASED tag's plus a timestamp component (299999002.<epoch>):
+# Version: the release branch's version ("release/3.0.0-beta.3" → 3.0.0-beta.3), else the last tag.
+# `MimirLocalBuild` in Info.plist keeps Sentry and TelemetryDeck quiet. The build number is the
+# LAST RELEASED tag's plus a timestamp component (299999002.<epoch>):
 # Sparkle compares component-wise, so it leaves this build alone until the next release ships, then
 # replaces it with that notarized artifact; and chronod, which caches widget metadata by version,
 # sees a new one every build instead of showing a stale widget.
@@ -28,7 +28,8 @@ case "$BRANCH" in
   *)         VERSION="${LAST_TAG#v}" ;;
 esac
 export BUILD_NUMBER="$(bash script/build_number.sh "${LAST_TAG#v}").$(date +%s)"
-BUILD_ONLY=1 bash script/release.sh "$VERSION-dev"
+BUILD_ONLY=1 bash script/release.sh "$VERSION"
+/usr/libexec/PlistBuddy -c "Add :MimirLocalBuild bool true" "$APP_BUNDLE/Contents/Info.plist"
 
 # Sign inside-out like CI (release.yml), from /tmp: iCloud Drive re-adds xattrs codesign rejects.
 TMP_BUNDLE="/tmp/${PRODUCT}_local.app"
