@@ -82,10 +82,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
             return
         }
         #endif
-        // Dev builds (com.erayendes.mimir.dev) must not report to the production
-        // Sentry project — their crashes/hangs are just local development noise (MIMIR-7).
-        let isDevBuild = Bundle.main.bundleIdentifier?.hasSuffix(".dev") ?? false
-        if !isDevBuild {
+        // Local builds must not report to the production Sentry project — their
+        // crashes/hangs are just local development noise (MIMIR-7).
+        if !Telemetry.isDevBuild {
             SentrySDK.start { options in
                 options.dsn = "https://66d3b6b50b79ba45dc89e86329579302@o4511381595291648.ingest.us.sentry.io/4511537599086592"
                 #if DEBUG

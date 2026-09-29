@@ -30,7 +30,7 @@ let package = Package(
             ],
             exclude: [
                 // Code-signing entitlements consumed by the build scripts / CI, not SwiftPM.
-                "Mimir.dev.entitlements"
+                "Mimir.entitlements"
             ],
             resources: [
                 .copy("Resources")

@@ -84,8 +84,8 @@ jobs:
           sign "$SPARKLE_B/Updater.app"
           sign "$SPARKLE_B/Autoupdate"
           sign "$APP/Contents/Frameworks/Sparkle.framework"
-          sign --entitlements WidgetExtension/MimirWidget/MimirWidget.dev.entitlements "$APPEX"
-          sign --entitlements Sources/Mimir/Mimir.dev.entitlements "$APP"
+          sign --entitlements WidgetExtension/MimirWidget/MimirWidget.entitlements "$APPEX"
+          sign --entitlements Sources/Mimir/Mimir.entitlements "$APP"
           codesign --verify --deep --strict --verbose=2 "$APP"
           codesign -d --entitlements - "$APPEX" | grep -q application-groups \
             && echo "✓ appex carries App Group entitlement" || { echo "✗ appex missing App Group" >&2; exit 1; }

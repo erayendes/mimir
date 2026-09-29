@@ -156,12 +156,9 @@ struct LiveUsageDataSource {
 
     // MARK: - Generic last-known snapshot (shared by all services)
 
-    /// Where Mimir keeps its caches and snapshots. A dev build gets its own folder: sharing one let
-    /// whichever copy wrote last feed the other — an older release's cache hid the reset grants
-    /// from a dev build running beside it.
+    /// Where Mimir keeps its caches and snapshots.
     static let supportDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent("Library/Application Support")
-        .appendingPathComponent(Bundle.main.bundleIdentifier?.hasSuffix(".dev") == true ? "Mimir Dev" : "Mimir")
+        .appendingPathComponent("Library/Application Support/Mimir")
 
     func snapshotURL(for service: String) -> URL {
         Self.supportDirectory.appendingPathComponent("\(service.lowercased())_snapshot.json")

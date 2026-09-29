@@ -311,7 +311,7 @@ struct MilowdaMark: View {
 
     /// "dev" on a development build, the version otherwise.
     private static let badge: String = {
-        if Bundle.main.bundleIdentifier?.hasSuffix(".dev") ?? false { return "dev" }
+        if Telemetry.isDevBuild { return "dev" }
         return (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "dev"
     }()
 

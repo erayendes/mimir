@@ -17,8 +17,10 @@ enum Telemetry {
         UserDefaults.standard.object(forKey: enabledKey) as? Bool ?? true
     }
 
+    /// A local build (`script/build_and_run.sh` stamps its version "…-dev"): shares the release's
+    /// bundle id, so the version is what tells it apart. Its crashes and signals are development noise.
     static var isDevBuild: Bool {
-        Bundle.main.bundleIdentifier?.hasSuffix(".dev") ?? false
+        (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String)?.hasSuffix("-dev") ?? true
     }
 
     /// The single gate every transmission passes through. Pure → unit-tested.

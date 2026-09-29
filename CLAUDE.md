@@ -5,9 +5,14 @@ macOS menu bar app — Claude Code, Codex ve Antigravity için quota takibi.
 ## Geliştirme
 
 ```bash
-./script/build_and_run.sh        # build + sign + çalıştır
+./script/build_and_run.sh        # build + Developer ID imza + /Applications'a kur + çalıştır
 ./script/build_and_run.sh logs   # log stream ile çalıştır
 ```
+
+Ayrı bir dev uygulaması yok: yerel build makinedeki Mimir'in yerine kurulur (aynı bundle id,
+widget dahil). Sürümü `<release dalı ya da son tag>-dev` olur — `-dev` Sentry/TelemetryDeck'i
+susturur, footer'da "dev" yazar. Build numarası son yayınlanan tag'inkidir (+ zaman damgası), yani
+sıradaki beta/stable çıkınca Sparkle yerel build'i o notarize sürümle değiştirir.
 
 ## Release (CI üzerinden)
 

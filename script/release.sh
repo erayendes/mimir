@@ -25,7 +25,8 @@ APP_NAME="Mimir"
 BUNDLE_ID="com.erayendes.mimir"
 MIN_SYSTEM_VERSION="14.0"
 APP_GROUP="group.com.erayendes.mimir"   # shared container between the app and its widget
-BUILD_NUMBER="$(bash "$(dirname "${BASH_SOURCE[0]}")/build_number.sh" "$VERSION")"
+# build_and_run.sh passes its own (a local build isn't a release); otherwise derived from the version.
+BUILD_NUMBER="${BUILD_NUMBER:-$(bash "$(dirname "${BASH_SOURCE[0]}")/build_number.sh" "$VERSION")}"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
@@ -171,10 +172,10 @@ codesign --force --sign - --options runtime "$TMP_BUNDLE/Contents/Frameworks/Spa
 # This local path is ad-hoc (not for distribution — see CLAUDE.md); the App Group only actually
 # resolves under the Developer ID CI build, but the appex must still be signed for a valid bundle.
 codesign --force --sign - --options runtime \
-  --entitlements "$ROOT_DIR/WidgetExtension/MimirWidget/MimirWidget.dev.entitlements" \
+  --entitlements "$ROOT_DIR/WidgetExtension/MimirWidget/MimirWidget.entitlements" \
   "$TMP_BUNDLE/Contents/PlugIns/MimirWidgetExtension.appex"
 codesign --force --sign - --options runtime \
-  --entitlements "$ROOT_DIR/Sources/Mimir/Mimir.dev.entitlements" "$TMP_BUNDLE"
+  --entitlements "$ROOT_DIR/Sources/Mimir/Mimir.entitlements" "$TMP_BUNDLE"
 
 # Copy signed bundle back (without xattrs)
 rm -rf "$APP_BUNDLE"

@@ -36,5 +36,5 @@ targets:
         PRODUCT_NAME: MimirWidgetExtension
         PRODUCT_BUNDLE_IDENTIFIER: com.erayendes.mimir.widget
         INFOPLIST_FILE: MimirWidget/Info.plist
-        CODE_SIGN_ENTITLEMENTS: MimirWidget/MimirWidget.dev.entitlements
+        CODE_SIGN_ENTITLEMENTS: MimirWidget/MimirWidget.entitlements
         SKIP_INSTALL: "YES"
