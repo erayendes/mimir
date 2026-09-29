@@ -261,6 +261,7 @@ python3 "$ROOT_DIR/script/gen_appcast_item.py" \
   --signature "$ED_SIG" \
   --length "$ZIP_SIZE" \
   --notes "$NOTES" \
+  $( [[ "$VERSION" == *-* ]] && echo --channel beta ) \
   --appcast "$ROOT_DIR/appcast.xml"
 
 # ── 10. Commit + tag

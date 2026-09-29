@@ -31,9 +31,11 @@ export BUILD_NUMBER="$(bash script/build_number.sh "${LAST_TAG#v}").$(date +%s)"
 BUILD_ONLY=1 bash script/release.sh "$VERSION"
 /usr/libexec/PlistBuddy -c "Add :MimirLocalBuild bool true" "$APP_BUNDLE/Contents/Info.plist"
 
-# Sign inside-out like CI (release.yml), from /tmp: iCloud Drive re-adds xattrs codesign rejects.
-TMP_BUNDLE="/tmp/${PRODUCT}_local.app"
-rm -rf "$TMP_BUNDLE"
+# Sign inside-out like CI (release.yml), from a temp dir: iCloud Drive re-adds xattrs codesign rejects.
+# A private dir, not a fixed /tmp path another user could claim first.
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "$TMP_DIR"' EXIT
+TMP_BUNDLE="$TMP_DIR/${PRODUCT}_local.app"
 ditto --norsrc "$APP_BUNDLE" "$TMP_BUNDLE"
 xattr -cr "$TMP_BUNDLE" 2>/dev/null || true
 sign() { codesign --force --sign "$SIGN_ID" --options runtime "$@"; }
@@ -49,7 +51,6 @@ sign --entitlements Sources/Mimir/Mimir.entitlements "$TMP_BUNDLE"
 
 rm -rf "$INSTALLED"
 ditto --norsrc "$TMP_BUNDLE" "$INSTALLED"
-rm -rf "$TMP_BUNDLE"
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$INSTALLED"
 
 launch_app() {
