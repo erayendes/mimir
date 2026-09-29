@@ -8,7 +8,36 @@
     <description>Mimir update feed</description>
     <language>en</language>
 
-                            <item>
+                                <item>
+      <title>Mimir 3.0-beta.4</title>
+      <sparkle:channel>beta</sparkle:channel>
+      <sparkle:version>299999004</sparkle:version>
+      <sparkle:shortVersionString>3.0-beta.4</sparkle:shortVersionString>
+      <pubDate>Tue, 29 Sep 2026 19:09:11 +0000</pubDate>
+      <description><![CDATA[
+<p>The last beta before release. If no problems are reported or found, this will ship as the stable version.</p>
+<ul>
+<li>UI refinements</li>
+<li>Security review</li>
+<li>Code review and cleanup</li>
+</ul>
+<hr>
+<p>Yayın öncesi son beta sürümü. Sorun bildirimi gelmez ya da herhangi bir sorunla karşılaşılmazsa bu sürüm kararlı sürüm olarak yayınlanacak.</p>
+<ul>
+<li>UI düzenlemeleri</li>
+<li>Güvenlik testleri</li>
+<li>Code review ve temizlik</li>
+</ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v3.0-beta.4/Mimir.zip"
+        sparkle:edSignature="ccDm0keZXtSiIF731gy2E5rjQdUmJmv6v/PRRIR0MEL8QgSE+gXPVuF9PFFoafMa5+SXBn+v1/RfDaKLarK8CA=="
+        length="6749340"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 3.0.0-beta.3</title>
       <sparkle:channel>beta</sparkle:channel>
       <sparkle:version>299999003</sparkle:version>
