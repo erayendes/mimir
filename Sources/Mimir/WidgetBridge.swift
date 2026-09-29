@@ -12,6 +12,10 @@ enum WidgetBridge {
     /// skips no-op writes; `lastReload` rate-limits the reload poke.
     nonisolated(unsafe) private static var lastProviders: [ProviderPayload]?
     nonisolated(unsafe) private static var lastReload: Date?
+    nonisolated(unsafe) private static var lastWrite: Date?
+    /// Unchanged data is still rewritten this often so `generatedAt` doubles as a heartbeat: the
+    /// widget dims a payload older than its 15 min limit (Mimir quit) instead of showing it as live.
+    static let heartbeat: TimeInterval = 5 * 60
     /// One-shot: a widget tap asks the next payload update to reload immediately (see below).
     nonisolated(unsafe) private static var pendingForceReload = false
     /// Minimum spacing between reload pokes for routine %-drift (structural changes bypass it). Kept
@@ -35,12 +39,13 @@ enum WidgetBridge {
         // numbers. The reload POKE is the scarce resource: WidgetKit budgets ~dozens/day. A no-op tick
         // with unchanged data and no pending tap short-circuits so we never spend budget for nothing.
         let changed = payload.providers != lastProviders
-        guard changed || forced else { return }
-        let previous = lastProviders
-        if changed {
-            lastProviders = payload.providers
+        if changed || lastWrite.map({ now.timeIntervalSince($0) >= heartbeat }) ?? true {
+            lastWrite = now
             WidgetStore.write(payload)
         }
+        guard changed || forced else { return }
+        let previous = lastProviders
+        lastProviders = payload.providers
         // Reload on a structural change or once the throttle window elapses (routine %-drift), or
         // immediately when a widget tap forced it.
         if forced || shouldReload(previous: previous, next: payload.providers, lastReload: lastReload,

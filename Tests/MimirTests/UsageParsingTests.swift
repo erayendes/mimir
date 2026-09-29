@@ -722,7 +722,7 @@ final class ClaudeDollarCreditTests: XCTestCase {
         // One row, no heading: the name says what it is and when it lapses, the value what's left.
         // `resetAt` must stay nil — it would replace the amount with a countdown.
         let row = ds.claudeDollarCreditRows(live).first
-        XCTAssertEqual(row?.name, "\(String(localized: "Cloud credit")) (05.11.26)")
+        XCTAssertEqual(row?.name, "\(String(localized: "Cloud credit")) 05.11.26")
         XCTAssertNil(row?.resetAt)
         XCTAssertNil(row?.groupLabel)
     }
