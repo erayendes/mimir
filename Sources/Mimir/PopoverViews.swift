@@ -524,13 +524,12 @@ struct ServiceCard: View {
 
             if !renewalRows.isEmpty {
                 renewalChip
-                if passesOpen {
-                    VStack(alignment: .leading, spacing: 5) {
-                        ForEach(renewalRows) { row in
-                            renewalLine(row)
-                        }
+                if passesOpen && passes.count > 1 {
+                    // The rest of the passes, each a pill like the chip, counting down to 1.
+                    ForEach(Array(passes.dropFirst().enumerated()), id: \.offset) { i, row in
+                        renewalPill(count: passes.count - 1 - i, expiry: row.resetAt,
+                                    fallback: row.valueText)
                     }
-                    .padding(.leading, Self.chipInset)
                 }
             }
 
@@ -559,52 +558,44 @@ struct ServiceCard: View {
 
     // MARK: Renewal passes
 
-    /// The chip: how many passes you hold and how long the nearest one has left, with the chevron
-    /// that opens the rest. Its text takes the urgency colour of that nearest expiry — a pass you
-    /// lose tomorrow should not read the same as one with a month on it.
+    /// The chip: how many passes you hold and how long the nearest one has left. With more than
+    /// one it carries a chevron and opens the rest; a single pass has nothing behind it to show.
     private var renewalChip: some View {
         Button {
             withAnimation(.easeOut(duration: 0.16)) { passesOpen.toggle() }
         } label: {
-            HStack(spacing: 6) {
-                Image(systemName: "plus.circle").font(.system(size: 11, weight: .regular))
-                Text(String(localized: "Renewal credit"))
-                Text("\(renewalRows.count)")
-                    .monospacedDigit()
-                    .padding(.horizontal, 5).padding(.vertical, 1)
-                    .background(Capsule().fill(Color.primary.opacity(0.10)))
-                Text("|").foregroundStyle(Color.primary.opacity(0.18))
-                Text(relDuration(soonestPass, now) ?? "—").monospacedDigit()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 9, weight: .semibold))
-                    .rotationEffect(.degrees(passesOpen ? 90 : 0))
-            }
-            .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(expiryColor(soonestPass))
-            .padding(.horizontal, Self.chipInset).padding(.vertical, 4)
-            .background(Capsule().fill(Color.primary.opacity(0.06)))
-            .contentShape(Capsule())
+            renewalPill(count: passes.count, expiry: soonestPass, fallback: passes.first?.valueText,
+                        chevron: passes.count > 1)
         }
         .buttonStyle(.plain)
+        .allowsHitTesting(passes.count > 1)
         .pointingHandCursor()
         .help(passesOpen ? "" : String(localized: "Renewal credit"))
     }
 
-    /// One pass: what it is and the date it lapses on the left, how long that is on the right.
-    private func renewalLine(_ row: ModelStatus) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Image(systemName: "plus.circle").font(.system(size: 11, weight: .regular))
-                .frame(width: Self.iconColumn)
-            Text(String(localized: "Renewal credit"))
-            Text("(\(row.name))").foregroundStyle(Color.primary.opacity(0.42))
-            Spacer(minLength: 6)
-            Text(relDuration(row.resetAt, now) ?? row.valueText ?? "—")
+    /// One pill: the count badge, the label, how long until it lapses. Its text takes the urgency
+    /// colour of that expiry — a pass you lose tomorrow should not read the same as one with a
+    /// month on it.
+    private func renewalPill(count: Int, expiry: Date?, fallback: String?, chevron: Bool = false) -> some View {
+        HStack(spacing: 6) {
+            Text("\(count)")
                 .monospacedDigit()
-                .fixedSize()
+                .padding(.horizontal, 5).padding(.vertical, 1)
+                .background(Capsule().fill(Color.primary.opacity(0.10)))
+            Text(String(localized: "Renewal credit"))
+            Text("|").foregroundStyle(Color.primary.opacity(0.18))
+            Text(relDuration(expiry, now) ?? fallback ?? "—").monospacedDigit()
+            if chevron {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 9, weight: .semibold))
+                    .rotationEffect(.degrees(passesOpen ? 90 : 0))
+            }
         }
         .font(.system(size: 11, weight: .medium))
-        .foregroundStyle(expiryColor(row.resetAt))
-        .lineLimit(1)
+        .foregroundStyle(expiryColor(expiry))
+        .padding(.horizontal, Self.chipInset).padding(.vertical, 4)
+        .background(Capsule().fill(Color.primary.opacity(0.06)))
+        .contentShape(Capsule())
     }
 
     /// Under three days an expiry is worth noticing, under a day it's worth acting on. Above that
@@ -683,7 +674,12 @@ struct ServiceCard: View {
     }
 
     private var soonestPass: Date? {
-        renewalRows.compactMap(\.resetAt).min()
+        passes.first?.resetAt
+    }
+
+    /// The passes nearest expiry first; one with no date goes last.
+    private var passes: [ModelStatus] {
+        renewalRows.sorted { ($0.resetAt ?? .distantFuture) < ($1.resetAt ?? .distantFuture) }
     }
 
     /// Money and balances — always on the card.
@@ -835,7 +831,7 @@ struct ProviderPanel: View {
     /// clock underneath.
     private func capsule(percent: Int, resetAt: Date?) -> some View {
         let color = panel.gated ? lockedQuotaColor : quotaStatusColor(percent)
-        return VStack(alignment: .leading, spacing: 5) {
+        return VStack(alignment: .leading, spacing: 9) {
             GeometryReader { geo in
                 let fill = max(18, geo.size.width * CGFloat(clampPct(percent)) / 100)
                 let number = Text("\(clampPct(percent))%")
