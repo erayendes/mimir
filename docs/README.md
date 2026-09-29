@@ -16,6 +16,13 @@
 
 > Track your AI tool usage limits from the macOS menu bar.
 
+![Join the beta](assets/beta-banner.png)
+
+**Join the beta to try new versions early and share your ideas.**
+
+Right-click Mimir in the menu bar and choose **Join the beta**. Beta versions arrive automatically.
+To get one right away, click the version number at the bottom of the panel.
+
 Mimir is a lightweight macOS menu bar app that shows real-time usage limits and
 reset countdowns for your AI tools — Claude, Codex and Antigravity (which covers
 Gemini, Claude and GPT) — without leaving your workflow.
@@ -268,6 +275,13 @@ issue first. See [Contributing](../.github/CONTRIBUTING.md) · [Support & FAQ](.
 ## Türkçe
 
 > AI araçlarınızın kullanım limitlerini macOS menü çubuğundan takip edin.
+
+![Beta'ya katılın](assets/beta-banner.png)
+
+**Yeni sürümleri test etmek ve fikirlerinizi paylaşmak için Beta'ya katılın.**
+
+Katılmak için menü çubuğundaki Mimir'e sağ tıklayın ve **Beta'ya katıl**'ı seçin. Beta sürümleri otomatik gelir.
+Hemen almak isterseniz panelin altındaki sürüm numarasına tıklayın.
 
 Mimir; Claude, Codex ve Antigravity (Gemini, Claude ve GPT gruplarını kapsar) gibi
 AI araçlarınızın kullanım limitlerini ve yenilenme sürelerini iş akışınızı bölmeden macOS menü çubuğundan
