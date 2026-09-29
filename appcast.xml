@@ -8,7 +8,36 @@
     <description>Mimir update feed</description>
     <language>en</language>
 
-                        <item>
+                            <item>
+      <title>Mimir 3.0.0-beta.3</title>
+      <sparkle:channel>beta</sparkle:channel>
+      <sparkle:version>299999003</sparkle:version>
+      <sparkle:shortVersionString>3.0.0-beta.3</sparkle:shortVersionString>
+      <pubDate>Tue, 29 Sep 2026 12:10:09 +0000</pubDate>
+      <description><![CDATA[
+<ul>
+<li><b>Luna Reserve shows up.</b> When Codex moves you to Luna Reserve after the main quota runs out, it gets its own panel on the ChatGPT card, the way an Antigravity family does — instead of the card sitting at 0% while you keep working.</li>
+<li><b>The widget no longer shows a frozen reading as live.</b> A window whose reset has passed reads as refilled, the countdown keeps moving between updates, and if Mimir isn't running the widget dims and a tap opens it.</li>
+<li>Long panel titles shrink to fit instead of being cut off.</li>
+<li>The pointing hand shows on every link in the popover.</li>
+</ul>
+<hr>
+<ul>
+<li><b>Luna Reserve görünüyor.</b> Ana kota bitince Codex seni Luna Reserve'e geçirdiğinde, ChatGPT kartında ona ait ayrı bir panel çıkıyor — Antigravity ailelerindeki gibi. Kart artık sen çalışmaya devam ederken %0'da takılı kalmıyor.</li>
+<li><b>Widget donmuş bir okumayı artık canlı gibi göstermiyor.</b> Reset'i geçmiş pencere dolmuş sayılıyor, geri sayım güncellemeler arasında da ilerliyor; Mimir çalışmıyorsa widget soluklaşıyor ve dokununca Mimir açılıyor.</li>
+<li>Uzun panel başlıkları kesilmek yerine küçülerek sığıyor.</li>
+<li>Popover'daki her bağlantıda el imleci görünüyor.</li>
+</ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v3.0.0-beta.3/Mimir.zip"
+        sparkle:edSignature="rgOyzqZYN6M7YNbMTxz0RuK1EMn7qLhFGYsH5FVkGOKT+KW/lfHGtP9rB7meMDFaKII6qHS3RQerA+qyVAH3Cg=="
+        length="6741846"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 3.0.0-beta.2</title>
       <sparkle:channel>beta</sparkle:channel>
       <sparkle:version>299999002</sparkle:version>
