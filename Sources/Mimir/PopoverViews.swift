@@ -949,53 +949,6 @@ struct QuotaBlock: View {
     }
 }
 
-/// The long window as a capsule under the session block — the shape the widgets already use, so
-/// the card and the widget read as one design. Its percent rides the fill when the fill is wide
-/// enough to hold it, and sits just past the end when it isn't; the label and the countdown run
-/// underneath. One picture for the pair of windows instead of a block and a dotted row that looked
-/// like two unrelated readings.
-struct WeeklyCapsule: View {
-    let label: String
-    let percent: Int
-    let resetAt: Date?
-    let now: Date
-    var gated: Bool = false
-
-    private static let height: CGFloat = 16
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            GeometryReader { geo in
-                let color = gated ? lockedQuotaColor : quotaStatusColor(percent)
-                let fill = max(Self.height, geo.size.width * CGFloat(clampPct(percent)) / 100)
-                let number = Text("%\(clampPct(percent))")
-                    .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
-                ZStack(alignment: .leading) {
-                    Capsule().fill(Color.primary.opacity(0.09))
-                    Capsule().fill(color).frame(width: fill)
-                    if fill >= 52 {
-                        number.foregroundStyle(Color(nsColor: .windowBackgroundColor)).padding(.leading, 8)
-                    } else {
-                        number.foregroundStyle(Color.primary.opacity(0.9)).padding(.leading, fill + 6)
-                    }
-                }
-            }
-            .frame(height: Self.height)
-
-            HStack(spacing: 8) {
-                Text(label)
-                    .foregroundStyle(Color.primary.opacity(0.58))
-                    .lineLimit(1)
-                Spacer(minLength: 6)
-                Text(relDuration(resetAt, now) ?? "—")
-                    .foregroundStyle(Color.primary.opacity(0.42))
-                    .fixedSize()
-            }
-            .font(.system(size: 11, weight: .medium).monospacedDigit())
-        }
-    }
-}
-
 struct QuotaBar: View {
     let percent: Int
     var colorOverride: Color? = nil   // grey for a weekly-locked model; else the status colour
