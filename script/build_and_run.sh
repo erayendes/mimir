@@ -21,11 +21,27 @@ if [ "$WIDGET" = "1" ]; then
   # App Groups for a widget extension need a provisioning profile, which is tied to the prod
   # app-id. So a widget build uses the prod bundle id (quit the shipped Mimir while testing).
   BUNDLE_ID="com.erayendes.mimir"
-else
-  SIGN_ID="${SIGN_ID:--}"   # ad-hoc
 fi
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# The App Group is what the installed widget reads, so a build that can open it feeds that widget.
+# WIDGET=1 signs as the prod app; otherwise, with the "mimir dev" Developer ID profile in signing/,
+# the dev build keeps its own identity and still writes the shared container. Without either it
+# signs ad-hoc (no Team ID → no container → the widget isn't fed).
+DEV_PROFILE="$ROOT_DIR/signing/Mimir_Dev.provisionprofile"
+if [ "$WIDGET" = "1" ]; then
+  APP_PROFILE="$ROOT_DIR/signing/Mimir_App.provisionprofile"
+  APP_ENTITLEMENTS="$ROOT_DIR/Sources/Mimir/Mimir.dev.entitlements"
+elif [ -f "$DEV_PROFILE" ] && [ -z "${SIGN_ID:-}" ]; then
+  SIGN_ID="Developer ID Application: Eray Endes (926AC5V2UG)"
+  APP_PROFILE="$DEV_PROFILE"
+  APP_ENTITLEMENTS="$ROOT_DIR/signing/MimirDev.entitlements"
+else
+  SIGN_ID="${SIGN_ID:--}"   # ad-hoc
+  APP_ENTITLEMENTS=""
+fi
+
 DIST_DIR="$ROOT_DIR/dist"
 APP_BUNDLE="$DIST_DIR/$APP_NAME.app"
 APP_CONTENTS="$APP_BUNDLE/Contents"
@@ -141,9 +157,12 @@ if [ "$WIDGET" = "1" ]; then
   mkdir -p "$APP_CONTENTS/PlugIns"
   rm -rf "$APP_CONTENTS/PlugIns/MimirWidgetExtension.appex"
   cp -R "$WIDGET_BUILD/MimirWidgetExtension.appex" "$APP_CONTENTS/PlugIns/"
-  # Embed provisioning profiles (these authorise the App Group entitlement for Developer ID).
-  cp "$ROOT_DIR/signing/Mimir_App.provisionprofile" "$APP_CONTENTS/embedded.provisionprofile"
   cp "$ROOT_DIR/signing/Mimir_Widget.provisionprofile" "$APP_CONTENTS/PlugIns/MimirWidgetExtension.appex/Contents/embedded.provisionprofile"
+fi
+
+# The profile authorises the App Group entitlement for Developer ID.
+if [ -n "$APP_ENTITLEMENTS" ]; then
+  cp "$APP_PROFILE" "$APP_CONTENTS/embedded.provisionprofile"
 fi
 
 # Sign from /tmp — iCloud Drive (bird daemon) keeps re-adding extended attributes
@@ -174,11 +193,11 @@ if [ "$WIDGET" = "1" ]; then
     "$TMP_BUNDLE/Contents/PlugIns/MimirWidgetExtension.appex"
 fi
 
-# Seal the whole app bundle last. With a widget, the host carries the App Group entitlement so both
-# processes resolve the same shared container; otherwise sign ad-hoc as before.
-if [ "$WIDGET" = "1" ]; then
+# Seal the whole app bundle last. With a profile, the host carries the App Group entitlement so it
+# and the widget resolve the same shared container; otherwise sign ad-hoc as before.
+if [ -n "$APP_ENTITLEMENTS" ]; then
   codesign --force --sign "$SIGN_ID" --options runtime \
-    --entitlements "$ROOT_DIR/Sources/Mimir/Mimir.dev.entitlements" "$TMP_BUNDLE"
+    --entitlements "$APP_ENTITLEMENTS" "$TMP_BUNDLE"
 else
   codesign --force --sign "$SIGN_ID" "$TMP_BUNDLE"
 fi
