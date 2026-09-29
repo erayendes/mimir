@@ -9,7 +9,22 @@ import UserNotifications
 import WidgetKit
 
 @MainActor
+/// Sparkle's dialogs show the plain version names. When two share a name (a local build and the
+/// release it was heading for) Sparkle appends the build numbers — "3.0-beta.4 (299999004)" —
+/// which only the local build ever triggers, and which reads as noise.
+final class PlainVersionDisplay: NSObject, SPUStandardUserDriverDelegate, SUVersionDisplay {
+    nonisolated func standardUserDriverRequestsVersionDisplayer() -> (any SUVersionDisplay)? { self }
+
+    nonisolated func formatUpdateVersion(fromUpdate update: SUAppcastItem,
+                                         andBundleDisplayVersion inOutBundleDisplayVersion: AutoreleasingUnsafeMutablePointer<NSString>,
+                                         withBundleVersion bundleVersion: String) -> String {
+        update.displayVersionString
+    }
+}
+
 final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
+    /// Sparkle holds its user-driver delegate weakly.
+    private let plainVersions = PlainVersionDisplay()
     private let store = UsageStore()
     /// Borderless translucent panel instead of NSPopover: NSPopover paints an opaque
     /// system background that blocks behind-window blur, so the desktop can never read
@@ -128,7 +143,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         updaterController = SPUStandardUpdaterController(
             startingUpdater: true,
             updaterDelegate: self,
-            userDriverDelegate: nil
+            userDriverDelegate: plainVersions
         )
 
         NSApp.setActivationPolicy(.accessory)
