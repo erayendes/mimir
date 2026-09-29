@@ -533,6 +533,8 @@ struct ServiceCard: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        // Down to one pass there's nothing left to open; close so a later second pass starts shut.
+        .onChange(of: passes.count) { _, count in if count < 2 { passesOpen = false } }
         .padding(9)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
