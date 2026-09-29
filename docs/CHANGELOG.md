@@ -9,6 +9,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [3.0-beta.4] - 2026-09-29
+
+The last beta before release. If no problems are reported or found, this will ship as the stable version.
+
+- UI refinements
+- Security review
+- Code review and cleanup
+
 ### [3.0.0-beta.3] - 2026-09-29
 
 - **Luna Reserve shows up.** When Codex moves you to Luna Reserve after the main quota runs out, it gets its own panel on the ChatGPT card, the way an Antigravity family does — instead of the card sitting at 0% while you keep working.
@@ -553,6 +561,14 @@ Bu projedeki tüm önemli değişiklikler bu dosyada belgelenecektir.
 
 Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
+
+### [3.0-beta.4] - 2026-09-29
+
+Yayın öncesi son beta sürümü. Sorun bildirimi gelmez ya da herhangi bir sorunla karşılaşılmazsa bu sürüm kararlı sürüm olarak yayınlanacak.
+
+- UI düzenlemeleri
+- Güvenlik testleri
+- Code review ve temizlik
 
 ### [3.0.0-beta.3] - 2026-09-29
 
