@@ -309,11 +309,8 @@ struct SettingsFace: View {
 struct MilowdaMark: View {
     let checkForUpdates: () -> Void
 
-    /// "dev" on a development build, the version otherwise.
-    private static let badge: String = {
-        if Telemetry.isDevBuild { return "dev" }
-        return (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "dev"
-    }()
+    /// The version — a local build's reads "3.0.0-beta.3-dev", so it says both what and that it's local.
+    private static let badge = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "dev"
 
     var body: some View {
         HStack {

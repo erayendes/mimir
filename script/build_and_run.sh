@@ -7,7 +7,7 @@ MODE="${1:-run}"
 # There is no separate dev app — stable and beta can't sit side by side anyway (one bundle id).
 #
 # Version: the release branch's version ("release/3.0.0-beta.3" → 3.0.0-beta.3), else the last tag,
-# with a "-dev" suffix. The "-dev" keeps Sentry and TelemetryDeck quiet and shows "dev" in the
+# with a "-dev" suffix. The "-dev" keeps Sentry and TelemetryDeck quiet and marks the version in the
 # footer. The build number is the LAST RELEASED tag's plus a timestamp component (299999002.<epoch>):
 # Sparkle compares component-wise, so it leaves this build alone until the next release ships, then
 # replaces it with that notarized artifact; and chronod, which caches widget metadata by version,
