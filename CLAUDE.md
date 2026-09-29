@@ -27,6 +27,8 @@ Geliştiricinin yaptığı:
 git tag vX.Y && git push && git push origin vX.Y
 ```
 
+Beta: sürüm `X.Y-beta.N` (tag `vX.Y-beta.N`, dal `release/X.Y-beta.N`) — beta kanalına gider.
+
 CI şunları yapar: build → Developer ID imzala → **notarize + staple** → dSYM'i
 Sentry'ye yükle → `Mimir.zip` paketle → Sparkle `edSignature` üret → `appcast.xml`'i
 main'e commit'le → GitHub release oluştur. Artifact notarized'dır (Gatekeeper geçer).

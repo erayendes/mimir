@@ -6,7 +6,7 @@ MODE="${1:-run}"
 # signed with Developer ID so the widget and App Group work, installed over /Applications/Mimir.app.
 # There is no separate dev app — stable and beta can't sit side by side anyway (one bundle id).
 #
-# Version: the release branch's version ("release/3.0.0-beta.3" → 3.0.0-beta.3), else the last tag.
+# Version: the release branch's version ("release/3.0-beta.4" → 3.0-beta.4), else the last tag.
 # `MimirLocalBuild` in Info.plist keeps Sentry and TelemetryDeck quiet. The build number is the
 # LAST RELEASED tag's plus a timestamp component (299999002.<epoch>):
 # Sparkle compares component-wise, so it leaves this build alone until the next release ships, then

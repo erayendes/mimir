@@ -416,7 +416,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     /// for it here. Asked on every check, so switching the setting takes effect immediately.
     ///
     /// Build numbers put a beta just under the final it leads to and above the last stable release
-    /// (see `script/build_number.sh`), so joining moves you along 3.0.0-beta.1 → beta.2 → 3.0.0,
+    /// (see `script/build_number.sh`), so joining moves you along 3.0-beta.1 → beta.2 → 3.0,
     /// and a 2.24 shipped meanwhile is behind you rather than an update. Leaving the channel does
     /// not roll you back — Sparkle never downgrades — so a beta install simply waits for the final.
     func allowedChannels(for updater: SPUUpdater) -> Set<String> {
