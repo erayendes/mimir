@@ -436,16 +436,6 @@ enum PopoverMetrics {
     static let placeholderHeight: CGFloat = 200
 }
 
-/// Subtle press feedback — the row scales down slightly while held, so it feels
-/// responsive to the click rather than static. (Emil: buttons must feel pressed.)
-struct PressableButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.97 : 1)
-            .opacity(configuration.isPressed ? 0.9 : 1)
-            .animation(.easeOut(duration: 0.14), value: configuration.isPressed)
-    }
-}
 
 /// Behind-window blur: blurs the actual desktop behind the popover (not just the
 /// window's own content like SwiftUI's `.ultraThinMaterial`). This is what makes
@@ -519,7 +509,7 @@ struct ServiceCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
             ForEach(Array(panels.enumerated()), id: \.offset) { _, panel in
-                ProviderPanel(panel: panel, now: now)
+                ProviderPanel(panel: panel.promotingLoneWindow(), now: now)
             }
 
             if !renewalRows.isEmpty {
@@ -591,7 +581,7 @@ struct ServiceCard: View {
                     .rotationEffect(.degrees(passesOpen ? 90 : 0))
             }
         }
-        .font(.system(size: 11, weight: .medium))
+        .font(.system(size: 10.5, weight: .medium))
         .foregroundStyle(expiryColor(expiry))
         .padding(.horizontal, Self.chipInset).padding(.vertical, 4)
         .background(Capsule().fill(Color.primary.opacity(0.06)))
@@ -601,11 +591,11 @@ struct ServiceCard: View {
     /// Under three days an expiry is worth noticing, under a day it's worth acting on. Above that
     /// it's just a date, and reads in the same quiet grey as everything else.
     private func expiryColor(_ at: Date?) -> Color {
-        guard let at else { return Color.primary.opacity(0.58) }
+        guard let at else { return Color.primary.opacity(0.42) }
         let left = at.timeIntervalSince(now)
         if left <= 24 * 3600 { return quotaStatusColor(0) }
         if left <= 3 * 86_400 { return quotaStatusColor(20) }
-        return Color.primary.opacity(0.58)
+        return Color.primary.opacity(0.42)
     }
 
     /// A money or balance row. Deliberately identical to a renewal line — same icon column, same
@@ -622,8 +612,8 @@ struct ServiceCard: View {
                 .monospacedDigit()
                 .fixedSize()
         }
-        .font(.system(size: 11, weight: .medium))
-        .foregroundStyle(row.isLow ? quotaStatusColor(0) : Color.primary.opacity(0.58))
+        .font(.system(size: 10.5, weight: .medium))
+        .foregroundStyle(row.isLow ? quotaStatusColor(0) : Color.primary.opacity(0.42))
         .lineLimit(1)
     }
 
@@ -736,6 +726,15 @@ struct PanelData {
     let sessionFallback: TimeInterval
     let weeklyWindow: TimeInterval
     let gated: Bool
+
+    /// A plan with one long window and no session (Codex Go's 30 days) shows it where the session
+    /// sits — the big number, the clock and the face — instead of an empty corner above a capsule.
+    func promotingLoneWindow() -> PanelData {
+        guard session == nil, let weekly else { return self }
+        return PanelData(title: title, iconName: iconName, session: weekly, weekly: nil,
+                         weeklyLabel: weeklyLabel, sessionFallback: weeklyWindow,
+                         weeklyWindow: weeklyWindow, gated: false)
+    }
 }
 
 /// The medium widget, shrunk to fit a card. The panel's face IS the five-hour gauge: what's left
@@ -865,8 +864,14 @@ struct ProviderPanel: View {
 
     private func clockText(_ at: Date?) -> String? {
         guard let at, at.timeIntervalSince(now) > 0 else { return nil }
-        return Self.clockFormatter.string(from: at)
+        // A clock alone can't say which day a reset more than a day out lands on; the date can.
+        guard at.timeIntervalSince(now) > 86_400 else { return Self.clockFormatter.string(from: at) }
+        return Self.dateFormatter.string(from: at)
     }
+
+    private static let dateFormatter: DateFormatter = {
+        let f = DateFormatter(); f.setLocalizedDateFormatFromTemplate("d MMM"); return f
+    }()
 
     /// The long window resets days out, so the weekday is what makes the time mean anything.
     private func dayClockText(_ at: Date?) -> String? {
@@ -890,82 +895,6 @@ let lockedQuotaColor = Color.primary.opacity(0.4)
 func relDuration(_ resetAt: Date?, _ now: Date) -> String? {
     guard let resetAt, resetAt.timeIntervalSince(now) > 0 else { return nil }
     return TimeFormatter.duration(from: resetAt.timeIntervalSince(now))
-}
-
-/// A quota block: window label + status-coloured percent on one line, a thin status-coloured
-/// bar, then remaining time (left) and reset clock (right).
-struct QuotaBlock: View {
-    let label: String
-    let percent: Int
-    let resetAt: Date?
-    let now: Date
-    /// True when this model's weekly quota is spent — grey the figure + bar so a full 5h window
-    /// can't masquerade as usable while the week is locked.
-    var gated: Bool = false
-    /// Reset-countdown fallback length shown when there's no `resetAt`, matching this window (5h vs 7d).
-    var windowFallback: TimeInterval = 5 * 3600
-
-    private static let clockFormatter: DateFormatter = {
-        let f = DateFormatter(); f.dateFormat = "HH:mm"; return f
-    }()
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 8) {
-                Text(label)
-                    .font(.system(size: 13.5, weight: .medium))
-                    .foregroundStyle(Color.primary.opacity(0.9))
-                    .lineLimit(1)
-                Spacer(minLength: 6)
-                Text("%\(clampPct(percent))")
-                    .font(.system(size: 13.5, weight: .medium).monospacedDigit())
-                    .foregroundStyle(gated ? lockedQuotaColor : quotaStatusColor(percent))
-            }
-
-            QuotaBar(percent: percent, colorOverride: gated ? lockedQuotaColor : nil)
-                .padding(.top, 8)
-
-            HStack(spacing: 8) {
-                Label {
-                    // No reset scheduled (window full / not yet counting down) → show the
-                    // full window length rather than a bare dash.
-                    Text(relDuration(resetAt, now) ?? TimeFormatter.duration(from: windowFallback))
-                } icon: {
-                    Image(systemName: "timer").frame(width: ServiceCard.iconColumn)
-                }
-                Spacer(minLength: 4)
-            }
-            .help(resetClock.map { String(format: String(localized: "Resets at %@"), $0) } ?? "")
-            .font(.system(size: 11, weight: .medium).monospacedDigit())
-            .foregroundStyle(Color.primary.opacity(0.9))
-            .labelStyle(.titleAndIcon)
-            .padding(.top, 7)
-        }
-    }
-
-    private var resetClock: String? {
-        guard let resetAt, resetAt.timeIntervalSince(now) > 0 else { return nil }
-        return Self.clockFormatter.string(from: resetAt)
-    }
-}
-
-struct QuotaBar: View {
-    let percent: Int
-    var colorOverride: Color? = nil   // grey for a weekly-locked model; else the status colour
-
-    var body: some View {
-        let color = colorOverride ?? quotaStatusColor(percent)
-        GeometryReader { proxy in
-            let ratio = CGFloat(clampPct(percent)) / 100
-            ZStack(alignment: .leading) {
-                Capsule().fill(Color.primary.opacity(0.08))
-                Capsule()
-                    .fill(color)
-                    .frame(width: max(5, proxy.size.width * ratio))
-            }
-        }
-        .frame(height: 5)
-    }
 }
 
 /// Status colour for a remaining-quota level, per the design spec's thresholds: green ≥40%,

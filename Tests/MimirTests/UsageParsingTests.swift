@@ -835,4 +835,22 @@ final class ClaudeResetGrantTests: XCTestCase {
         XCTAssertTrue(ds.claudeResetGrantRows(["five_hour": ["utilization": 11]], now: now).isEmpty)
         XCTAssertTrue(ds.claudeResetGrantRows(["cedar_ember": ["eligible": false, "grants": []]], now: now).isEmpty)
     }
+
+    /// A lone long window (Codex Go's 30 days) moves up to the session slot; a pair stays put.
+    func testLoneLongWindowTakesTheSessionSlot() {
+        let reset = Date(timeIntervalSince1970: 2_000_000)
+        let lone = PanelData(title: "ChatGPT", iconName: "codex", session: nil, weekly: (40, reset),
+                             weeklyLabel: "30g", sessionFallback: 5 * 3600, weeklyWindow: 30 * 86_400,
+                             gated: false).promotingLoneWindow()
+        XCTAssertEqual(lone.session?.percent, 40)
+        XCTAssertEqual(lone.session?.resetAt, reset)
+        XCTAssertNil(lone.weekly)
+        XCTAssertEqual(lone.sessionFallback, 30 * 86_400)
+
+        let pair = PanelData(title: "ChatGPT", iconName: "codex", session: (90, nil), weekly: (40, reset),
+                             weeklyLabel: "7g", sessionFallback: 5 * 3600, weeklyWindow: 7 * 86_400,
+                             gated: false).promotingLoneWindow()
+        XCTAssertEqual(pair.session?.percent, 90)
+        XCTAssertEqual(pair.weekly?.percent, 40)
+    }
 }
