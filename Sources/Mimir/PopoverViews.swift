@@ -667,6 +667,17 @@ struct ServiceCard: View {
                           sessionFallback: 5 * 3600,
                           weeklyWindow: service.weeklyWindowSeconds ?? 7 * 86_400,
                           gated: service.weeklyRemainingPercent == 0 && service.sessionRemainingPercent != nil)]
+            // A quota beside the plan's own (Codex's Luna Reserve) is a quota in its own right, so it
+            // gets its own panel under its own name — the same treatment as an Antigravity family.
+            + families(in: service.models.filter { $0.groupLabel == LiveUsageDataSource.codexExtraLimitGroup })
+                .map { family in
+                    PanelData(title: family.name, iconName: service.iconName,
+                              session: family.session.map { ($0.percent, $0.resetAt) },
+                              weekly: family.weekly.map { ($0.percent, $0.resetAt) },
+                              weeklyLabel: "7\(TimeFormatter.dayUnit)",
+                              sessionFallback: 5 * 3600, weeklyWindow: 7 * 86_400,
+                              gated: family.weekly?.percent == 0)
+                }
     }
 
     /// The renewal passes, soonest to lapse first.
@@ -686,9 +697,14 @@ struct ServiceCard: View {
     /// Antigravity grouped by family, preserving first-seen order, each family carrying
     /// its own session (5h) and weekly (7g) so they render together.
     private var antigravityFamilies: [(name: String, session: (percent: Int, resetAt: Date?)?, weekly: (percent: Int, resetAt: Date?)?)] {
+        families(in: service.models)
+    }
+
+    /// Rows grouped by name into session/weekly pairs, in the order they first appear.
+    private func families(in models: [ModelStatus]) -> [(name: String, session: (percent: Int, resetAt: Date?)?, weekly: (percent: Int, resetAt: Date?)?)] {
         var order: [String] = []
         var bag: [String: (session: (percent: Int, resetAt: Date?)?, weekly: (percent: Int, resetAt: Date?)?)] = [:]
-        for model in service.models where model.valueText == nil {
+        for model in models where model.valueText == nil {
             if bag[model.name] == nil { order.append(model.name); bag[model.name] = (nil, nil) }
             if model.window == .weekly {
                 bag[model.name]?.weekly = (model.remainingPercent, model.resetAt)

@@ -124,10 +124,51 @@ extension LiveUsageDataSource {
                   root["rate_limit"] is [String: Any] else {
                 return nil
             }
+            Self.recordCodexShape(root)
             let resetRows = await fetchCodexResetCredits(accessToken: accessToken, accountID: accountID)
             return codexStatus(fromUsageRoot: root, extraRows: resetRows)
         } catch {
             return nil
+        }
+    }
+
+    // ponytail: temporary probe for #77 (Luna Reserve) — dev builds only. Records the *shape* of
+    // `wham/usage` (key paths, and the short enum-like strings under name/type/banner/model/plan
+    // keys) each time it changes, so the reserve quota's fields can be read off a real response the
+    // day the main quota runs out. No token, no ids, no numbers. Delete once #77 is decided.
+    nonisolated(unsafe) private static var lastCodexShape = ""
+
+    private static func recordCodexShape(_ root: [String: Any]) {
+        guard Bundle.main.bundleIdentifier?.hasSuffix(".dev") == true else { return }
+        var lines: [String] = []
+        func walk(_ value: Any, _ path: String) {
+            switch value {
+            case let dict as [String: Any]:
+                for key in dict.keys.sorted() { walk(dict[key]!, path.isEmpty ? key : "\(path).\(key)") }
+            case let array as [Any]:
+                if array.isEmpty { lines.append("\(path)[] empty") }
+                for item in array { walk(item, "\(path)[]") }
+            case let text as String:
+                let key = path.split(separator: ".").last.map(String.init)?.lowercased() ?? ""
+                let enumLike = ["name", "type", "banner", "model", "plan", "reason", "status"]
+                    .contains { key.contains($0) } && text.count <= 40
+                lines.append("\(path) = \(enumLike ? "\"\(text)\"" : "<string>")")
+            case is NSNull:
+                lines.append("\(path) = null")
+            default:
+                lines.append("\(path) = <\(type(of: value))>")
+            }
+        }
+        walk(root, "")
+        let shape = Array(Set(lines)).sorted().joined(separator: "\n")
+        guard shape != lastCodexShape else { return }
+        lastCodexShape = shape
+        let url = LiveUsageDataSource.supportDirectory.appendingPathComponent("codex-shape.log")
+        let entry = "=== \(ISO8601DateFormatter().string(from: Date()))\n\(shape)\n\n"
+        if let handle = try? FileHandle(forWritingTo: url) {
+            handle.seekToEndOfFile(); handle.write(Data(entry.utf8)); try? handle.close()
+        } else {
+            try? entry.write(to: url, atomically: true, encoding: .utf8)
         }
     }
 
@@ -139,8 +180,50 @@ extension LiveUsageDataSource {
     /// one; see `codexWindowIsSession` for what happens when the period field is missing. An absent
     /// window stays nil (no misleading "100%"). If the 5h window returns later, it's the session again.
     func codexStatus(fromUsageRoot root: [String: Any], now: Date = Date(), extraRows: [ModelStatus] = []) -> ServiceStatus {
-        let rateLimit = root["rate_limit"] as? [String: Any] ?? [:]
+        let (session, weekly, weeklyWindow) = codexWindows(root["rate_limit"] as? [String: Any] ?? [:], now: now)
 
+        return ServiceStatus(
+            name: "Codex",
+            iconName: "codex",
+            sessionResetAt: session?.resetAt,
+            weeklyResetAt: weekly?.resetAt,
+            sessionRemainingPercent: session.flatMap(\.percent),
+            weeklyRemainingPercent: weekly.flatMap(\.percent),
+            weeklyWindowSeconds: weeklyWindow,
+            models: (codexCreditRow(root["credits"]).map { [$0] } ?? []) + extraRows
+                + codexAdditionalLimitRows(root["additional_rate_limits"], now: now),
+            isAvailable: true,
+            statusNote: "chatgpt usage api"
+        )
+    }
+
+    /// Marks the rows that are a separate quota of their own, drawn as their own panel on the card.
+    static let codexExtraLimitGroup = "codex.additional-limit"
+
+    /// `additional_rate_limits`: quotas that sit beside the plan's own — Luna Reserve, the fallback
+    /// model Codex moves you to once the main quota is spent, or a model-specific limit. Each entry
+    /// is `{ limit_name, metered_feature, rate_limit: { primary_window, secondary_window } }`, the
+    /// same window shape as the main `rate_limit` (from OpenAI's own Codex client types). Shown only
+    /// while the API reports one; `null` on an account that has none.
+    func codexAdditionalLimitRows(_ raw: Any?, now: Date = Date()) -> [ModelStatus] {
+        guard let entries = raw as? [[String: Any]] else { return [] }
+        return entries.flatMap { entry -> [ModelStatus] in
+            guard let name = [entry["limit_name"], entry["metered_feature"]]
+                    .compactMap({ ($0 as? String)?.trimmingCharacters(in: .whitespaces) })
+                    .first(where: { !$0.isEmpty }),
+                  let rateLimit = entry["rate_limit"] as? [String: Any] else { return [] }
+            let (session, weekly, _) = codexWindows(rateLimit, now: now)
+            return [(session, ModelWindow.session), (weekly, .weekly)].compactMap { pair, window in
+                guard let pair, let percent = pair.percent else { return nil }
+                return ModelStatus(name: name, remainingPercent: percent, resetAt: pair.resetAt,
+                                   window: window, groupLabel: Self.codexExtraLimitGroup)
+            }
+        }
+    }
+
+    /// The session and long window out of one `rate_limit` object, by length rather than by slot.
+    private func codexWindows(_ rateLimit: [String: Any], now: Date)
+        -> (session: (percent: Int?, resetAt: Date?)?, weekly: (percent: Int?, resetAt: Date?)?, weeklyWindow: TimeInterval?) {
         var session: (percent: Int?, resetAt: Date?)?
         var weekly: (percent: Int?, resetAt: Date?)?
         var weeklyWindow: TimeInterval?
@@ -165,19 +248,7 @@ extension LiveUsageDataSource {
                 weeklyWindow = periodSeconds
             }
         }
-
-        return ServiceStatus(
-            name: "Codex",
-            iconName: "codex",
-            sessionResetAt: session?.resetAt,
-            weeklyResetAt: weekly?.resetAt,
-            sessionRemainingPercent: session.flatMap(\.percent),
-            weeklyRemainingPercent: weekly.flatMap(\.percent),
-            weeklyWindowSeconds: weeklyWindow,
-            models: (codexCreditRow(root["credits"]).map { [$0] } ?? []) + extraRows,
-            isAvailable: true,
-            statusNote: "chatgpt usage api"
-        )
+        return (session, weekly, weeklyWindow)
     }
 
     /// Codex premium credit balance from `wham/usage` `credits: { has_credits, unlimited, balance }`.

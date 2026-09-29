@@ -8,6 +8,28 @@ import MimirShared
 final class UsageParsingTests: XCTestCase {
     private let ds = LiveUsageDataSource()
 
+    func testCodexAdditionalLimitsBecomeTheirOwnPanelRows() {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let root: [String: Any] = [
+            "rate_limit": ["primary_window": ["used_percent": 100, "limit_window_seconds": 18_000,
+                                              "reset_at": 1_800_003_600]],
+            "additional_rate_limits": [[
+                "limit_name": "Luna Reserve", "metered_feature": "gpt-reserve",
+                "rate_limit": [
+                    "primary_window": ["used_percent": 40, "limit_window_seconds": 18_000, "reset_at": 1_800_007_200],
+                    "secondary_window": ["used_percent": 10, "limit_window_seconds": 604_800, "reset_at": 1_800_300_000],
+                ],
+            ]],
+        ]
+        let rows = ds.codexStatus(fromUsageRoot: root, now: now).models
+            .filter { $0.groupLabel == LiveUsageDataSource.codexExtraLimitGroup }
+        XCTAssertEqual(rows.map(\.name), ["Luna Reserve", "Luna Reserve"])
+        XCTAssertEqual(rows.first { $0.window == .session }?.remainingPercent, 60)
+        XCTAssertEqual(rows.first { $0.window == .weekly }?.remainingPercent, 90)
+        // An account without one reports null — no rows.
+        XCTAssertTrue(ds.codexAdditionalLimitRows(NSNull()).isEmpty)
+    }
+
     func testRemainingPercentFromUsed() {
         XCTAssertEqual(ds.remainingPercent(fromUsed: 0), 100)
         XCTAssertEqual(ds.remainingPercent(fromUsed: 100), 0)
