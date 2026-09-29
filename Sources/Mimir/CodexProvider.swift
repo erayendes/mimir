@@ -132,14 +132,14 @@ extension LiveUsageDataSource {
         }
     }
 
-    // ponytail: temporary probe for #77 (Luna Reserve) — dev builds only. Records the *shape* of
+    // ponytail: temporary probe for #77 (Luna Reserve) — local builds only. Records the *shape* of
     // `wham/usage` (key paths, and the short enum-like strings under name/type/banner/model/plan
     // keys) each time it changes, so the reserve quota's fields can be read off a real response the
     // day the main quota runs out. No token, no ids, no numbers. Delete once #77 is decided.
     nonisolated(unsafe) private static var lastCodexShape = ""
 
     private static func recordCodexShape(_ root: [String: Any]) {
-        guard Bundle.main.bundleIdentifier?.hasSuffix(".dev") == true else { return }
+        guard Telemetry.isDevBuild else { return }
         var lines: [String] = []
         func walk(_ value: Any, _ path: String) {
             switch value {
@@ -208,10 +208,12 @@ extension LiveUsageDataSource {
     func codexAdditionalLimitRows(_ raw: Any?, now: Date = Date()) -> [ModelStatus] {
         guard let entries = raw as? [[String: Any]] else { return [] }
         return entries.flatMap { entry -> [ModelStatus] in
-            guard let name = [entry["limit_name"], entry["metered_feature"]]
+            guard let raw = [entry["limit_name"], entry["metered_feature"]]
                     .compactMap({ ($0 as? String)?.trimmingCharacters(in: .whitespaces) })
                     .first(where: { !$0.isEmpty }),
                   let rateLimit = entry["rate_limit"] as? [String: Any] else { return [] }
+            // Codex's own client names the reserve `gpt-reserve` on the wire and "Luna Reserve" on screen.
+            let name = raw.caseInsensitiveCompare("gpt-reserve") == .orderedSame ? "Luna Reserve" : raw
             let (session, weekly, _) = codexWindows(rateLimit, now: now)
             return [(session, ModelWindow.session), (weekly, .weekly)].compactMap { pair, window in
                 guard let pair, let percent = pair.percent else { return nil }

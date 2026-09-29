@@ -14,7 +14,7 @@ final class UsageParsingTests: XCTestCase {
             "rate_limit": ["primary_window": ["used_percent": 100, "limit_window_seconds": 18_000,
                                               "reset_at": 1_800_003_600]],
             "additional_rate_limits": [[
-                "limit_name": "Luna Reserve", "metered_feature": "gpt-reserve",
+                "limit_name": "gpt-reserve", "metered_feature": "codex",
                 "rate_limit": [
                     "primary_window": ["used_percent": 40, "limit_window_seconds": 18_000, "reset_at": 1_800_007_200],
                     "secondary_window": ["used_percent": 10, "limit_window_seconds": 604_800, "reset_at": 1_800_300_000],

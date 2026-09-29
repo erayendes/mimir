@@ -794,6 +794,7 @@ struct ProviderPanel: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Color.primary.opacity(0.9))
                     .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
             Spacer(minLength: 6)
             if let session = panel.session {
