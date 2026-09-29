@@ -29,6 +29,15 @@ git tag vX.Y && git push && git push origin vX.Y
 
 Beta: sürüm `X.Y-beta.N` (tag `vX.Y-beta.N`, dal `release/X.Y-beta.N`) — beta kanalına gider.
 
+### Dallar
+
+- **Uzak:** `main` + yayınlanmış son beta dalı (test edilen).
+- **Yerel:** `main` + üzerinde çalışılan sıradaki beta dalı (henüz push edilmez).
+- Beta tag'i atılınca: yerel dal push'lanır, uzaktaki bir önceki beta dalı silinir, yerelde
+  sıradakinin dalı (`release/X.Y-beta.N+1`) açılır.
+- Final (`vX.Y`): beta dalı main'e merge edilir, beta dalları silinir.
+- README/docs değişikliği hemen görünsün diye main'e de cherry-pick edilir.
+
 CI şunları yapar: build → Developer ID imzala → **notarize + staple** → dSYM'i
 Sentry'ye yükle → `Mimir.zip` paketle → Sparkle `edSignature` üret → `appcast.xml`'i
 main'e commit'le → GitHub release oluştur. Artifact notarized'dır (Gatekeeper geçer).
