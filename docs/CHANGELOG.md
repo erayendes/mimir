@@ -9,6 +9,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [3.0-beta.5] - 2026-09-30
+
+- Settings fit the panel: no longer cut off with a single card, no empty space with several
+
 ### [3.0-beta.4] - 2026-09-29
 
 The last beta before release. If no problems are reported or found, this will ship as the stable version.
@@ -561,6 +565,10 @@ Bu projedeki tüm önemli değişiklikler bu dosyada belgelenecektir.
 
 Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
+
+### [3.0-beta.5] - 2026-09-30
+
+- Ayarlar panele tam oturuyor: tek kartta kesilmiyor, çok kartta altında boşluk kalmıyor
 
 ### [3.0-beta.4] - 2026-09-29
 
