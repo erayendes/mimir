@@ -8,7 +8,30 @@
     <description>Mimir update feed</description>
     <language>en</language>
 
-                                <item>
+                                    <item>
+      <title>Mimir 3.0-beta.5</title>
+      <sparkle:channel>beta</sparkle:channel>
+      <sparkle:version>299999005</sparkle:version>
+      <sparkle:shortVersionString>3.0-beta.5</sparkle:shortVersionString>
+      <pubDate>Wed, 30 Sep 2026 14:08:56 +0000</pubDate>
+      <description><![CDATA[
+<ul>
+<li>Settings fit the panel: no longer cut off with a single card, no empty space with several</li>
+</ul>
+<hr>
+<ul>
+<li>Ayarlar panele tam oturuyor: tek kartta kesilmiyor, çok kartta altında boşluk kalmıyor</li>
+</ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v3.0-beta.5/Mimir.zip"
+        sparkle:edSignature="QRF2gqayhFpus7AzI+M7+Dpr3P/qA7RuccNOObkMijmeVRW3zZLPIVdjYOGbgWI+3XMNyhtYg0CEW5dyBnQVCQ=="
+        length="6749950"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 3.0-beta.4</title>
       <sparkle:channel>beta</sparkle:channel>
       <sparkle:version>299999004</sparkle:version>
