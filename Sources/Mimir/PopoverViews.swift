@@ -16,11 +16,9 @@ struct PopoverView: View {
     /// Which face is up. The settings live on the back of the same card — flipping to them keeps
     /// the popover one surface instead of dropping a second window on top of it.
     @State private var showingSettings = false
-    /// The quota face's natural height. The settings face fills at least this much (its card
-    /// stretches to the footer), so flipping doesn't jump the panel when the quotas are tall.
+    /// Each face's natural height. The panel takes the height of the face that's up, so the
+    /// settings are never clipped under a short quota face nor padded out under a tall one.
     @State private var quotaHeight: CGFloat = 0
-    /// The settings face's natural height. With few cards the quotas are shorter than the settings
-    /// rows; the panel grows to fit them while the settings are up instead of clipping the list.
     @State private var settingsHeight: CGFloat = 0
 
     var body: some View {
@@ -41,7 +39,6 @@ struct PopoverView: View {
                     ScrollView(showsIndicators: false) {
                         SettingsFace(settings: settings, onBack: { flip() })
                             .measuringHeight { settingsHeight = $0; reportHeight() }
-                            .frame(minHeight: quotaHeight, alignment: .top)
                     }
                     .opacity(showingSettings ? 1 : 0)
                     .allowsHitTesting(showingSettings)
@@ -54,7 +51,7 @@ struct PopoverView: View {
     private func flip() { showingSettings.toggle(); reportHeight() }
 
     private func reportHeight() {
-        onContentHeightChange(showingSettings ? max(quotaHeight, settingsHeight) : quotaHeight)
+        onContentHeightChange(showingSettings ? settingsHeight : quotaHeight)
     }
 
     @ViewBuilder
@@ -247,9 +244,6 @@ struct SettingsFace: View {
                     shortcut: "⌘Q", action: settings.quit)
             }
             .padding(.vertical, 4)
-            // Down to the footer, like the cards on the front: the panel keeps the quotas' height
-            // and this card fills what the rows leave of it.
-            .frame(maxHeight: .infinity, alignment: .top)
             .background(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .fill(.regularMaterial)
