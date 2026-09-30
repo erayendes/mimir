@@ -16,9 +16,12 @@ struct PopoverView: View {
     /// Which face is up. The settings live on the back of the same card — flipping to them keeps
     /// the popover one surface instead of dropping a second window on top of it.
     @State private var showingSettings = false
-    /// The quota face's natural height. The panel is always this tall; the settings face fills it
-    /// (its card stretches to the footer) and scrolls if its rows ever need more.
+    /// The quota face's natural height. The settings face fills at least this much (its card
+    /// stretches to the footer), so flipping doesn't jump the panel when the quotas are tall.
     @State private var quotaHeight: CGFloat = 0
+    /// The settings face's natural height. With few cards the quotas are shorter than the settings
+    /// rows; the panel grows to fit them while the settings are up instead of clipping the list.
+    @State private var settingsHeight: CGFloat = 0
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { context in
@@ -37,6 +40,7 @@ struct PopoverView: View {
                         .allowsHitTesting(!showingSettings)
                     ScrollView(showsIndicators: false) {
                         SettingsFace(settings: settings, onBack: { flip() })
+                            .measuringHeight { settingsHeight = $0; reportHeight() }
                             .frame(minHeight: quotaHeight, alignment: .top)
                     }
                     .opacity(showingSettings ? 1 : 0)
@@ -47,7 +51,11 @@ struct PopoverView: View {
     }
 
     /// Straight swap, no animation: the settings are a place you go, not a trick the card does.
-    private func flip() { showingSettings.toggle() }
+    private func flip() { showingSettings.toggle(); reportHeight() }
+
+    private func reportHeight() {
+        onContentHeightChange(showingSettings ? max(quotaHeight, settingsHeight) : quotaHeight)
+    }
 
     @ViewBuilder
     private func quotaFace(now: Date) -> some View {
@@ -59,8 +67,16 @@ struct PopoverView: View {
                         MilowdaMark(checkForUpdates: settings.checkForUpdates)
                     }
                     .padding(.vertical, 4)
-                    .measuringHeight { quotaHeight = $0; onContentHeightChange($0) }
+                    .measuringHeight { quotaHeight = $0; reportHeight() }
                 }
+    }
+
+    /// Local builds only: `open --env MIMIR_DEMO_ONLY=Codex /Applications/Mimir.app` shows just
+    /// that card, to try the one-provider panel on a machine that tracks several.
+    private static func demoOnly(_ service: ServiceStatus) -> Bool {
+        guard Telemetry.isDevBuild,
+              let only = ProcessInfo.processInfo.environment["MIMIR_DEMO_ONLY"] else { return true }
+        return service.name == only
     }
 
     /// Show live services and stale snapshots; hide services that have no data at all.
@@ -70,7 +86,7 @@ struct PopoverView: View {
     private func contentView(now: Date) -> some View {
         // Shared with the menu-bar dots so a dot can never line up with the wrong card.
         let visible = store.services
-            .filter { ($0.isAvailable || $0.isStale) && !$0.dataUnavailable }
+            .filter { ($0.isAvailable || $0.isStale) && !$0.dataUnavailable && Self.demoOnly($0) }
             .sortedByDisplayOrder()
         if !visible.isEmpty {
             // Each provider is its own card — the card border carries the hierarchy, so there are
