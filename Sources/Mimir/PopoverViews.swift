@@ -631,12 +631,6 @@ struct ServiceCard: View {
 
     // MARK: Data shaping
 
-    /// Codex is branded "ChatGPT" on the card — that's the account the quota belongs to. A second
-    /// login keeps its suffix: "Codex Work" → "ChatGPT Work".
-    private var cardTitle: String {
-        service.name.hasPrefix("Codex") ? "ChatGPT" + service.name.dropFirst("Codex".count) : service.name
-    }
-
     /// One panel per quota pair. Antigravity's families are independent quotas that happen to
     /// share an account, so each gets its own panel under its own name; every other provider has
     /// exactly one pair and so exactly one panel.
@@ -651,7 +645,7 @@ struct ServiceCard: View {
                           gated: family.weekly?.percent == 0)
             }
         }
-        return [PanelData(title: cardTitle, iconName: service.iconName,
+        return [PanelData(title: service.name, iconName: service.iconName,
                           session: service.sessionRemainingPercent.map { ($0, service.sessionResetAt) },
                           weekly: service.weeklyRemainingPercent.map { ($0, service.weeklyResetAt) },
                           weeklyLabel: longWindowLabel ?? "7\(TimeFormatter.dayUnit)",
