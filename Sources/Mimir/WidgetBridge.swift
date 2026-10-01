@@ -68,11 +68,11 @@ enum WidgetBridge {
         (providers ?? []).map { "\($0.name)|\($0.isAvailable)|\($0.unavailable)|\($0.isStale)" }
     }
 
-    /// Built in `serviceDisplayOrder` so the widget rows match the popover and menu bar.
+    /// Built in display order so the widget rows match the popover and menu bar. A second login
+    /// ("Claude Work") rides along, so the widget's model picker offers it like any other.
     static func makePayload(_ services: [ServiceStatus], generatedAt: Date) -> WidgetPayload {
-        let providers = serviceDisplayOrder.compactMap { name -> ProviderPayload? in
-            guard let svc = services.first(where: { $0.name == name }) else { return nil }
-            return ProviderPayload(
+        let providers = services.sortedByDisplayOrder().map { svc in
+            ProviderPayload(
                 name: svc.name,
                 iconName: svc.iconName,
                 isAvailable: svc.isAvailable || svc.isStale,

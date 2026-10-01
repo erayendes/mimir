@@ -29,6 +29,15 @@ final class ExtraAccountTests: XCTestCase {
         XCTAssertEqual(sorted, ["Claude", "Claude Work", "Codex", "Codex Work", "Antigravity"])
     }
 
+    func testSecondAccountReachesTheWidget() {
+        let work = ServiceStatus(name: "Codex Work", iconName: "codex", sessionResetAt: nil, weeklyResetAt: nil,
+                                 sessionRemainingPercent: 40, models: [], isAvailable: true, statusNote: nil)
+        let main = ServiceStatus(name: "Codex", iconName: "codex", sessionResetAt: nil, weeklyResetAt: nil,
+                                 sessionRemainingPercent: 80, models: [], isAvailable: true, statusNote: nil)
+        let payload = WidgetBridge.makePayload([work, main], generatedAt: Date())
+        XCTAssertEqual(payload.providers.flatMap { $0.fiveHour.map(\.label) }, ["Codex", "Codex Work"])
+    }
+
     func testMainClaudeCardSkipsASecondLoginsKeychainItem() {
         let work = LiveUsageDataSource.claudeKeychainService(forConfigDir: "/Users/me/.claude-work")
         XCTAssertTrue(work.hasPrefix("Claude Code-credentials-"))
