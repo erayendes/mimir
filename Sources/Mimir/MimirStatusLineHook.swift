@@ -125,7 +125,7 @@ enum MimirStatusLineHook {
         # Saves Claude Code's status data so the Mimir menu bar app can read your usage locally —
         # no API, no token, no keychain prompt. Toggle it from Mimir's menu.
         input=$(cat)
-        printf '%s' "$input" > "$HOME/.claude/mimir-usage.json"
+        printf '%s' "$input" > "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/mimir-usage.json"
         \(render)
         """
     }
@@ -149,12 +149,13 @@ enum MimirStatusLineHook {
         return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] == nil
     }
 
-    private static func writeSettings(_ settings: [String: Any]) -> Bool {
+    private static func writeSettings(_ settings: [String: Any], to path: String = settingsPath) -> Bool {
         guard let data = try? JSONSerialization.data(
             withJSONObject: settings, options: [.prettyPrinted, .sortedKeys]) else { return false }
         do {
-            try FileManager.default.createDirectory(atPath: claudePath(""), withIntermediateDirectories: true)
-            try data.write(to: URL(fileURLWithPath: settingsPath), options: .atomic)
+            try FileManager.default.createDirectory(atPath: (path as NSString).deletingLastPathComponent,
+                                                    withIntermediateDirectories: true)
+            try data.write(to: URL(fileURLWithPath: path), options: .atomic)
             return true
         } catch { return false }
     }
@@ -179,6 +180,28 @@ enum MimirStatusLineHook {
     static func refreshScript() {
         guard isWired() else { return }
         _ = writeScript(chained: savedChain())
+        wireExtraDirs(true)
+    }
+
+    /// Second logins (`ExtraAccount.claude`, e.g. `~/.claude-work`) point at the same script, which
+    /// writes into whichever config dir Claude Code runs with. ponytail: a dir that already has a
+    /// status line of its own is left alone — chaining it would need a sidecar per dir.
+    private static func wireExtraDirs(_ on: Bool) {
+        for account in ExtraAccount.claude {
+            let path = account.dir.appendingPathComponent("settings.json").path
+            let data = FileManager.default.contents(atPath: path)
+            let current = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+            if data?.isEmpty == false, current == nil { continue }   // unparseable: never clobber it
+            let cmd = (current?["statusLine"] as? [String: Any])?["command"] as? String
+            if on {
+                guard cmd == nil else { continue }   // already ours, or the user's own
+                _ = writeSettings(wiredSettings(from: current).settings, to: path)
+            } else {
+                guard isOurCommand(cmd) else { continue }
+                _ = writeSettings(unwiredSettings(from: current, chained: nil), to: path)
+                try? FileManager.default.removeItem(at: account.dir.appendingPathComponent("mimir-usage.json"))
+            }
+        }
     }
 
     /// Wire the hook: chain any existing statusLine, back up settings.json (once), write the script,
@@ -189,6 +212,7 @@ enum MimirStatusLineHook {
         let current = readSettings()
         if isOurCommand((current?["statusLine"] as? [String: Any])?["command"] as? String) {
             _ = writeScript(chained: savedChain())   // still refresh the script body
+            wireExtraDirs(true)
             return .alreadyOn
         }
         let (settings, chained) = wiredSettings(from: current)
@@ -202,6 +226,7 @@ enum MimirStatusLineHook {
         guard writeScript(chained: chained), writeSettings(settings) else {
             return .failed(String(localized: "couldn't write to ~/.claude"))
         }
+        wireExtraDirs(true)
         return chained == nil ? .enabled : .chained
     }
 
@@ -211,6 +236,7 @@ enum MimirStatusLineHook {
         if settingsIsCorrupt() { return .failed(String(localized: "~/.claude/settings.json is not valid JSON")) }
         let settings = unwiredSettings(from: readSettings(), chained: savedChain())
         guard writeSettings(settings) else { return .failed(String(localized: "couldn't write to ~/.claude")) }
+        wireExtraDirs(false)
         for path in [scriptPath, prevPath, usagePath] {
             try? FileManager.default.removeItem(atPath: path)
         }

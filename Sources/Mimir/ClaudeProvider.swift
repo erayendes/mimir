@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import Security
 import LocalAuthentication
@@ -442,9 +443,9 @@ extension LiveUsageDataSource {
     /// already dropped once its `resets_at` passed) — the caller (`claudeCardFromHook`) fills in
     /// whichever one is missing from the existing usage cache instead of losing the whole reading. Note
     /// `resets_at` here is epoch SECONDS (a number), unlike the OAuth API's ISO string.
-    func readClaudeHookUsage(maxAge: TimeInterval)
+    func readClaudeHookUsage(maxAge: TimeInterval, path: String = MimirStatusLineHook.usagePath)
         -> (five: (used: Double, reset: Date?)?, seven: (used: Double, reset: Date?)?)? {
-        let url = URL(fileURLWithPath: MimirStatusLineHook.usagePath)
+        let url = URL(fileURLWithPath: path)
         guard let vals = try? url.resourceValues(forKeys: [.contentModificationDateKey]),
               let mtime = vals.contentModificationDate,
               Date().timeIntervalSince(mtime) <= maxAge,
@@ -478,6 +479,26 @@ extension LiveUsageDataSource {
         if let n = any as? NSNumber { return n.doubleValue }
         if let s = any as? String { return Double(s) }
         return nil
+    }
+
+    /// A second Claude Code login (`ExtraAccount`), read only from the hook file in its own config
+    /// dir: prompt-free, no keychain, no token. Live while Claude Code is in use there; after that the
+    /// last reading, dimmed once stale. ponytail: session/weekly only — the per-model and billing rows
+    /// need that login's OAuth token; add them if a hook-only card turns out to be too thin.
+    func fetchClaudeHookAccount(name: String, dir: URL) -> ServiceStatus {
+        let path = dir.appendingPathComponent("mimir-usage.json").path
+        if let hook = readClaudeHookUsage(maxAge: 30 * 60, path: path) {
+            let status = ServiceStatus(
+                name: name, iconName: "claude",
+                sessionResetAt: hook.five?.reset, weeklyResetAt: hook.seven?.reset,
+                sessionRemainingPercent: hook.five.map { remainingPercent(fromUsed: $0.used) },
+                weeklyRemainingPercent: hook.seven.map { remainingPercent(fromUsed: $0.used) },
+                models: [], isAvailable: true, statusNote: "statusline hook")
+            saveSnapshot(status)
+            return status
+        }
+        return loadSnapshot(for: name, iconName: "claude", staleNote: String(localized: "out of date"))
+            ?? unavailableService(name: name, iconName: "claude", models: [])
     }
 
     /// Build Claude's card from the prompt-free statusLine hook. The fresh 5h/7d numbers come from the
@@ -623,8 +644,13 @@ extension LiveUsageDataSource {
     /// item behind with a dead token. List every matching item's ATTRIBUTES (no kSecReturnData, so
     /// this never pops the keychain prompt) and order newest-modified first: the item Claude Code
     /// last rewrote is the live login.
-    static func claudeKeychainServicesOrdered(_ items: [(service: String, modifiedAt: Date?)]) -> [String] {
+    ///
+    /// `excluding` drops the items a second login owns (see `claudeKeychainService(forConfigDir:)`):
+    /// newest-first would otherwise hand the main card whichever account refreshed last.
+    static func claudeKeychainServicesOrdered(_ items: [(service: String, modifiedAt: Date?)],
+                                              excluding: Set<String> = []) -> [String] {
         items.filter { $0.service == claudeKeychainService || $0.service.hasPrefix("\(claudeKeychainService)-") }
+            .filter { !excluding.contains($0.service) }
             .sorted { ($0.modifiedAt ?? .distantPast) > ($1.modifiedAt ?? .distantPast) }
             .map(\.service)
     }
@@ -643,10 +669,19 @@ extension LiveUsageDataSource {
             return (service, dict[kSecAttrAccount as String] as? String,
                     dict[kSecAttrModificationDate as String] as? Date)
         }
-        let ordered = Self.claudeKeychainServicesOrdered(attrs.map { ($0.service, $0.modifiedAt) })
+        let others = Set(ExtraAccount.claude.map { Self.claudeKeychainService(forConfigDir: $0.dir.path) })
+        let ordered = Self.claudeKeychainServicesOrdered(attrs.map { ($0.service, $0.modifiedAt) },
+                                                         excluding: others)
         return ordered.compactMap { service in
             attrs.first { $0.service == service }
         }
+    }
+
+    /// The item Claude Code keeps a `CLAUDE_CONFIG_DIR` login under: the service name plus the first
+    /// 8 hex digits of the dir's SHA-256 (Claude Code's own naming).
+    static func claudeKeychainService(forConfigDir dir: String) -> String {
+        let hash = SHA256.hash(data: Data(dir.utf8)).map { String(format: "%02x", $0) }.joined()
+        return "\(claudeKeychainService)-\(hash.prefix(8))"
     }
 
     /// Modification date of the keychain item we last attempted a DATA read on. Reading data is the

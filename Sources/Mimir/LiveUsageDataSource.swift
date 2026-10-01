@@ -137,6 +137,17 @@ struct LiveUsageDataSource {
                 return await withTimeout(seconds: 8) { await fetchCodex() }
                     ?? self.snapshotOrFallback("Codex", iconName: "codex")
             }
+            // Second logins (`~/.claude-work`, `~/.codex-work`): one card each, only when the dir exists.
+            for account in ExtraAccount.claude {
+                group.addTask { self.fetchClaudeHookAccount(name: account.name, dir: account.dir) }
+            }
+            for account in ExtraAccount.codex {
+                group.addTask {
+                    if skip.contains(account.name) { return self.snapshotOrFallback(account.name, iconName: "codex") }
+                    return await withTimeout(seconds: 8) { await fetchCodex(name: account.name, home: account.dir) }
+                        ?? self.snapshotOrFallback(account.name, iconName: "codex")
+                }
+            }
             group.addTask {
                 if skip.contains("Antigravity") { return self.snapshotOrFallback("Antigravity", iconName: "antigravity").withInfoText(Self.antigravityInfo) }
                 let status = await withTimeout(seconds: 8) { await fetchAntigravity() }
@@ -404,7 +415,8 @@ struct LiveUsageDataSource {
     /// skipped (cooldown) or times out, so the card shows stale data instead of disappearing.
     func snapshotOrFallback(_ name: String, iconName: String) -> ServiceStatus {
         loadSnapshot(for: name, iconName: iconName)
-            ?? Self.fallbackServices().first { $0.name == name }!
+            ?? Self.fallbackServices().first { $0.name == name }
+            ?? unavailableService(name: name, iconName: iconName, models: [])
     }
 
 

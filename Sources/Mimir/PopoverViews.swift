@@ -631,9 +631,10 @@ struct ServiceCard: View {
 
     // MARK: Data shaping
 
-    /// Codex is branded "ChatGPT" on the card — that's the account the quota belongs to.
+    /// Codex is branded "ChatGPT" on the card — that's the account the quota belongs to. A second
+    /// login keeps its suffix: "Codex Work" → "ChatGPT Work".
     private var cardTitle: String {
-        service.name == "Codex" ? "ChatGPT" : service.name
+        service.name.hasPrefix("Codex") ? "ChatGPT" + service.name.dropFirst("Codex".count) : service.name
     }
 
     /// One panel per quota pair. Antigravity's families are independent quotas that happen to

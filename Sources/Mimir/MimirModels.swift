@@ -123,9 +123,38 @@ let serviceDisplayOrder = ["Claude", "Codex", "Antigravity", "Gemini"]
 extension Array where Element == ServiceStatus {
     /// Sorted into the canonical display order (Claude, Codex, Antigravity); unknown names last.
     /// Shared by the popover's cards and its notification banner so a service can't reorder between them.
+    /// A second account ("Claude Work") sits right after its provider's main card.
     func sortedByDisplayOrder() -> [ServiceStatus] {
-        sorted { (serviceDisplayOrder.firstIndex(of: $0.name) ?? 99) < (serviceDisplayOrder.firstIndex(of: $1.name) ?? 99) }
+        func rank(_ name: String) -> Int {
+            serviceDisplayOrder.firstIndex { name == $0 || name.hasPrefix("\($0) ") } ?? 99
+        }
+        return sorted { (rank($0.name), $0.name) < (rank($1.name), $1.name) }
     }
+}
+
+/// A second CLI login kept in its own config dir — `~/.claude-work` (`CLAUDE_CONFIG_DIR`) or
+/// `~/.codex-work` (`CODEX_HOME`). Each one found becomes its own card, named after the dir's
+/// suffix: `~/.codex-work` → "Codex Work". Nobody without such a dir sees any change.
+struct ExtraAccount: Equatable {
+    let name: String
+    let dir: URL
+
+    /// Dirs named `<base>-<suffix>` in the home folder that hold `marker` (the file that proves the
+    /// CLI actually uses it), e.g. `~/.codex-work` holding `auth.json`.
+    static func find(base: String, title: String, marker: String,
+                     home: URL = FileManager.default.homeDirectoryForCurrentUser) -> [ExtraAccount] {
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: home.path)) ?? []
+        return names.filter { $0.hasPrefix("\(base)-") }.sorted().compactMap { entry in
+            let suffix = String(entry.dropFirst(base.count + 1))
+            let dir = home.appendingPathComponent(entry)
+            guard !suffix.isEmpty,
+                  FileManager.default.fileExists(atPath: dir.appendingPathComponent(marker).path) else { return nil }
+            return ExtraAccount(name: "\(title) \(suffix.capitalized)", dir: dir)
+        }
+    }
+
+    static var claude: [ExtraAccount] { find(base: ".claude", title: "Claude", marker: ".claude.json") }
+    static var codex: [ExtraAccount] { find(base: ".codex", title: "Codex", marker: "auth.json") }
 }
 
 /// One 5-hour session window a service exposes, paired with the weekly (7g) quota that gates it.

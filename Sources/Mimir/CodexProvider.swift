@@ -1,13 +1,14 @@
 import Foundation
 
 extension LiveUsageDataSource {
-    func fetchCodex() async -> ServiceStatus {
-        if let apiStatus = await fetchCodexUsageAPI() {
+    /// `home` is a second login's `CODEX_HOME` (see `ExtraAccount`); nil is the main one.
+    func fetchCodex(name: String = "Codex", home: URL? = nil) async -> ServiceStatus {
+        if let apiStatus = await fetchCodexUsageAPI(name: name, home: home) {
             saveSnapshot(apiStatus)
             return apiStatus
         }
 
-        let local = fetchCodexLocalSessions()
+        let local = fetchCodexLocalSessions(name: name, home: home)
         if local.isAvailable {
             saveSnapshot(local)
             return local
@@ -16,24 +17,25 @@ extension LiveUsageDataSource {
         // Mimir never refreshes Codex's token (see `codexAccessToken(from:)`), so an expired one
         // stays expired until the user runs the CLI. Say that, rather than leaving them with a
         // silently ageing snapshot and no idea what to do about it.
-        let note = codexTokenExpired ? String(localized: "token expired — run codex login") : nil
+        let note = codexTokenExpired(home: home) ? String(localized: "token expired — run codex login") : nil
         // Both live sources failed — show the last-known snapshot instead of vanishing.
-        let snapshot = loadSnapshot(for: "Codex", iconName: "codex",
+        let snapshot = loadSnapshot(for: name, iconName: "codex",
                                     staleNote: note ?? String(localized: "out of date"))
         return snapshot ?? local
     }
 
     /// Set by the token read: the CLI is logged in, but the token it holds has run out.
-    private var codexTokenExpired: Bool {
-        guard let state = readCodexAuthState(), let token = codexAccessToken(in: state.auth) else { return false }
+    private func codexTokenExpired(home: URL?) -> Bool {
+        guard let state = readCodexAuthState(home: home), let token = codexAccessToken(in: state.auth) else { return false }
         return jwtExpiry(token).map { $0.timeIntervalSinceNow <= 30 } ?? false
     }
 
-    private func fetchCodexLocalSessions() -> ServiceStatus {
-        let base = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex/sessions")
+    private func fetchCodexLocalSessions(name: String, home: URL?) -> ServiceStatus {
+        let base = (home ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".codex"))
+            .appendingPathComponent("sessions")
         guard let file = latestJSONLFile(in: base),
               let text = try? String(contentsOf: file, encoding: .utf8) else {
-            return unavailableService(name: "Codex", iconName: "codex", models: [])
+            return unavailableService(name: name, iconName: "codex", models: [])
         }
 
         let lines = text.split(separator: "\n").reversed()
@@ -76,7 +78,7 @@ extension LiveUsageDataSource {
         }
 
         guard sessionRemaining != nil || weeklyRemaining != nil else {
-            return unavailableService(name: "Codex", iconName: "codex", models: [])
+            return unavailableService(name: name, iconName: "codex", models: [])
         }
 
         let statusNote = sessionReset == nil
@@ -86,7 +88,7 @@ extension LiveUsageDataSource {
         // A window that isn't present stays nil (no misleading "100%"): when there's no 5-hour window
         // the popover drops the 5s block and promotes the weekly reading instead (see PopoverViews).
         return ServiceStatus(
-            name: "Codex",
+            name: name,
             iconName: "codex",
             sessionResetAt: sessionReset,
             weeklyResetAt: weeklyReset,
@@ -99,16 +101,17 @@ extension LiveUsageDataSource {
         )
     }
 
-    private func fetchCodexUsageAPI() async -> ServiceStatus? {
-        guard let authState = readCodexAuthState(),
+    private func fetchCodexUsageAPI(name: String, home: URL?) async -> ServiceStatus? {
+        guard let authState = readCodexAuthState(home: home),
               let accessToken = codexAccessToken(from: authState) else {
             return nil
         }
 
-        return await fetchCodexUsageAPI(accessToken: accessToken, accountID: codexAccountID(from: authState.auth))
+        return await fetchCodexUsageAPI(name: name, accessToken: accessToken,
+                                        accountID: codexAccountID(from: authState.auth))
     }
 
-    private func fetchCodexUsageAPI(accessToken: String, accountID: String?) async -> ServiceStatus? {
+    private func fetchCodexUsageAPI(name: String, accessToken: String, accountID: String?) async -> ServiceStatus? {
         var req = URLRequest(url: URL(string: "https://chatgpt.com/backend-api/wham/usage")!, timeoutInterval: 10)
         req.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         req.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -126,7 +129,7 @@ extension LiveUsageDataSource {
             }
             Self.recordCodexShape(root)
             let resetRows = await fetchCodexResetCredits(accessToken: accessToken, accountID: accountID)
-            return codexStatus(fromUsageRoot: root, extraRows: resetRows)
+            return codexStatus(fromUsageRoot: root, extraRows: resetRows, name: name)
         } catch {
             return nil
         }
@@ -179,11 +182,12 @@ extension LiveUsageDataSource {
     /// longer implies "5-hour". A window of <= 6h is the 5-hour session, anything longer is the weekly
     /// one; see `codexWindowIsSession` for what happens when the period field is missing. An absent
     /// window stays nil (no misleading "100%"). If the 5h window returns later, it's the session again.
-    func codexStatus(fromUsageRoot root: [String: Any], now: Date = Date(), extraRows: [ModelStatus] = []) -> ServiceStatus {
+    func codexStatus(fromUsageRoot root: [String: Any], now: Date = Date(), extraRows: [ModelStatus] = [],
+                     name: String = "Codex") -> ServiceStatus {
         let (session, weekly, weeklyWindow) = codexWindows(root["rate_limit"] as? [String: Any] ?? [:], now: now)
 
         return ServiceStatus(
-            name: "Codex",
+            name: name,
             iconName: "codex",
             sessionResetAt: session?.resetAt,
             weeklyResetAt: weekly?.resetAt,
@@ -373,15 +377,20 @@ extension LiveUsageDataSource {
         return slotIsPrimary
     }
 
-    private func readCodexAuthState() -> CodexAuthState? {
+    private func readCodexAuthState(home codexHomeDir: URL?) -> CodexAuthState? {
         let home = FileManager.default.homeDirectoryForCurrentUser
         var paths: [URL] = []
-        if let codexHome = ProcessInfo.processInfo.environment["CODEX_HOME"],
-           !codexHome.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            paths.append(URL(fileURLWithPath: codexHome).appendingPathComponent("auth.json"))
+        if let codexHomeDir {
+            // A second login reads only its own dir — never fall back to the main account's token.
+            paths.append(codexHomeDir.appendingPathComponent("auth.json"))
+        } else {
+            if let codexHome = ProcessInfo.processInfo.environment["CODEX_HOME"],
+               !codexHome.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                paths.append(URL(fileURLWithPath: codexHome).appendingPathComponent("auth.json"))
+            }
+            paths.append(home.appendingPathComponent(".codex/auth.json"))
+            paths.append(home.appendingPathComponent(".config/codex/auth.json"))
         }
-        paths.append(home.appendingPathComponent(".codex/auth.json"))
-        paths.append(home.appendingPathComponent(".config/codex/auth.json"))
 
         for path in paths {
             guard let data = try? Data(contentsOf: path),
