@@ -20,6 +20,9 @@ struct PopoverView: View {
     /// settings are never clipped under a short quota face nor padded out under a tall one.
     @State private var quotaHeight: CGFloat = 0
     @State private var settingsHeight: CGFloat = 0
+    /// The panel stops at the screen's height; when cards run past it, the bottom edge fades so the
+    /// rest reads as "scroll for more" rather than as the end of the list.
+    @State private var moreBelow = false
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { context in
@@ -65,6 +68,16 @@ struct PopoverView: View {
                     }
                     .padding(.vertical, 4)
                     .measuringHeight { quotaHeight = $0; reportHeight() }
+                }
+                .modifier(MoreBelowTracker(moreBelow: $moreBelow))
+                .mask {
+                    VStack(spacing: 0) {
+                        Color.black
+                        LinearGradient(colors: [.black, .black.opacity(moreBelow ? 0 : 1)],
+                                       startPoint: .top, endPoint: .bottom)
+                            .frame(height: 36)
+                    }
+                    .animation(.easeOut(duration: 0.2), value: moreBelow)
                 }
     }
 
@@ -472,6 +485,24 @@ struct DesktopBlur: NSViewRepresentable {
 /// Outer ambient layer behind the inner panel: behind-window desktop blur, a dark
 /// base, and faint brand-tinted glows in the corners (the v4 showcase frame). The
 /// inner panel sits inset on top of this, giving the panel-in-panel depth.
+/// Whether a scroll view has content left below its visible part. ponytail: macOS 15+ only
+/// (`onScrollGeometryChange`); on 14 the fade simply never shows.
+private struct MoreBelowTracker: ViewModifier {
+    @Binding var moreBelow: Bool
+
+    func body(content: Content) -> some View {
+        if #available(macOS 15, *) {
+            content.onScrollGeometryChange(for: Bool.self) { geometry in
+                geometry.contentSize.height - geometry.contentOffset.y - geometry.containerSize.height > 4
+            } action: { _, value in
+                moreBelow = value
+            }
+        } else {
+            content
+        }
+    }
+}
+
 struct PopoverBackdrop: View {
     @Environment(\.colorScheme) private var scheme
     private var dark: Bool { scheme == .dark }
