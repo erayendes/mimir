@@ -139,7 +139,11 @@ struct LiveUsageDataSource {
             }
             // Second logins (`~/.claude-work`, `~/.codex-work`): one card each, only when the dir exists.
             for account in ExtraAccount.claude {
-                group.addTask { self.fetchClaudeHookAccount(name: account.name, dir: account.dir) }
+                group.addTask {
+                    await withTimeout(seconds: 8) {
+                        await fetchClaudeExtraAccount(name: account.name, dir: account.dir, userInitiated: userInitiated)
+                    } ?? self.snapshotOrFallback(account.name, iconName: "claude")
+                }
             }
             for account in ExtraAccount.codex {
                 group.addTask {

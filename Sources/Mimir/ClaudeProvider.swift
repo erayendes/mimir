@@ -167,7 +167,8 @@ extension LiveUsageDataSource {
     /// Build a Claude card from the usage JSON. `live` (the API success path and the <5 min cache)
     /// trusts the percents as-is; the stale fallbacks (24h cache / snapshot) pass `live: false` to
     /// reset-classify — there a window whose reset has passed is blanked because it really refilled.
-    func buildClaudeStatus(from root: [String: Any], note: String, live: Bool = true) -> ServiceStatus {
+    func buildClaudeStatus(from root: [String: Any], note: String, live: Bool = true,
+                           name: String = "Claude") -> ServiceStatus {
         let fiveHour = mergeClaudeWindows(root: root, baseKey: "five_hour")
         let sevenDay = mergeClaudeWindows(root: root, baseKey: "seven_day")
 
@@ -192,7 +193,7 @@ extension LiveUsageDataSource {
         // cache — would blank the whole session, so Claude's card and widget vanish for a few minutes.
         if live {
             return ServiceStatus(
-                name: "Claude", iconName: "claude",
+                name: name, iconName: "claude",
                 sessionResetAt: fiveHour.resetAt, weeklyResetAt: sevenDay.resetAt,
                 sessionRemainingPercent: sessionPct, weeklyRemainingPercent: weeklyPct,
                 models: models, isAvailable: true, statusNote: note)
@@ -201,11 +202,11 @@ extension LiveUsageDataSource {
         // Stale fallback: a window whose reset has already passed is blanked (it refilled) rather than
         // shown as if current.
         return staleClassifiedCard(
-            name: "Claude", iconName: "claude",
+            name: name, iconName: "claude",
             sessionPct: sessionPct, sessionReset: fiveHour.resetAt,
             weeklyPct: weeklyPct, weeklyReset: sevenDay.resetAt,
             models: models, freshNote: note, staleNote: note)
-            ?? unavailableService(name: "Claude", iconName: "claude", models: [], note: note)
+            ?? unavailableService(name: name, iconName: "claude", models: [], note: note)
     }
     /// One row per weekly-scoped model in the `limits` array (e.g. `{"kind": "weekly_scoped",
     /// "group": "weekly", "percent": 66, "scope": {"model": {"display_name": "Fable"}}}`). The
@@ -481,13 +482,12 @@ extension LiveUsageDataSource {
         return nil
     }
 
-    /// A second Claude Code login (`ExtraAccount`), read only from the hook file in its own config
-    /// dir: prompt-free, no keychain, no token. Live while Claude Code is in use there; after that the
-    /// last reading, dimmed once stale. ponytail: session/weekly only — the per-model and billing rows
-    /// need that login's OAuth token; add them if a hook-only card turns out to be too thin.
-    func fetchClaudeHookAccount(name: String, dir: URL) -> ServiceStatus {
-        let path = dir.appendingPathComponent("mimir-usage.json").path
-        if let hook = readClaudeHookUsage(maxAge: 30 * 60, path: path) {
+    /// A second Claude Code login (`ExtraAccount`). Its status line hook file first — prompt-free,
+    /// but Claude Code only renders a status line in an interactive session, so a login driven by
+    /// `claude -p` never writes it. Then that login's own keychain item, under the same rules as the
+    /// main card: silent once granted, the prompting read only on a user action. Then the snapshot.
+    func fetchClaudeExtraAccount(name: String, dir: URL, userInitiated: Bool) async -> ServiceStatus {
+        if let hook = readClaudeHookUsage(maxAge: 30 * 60, path: dir.appendingPathComponent("mimir-usage.json").path) {
             let status = ServiceStatus(
                 name: name, iconName: "claude",
                 sessionResetAt: hook.five?.reset, weeklyResetAt: hook.seven?.reset,
@@ -497,9 +497,43 @@ extension LiveUsageDataSource {
             saveSnapshot(status)
             return status
         }
+
+        let service = Self.claudeKeychainService(forConfigDir: dir.path)
+        var token = await Self.extraTokenCache.get(service)
+        if token.map({ ($0.expiresAt?.timeIntervalSinceNow ?? 0) <= 300 }) ?? true {
+            let raw = readClaudeKeychainItem(interactive: false, service: service)
+                ?? (userInitiated ? readClaudeKeychainItem(interactive: true, service: service) : nil)
+            token = raw.flatMap { parseClaudeToken($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+                .flatMap { ($0.expiresAt?.timeIntervalSinceNow ?? 0) > 30 ? $0 : nil }
+            await Self.extraTokenCache.set(service, token)
+        }
+
+        if let token, let root = await fetchClaudeOAuthUsage(token.accessToken) {
+            let status = buildClaudeStatus(from: root, note: "oauth usage api", name: name)
+            saveSnapshot(status)
+            return status
+        }
         return loadSnapshot(for: name, iconName: "claude", staleNote: String(localized: "out of date"))
             ?? unavailableService(name: name, iconName: "claude", models: [])
     }
+
+    /// One GET of the OAuth usage endpoint; nil on any failure (the caller falls back to its snapshot).
+    private func fetchClaudeOAuthUsage(_ accessToken: String) async -> [String: Any]? {
+        var req = URLRequest(url: URL(string: "https://api.anthropic.com/api/oauth/usage")!, timeoutInterval: 10)
+        req.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        req.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
+        guard let (data, response) = try? await URLSession.shared.data(for: req),
+              (response as? HTTPURLResponse).map({ 200 ... 299 ~= $0.statusCode }) == true else { return nil }
+        return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+    }
+
+    /// Second logins' access tokens, by keychain service — read once, reused until near expiry.
+    private actor ExtraTokenCache {
+        private var tokens: [String: ClaudeToken] = [:]
+        func get(_ service: String) -> ClaudeToken? { tokens[service] }
+        func set(_ service: String, _ token: ClaudeToken?) { tokens[service] = token }
+    }
+    private static let extraTokenCache = ExtraTokenCache()
 
     /// Build Claude's card from the prompt-free statusLine hook. The fresh 5h/7d numbers come from the
     /// hook; the per-model rows (e.g. Fable) and the billing row are overlaid from the most recent
@@ -677,6 +711,17 @@ extension LiveUsageDataSource {
         }
     }
 
+    /// One named item's attributes (no data, so no prompt); a missing item still yields the name.
+    private func keychainAttributes(_ service: String) -> (service: String, account: String?, modifiedAt: Date?) {
+        var result: CFTypeRef?
+        let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+                                    kSecAttrService as String: service,
+                                    kSecMatchLimit as String: kSecMatchLimitOne,
+                                    kSecReturnAttributes as String: true]
+        let attrs = SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess ? result as? [String: Any] : nil
+        return (service, attrs?[kSecAttrAccount as String] as? String, attrs?[kSecAttrModificationDate as String] as? Date)
+    }
+
     /// The item Claude Code keeps a `CLAUDE_CONFIG_DIR` login under: the service name plus the first
     /// 8 hex digits of the dir's SHA-256 (Claude Code's own naming).
     static func claudeKeychainService(forConfigDir dir: String) -> String {
@@ -688,7 +733,7 @@ extension LiveUsageDataSource {
     /// only prompting op, so we skip it while the item is unchanged since our last attempt — the token
     /// hasn't rotated, so re-reading would only re-prompt (and, if it was already rejected, 401 again).
     /// Advisory single-writer-ish state; a rare race costs at most one extra read, never correctness.
-    nonisolated(unsafe) private static var lastKeychainReadMdate: Date?
+    nonisolated(unsafe) private static var lastKeychainReadMdate: [String: Date] = [:]
 
     /// Read the DATA of a SINGLE Claude Code keychain item — the newest-modified one, which is the
     /// login Claude Code last wrote (on macOS normally the plain "Claude Code-credentials"). Reading an
@@ -700,8 +745,9 @@ extension LiveUsageDataSource {
     /// "Always Allow" sticks (grant tied to Mimir's stable release signature). If it doesn't parse we
     /// return nil rather than reach for the next item: the prompt-free hook/usage cache already carry
     /// the card, so a missed enrichment is far cheaper than a prompt storm.
-    private func readClaudeKeychainItem(interactive: Bool) -> String? {
-        guard let candidate = claudeKeychainCandidates().first else { return nil }
+    /// `service` names a second login's item outright (see `claudeKeychainService(forConfigDir:)`).
+    private func readClaudeKeychainItem(interactive: Bool, service: String? = nil) -> String? {
+        guard let candidate = service.map(keychainAttributes) ?? claudeKeychainCandidates().first else { return nil }
         let query: [String: Any] = {
             var q: [String: Any] = [
                 kSecClass as String: kSecClassGenericPassword,
@@ -727,10 +773,10 @@ extension LiveUsageDataSource {
         // Silent reads never prompt, so they're free to run every tick (gated instead by the token
         // caches upstream) and pick up a freshly rotated token the moment it lands.
         if interactive {
-            if let last = Self.lastKeychainReadMdate, let mdate = candidate.modifiedAt, mdate <= last {
+            if let last = Self.lastKeychainReadMdate[candidate.service], let mdate = candidate.modifiedAt, mdate <= last {
                 return nil
             }
-            Self.lastKeychainReadMdate = candidate.modifiedAt
+            Self.lastKeychainReadMdate[candidate.service] = candidate.modifiedAt
         }
 
         var result: CFTypeRef?
