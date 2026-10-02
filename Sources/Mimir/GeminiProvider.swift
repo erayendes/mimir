@@ -9,8 +9,9 @@ extension LiveUsageDataSource {
         guard let creds = readGeminiCredentials() else {
             return unavailableService(name: "Gemini", iconName: "gemini", models: [], note: "run gemini to sign in")
         }
+        let refreshToken = creds["refresh_token"] as? String ?? ""
         if let token = await geminiAccessToken(creds),
-           let project = await geminiProject(token: token),
+           let project = await geminiProject(token: token, refreshToken: refreshToken),
            let buckets = await geminiQuotaBuckets(token: token, project: project) {
             let models = geminiQuotaRows(buckets: buckets)
             if !models.isEmpty {
@@ -102,10 +103,12 @@ extension LiveUsageDataSource {
     /// ponytail: grep over the CLI's @google scope for the first client id/secret; tighten to
     /// oauth2.js if another @google package ever ships its own client.
     private func geminiOAuthClient() -> (id: String, secret: String)? {
-        if let cached = Self.geminiClient { return cached }
+        if Self.geminiClientLookedUp { return Self.geminiClient }
+        Self.geminiClientLookedUp = true
         let out = runShell("""
             bin=$(command -v gemini) || exit 0
-            scope="$(dirname "$(readlink -f "$bin")")/../.."
+            scope="$(readlink -f "$(dirname "$(readlink -f "$bin")")/../..")" || exit 0
+            [ "$(basename "$scope")" = "@google" ] || exit 0
             grep -rhoE --include='*.js' '[0-9]+-[0-9a-z]+\\.apps\\.googleusercontent\\.com|GOCSPX-[A-Za-z0-9_-]+' "$scope" 2>/dev/null | sort -u
             """)
         let lines = out.split(separator: "\n").map(String.init)
@@ -115,14 +118,15 @@ extension LiveUsageDataSource {
         return (id, secret)
     }
 
-    private func geminiProject(token: String) async -> String? {
-        if let cached = Self.geminiProjectID { return cached }
+    /// Cached per refresh token, so switching accounts in the Gemini CLI resolves the new project.
+    private func geminiProject(token: String, refreshToken: String) async -> String? {
+        if let cached = Self.geminiProjectID, cached.refresh == refreshToken { return cached.project }
         let body: [String: Any] = ["metadata": ["ideType": "IDE_UNSPECIFIED", "platform": "PLATFORM_UNSPECIFIED", "pluginType": "GEMINI"]]
         guard let root = await geminiPost(geminiRequest("loadCodeAssist", token: token, body: body)) else { return nil }
         // A string for most accounts, an object with `id` for some Workspace ones.
         let project = (root["cloudaicompanionProject"] as? String)
             ?? ((root["cloudaicompanionProject"] as? [String: Any])?["id"] as? String)
-        Self.geminiProjectID = project
+        Self.geminiProjectID = project.map { (refresh: refreshToken, project: $0) }
         return project
     }
 
@@ -147,6 +151,7 @@ extension LiveUsageDataSource {
 
     // Written and read only from the Gemini fetch, which the store runs one at a time.
     nonisolated(unsafe) private static var geminiRefreshed: (refresh: String, token: String, expires: Date)?
+    nonisolated(unsafe) private static var geminiClientLookedUp = false
     nonisolated(unsafe) private static var geminiClient: (id: String, secret: String)?
-    nonisolated(unsafe) private static var geminiProjectID: String?
+    nonisolated(unsafe) private static var geminiProjectID: (refresh: String, project: String)?
 }

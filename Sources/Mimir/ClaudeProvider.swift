@@ -508,10 +508,13 @@ extension LiveUsageDataSource {
             await Self.extraTokenCache.set(service, token)
         }
 
-        if let token, let root = await fetchClaudeOAuthUsage(token.accessToken) {
-            let status = buildClaudeStatus(from: root, note: "oauth usage api", name: name)
-            saveSnapshot(status)
-            return status
+        if let token {
+            if let root = await fetchClaudeOAuthUsage(token.accessToken) {
+                let status = buildClaudeStatus(from: root, note: "oauth usage api", name: name)
+                saveSnapshot(status)
+                return status
+            }
+            await Self.extraTokenCache.set(service, nil)
         }
         return loadSnapshot(for: name, iconName: "claude", staleNote: String(localized: "out of date"))
             ?? unavailableService(name: name, iconName: "claude", models: [])
@@ -732,7 +735,8 @@ extension LiveUsageDataSource {
     /// Modification date of the keychain item we last attempted a DATA read on. Reading data is the
     /// only prompting op, so we skip it while the item is unchanged since our last attempt — the token
     /// hasn't rotated, so re-reading would only re-prompt (and, if it was already rejected, 401 again).
-    /// Advisory single-writer-ish state; a rare race costs at most one extra read, never correctness.
+    /// Guarded by `lastKeychainReadLock` against concurrent mutation by parallel account fetches.
+    private static let lastKeychainReadLock = NSLock()
     nonisolated(unsafe) private static var lastKeychainReadMdate: [String: Date] = [:]
 
     /// Read the DATA of a SINGLE Claude Code keychain item — the newest-modified one, which is the
@@ -773,10 +777,14 @@ extension LiveUsageDataSource {
         // Silent reads never prompt, so they're free to run every tick (gated instead by the token
         // caches upstream) and pick up a freshly rotated token the moment it lands.
         if interactive {
-            if let last = Self.lastKeychainReadMdate[candidate.service], let mdate = candidate.modifiedAt, mdate <= last {
-                return nil
+            let shouldSkip = Self.lastKeychainReadLock.withLock {
+                if let last = Self.lastKeychainReadMdate[candidate.service], let mdate = candidate.modifiedAt, mdate <= last {
+                    return true
+                }
+                Self.lastKeychainReadMdate[candidate.service] = candidate.modifiedAt
+                return false
             }
-            Self.lastKeychainReadMdate[candidate.service] = candidate.modifiedAt
+            if shouldSkip { return nil }
         }
 
         var result: CFTypeRef?

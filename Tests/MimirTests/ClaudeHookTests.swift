@@ -116,4 +116,46 @@ final class ClaudeHookTests: XCTestCase {
         XCTAssertTrue(solo.contains("mimir-usage.json"))
         XCTAssertTrue(solo.contains("jq"))                         // solo renders its own line via jq
     }
+
+    // MARK: - wire extra dirs
+
+    func testWireExtraDirsOnlyWiresOnceAndBacksUpSettings() throws {
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent("mimir-test-extra-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+
+        let settingsPath = tempDir.appendingPathComponent("settings.json").path
+        let markerPath = tempDir.appendingPathComponent("mimir-wired").path
+        let backupPath = tempDir.appendingPathComponent("settings.json.mimir-backup").path
+
+        let initialSettings = "{\n  \"env\": \"work\"\n}"
+        try initialSettings.write(toFile: settingsPath, atomically: true, encoding: .utf8)
+
+        let account = ExtraAccount(name: "Claude Work", dir: tempDir)
+
+        // First wiring: creates backup, writes hook to settings.json, creates mimir-wired marker
+        MimirStatusLineHook.wireExtraDirs(true, accounts: [account])
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: markerPath))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: backupPath))
+        let backedUpContent = try String(contentsOfFile: backupPath, encoding: .utf8)
+        XCTAssertEqual(backedUpContent, initialSettings)
+
+        let wiredData = try Data(contentsOf: URL(fileURLWithPath: settingsPath))
+        let wiredJson = try JSONSerialization.jsonObject(with: wiredData) as? [String: Any]
+        let cmd = (wiredJson?["statusLine"] as? [String: Any])?["command"] as? String
+        XCTAssertTrue(MimirStatusLineHook.isOurCommand(cmd))
+
+        // User deliberately removes hook from settings.json
+        try initialSettings.write(toFile: settingsPath, atomically: true, encoding: .utf8)
+
+        // Subsequent wire (e.g. app launch / refreshScript) skips because marker exists
+        MimirStatusLineHook.wireExtraDirs(true, accounts: [account])
+        let recheckedContent = try String(contentsOfFile: settingsPath, encoding: .utf8)
+        XCTAssertEqual(recheckedContent, initialSettings)
+
+        // Unwiring removes the marker
+        MimirStatusLineHook.wireExtraDirs(false, accounts: [account])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: markerPath))
+    }
 }

@@ -186,17 +186,31 @@ enum MimirStatusLineHook {
     /// Second logins (`ExtraAccount.claude`, e.g. `~/.claude-work`) point at the same script, which
     /// writes into whichever config dir Claude Code runs with. ponytail: a dir that already has a
     /// status line of its own is left alone — chaining it would need a sidecar per dir.
-    private static func wireExtraDirs(_ on: Bool) {
-        for account in ExtraAccount.claude {
+    static func wireExtraDirs(_ on: Bool, accounts: [ExtraAccount] = ExtraAccount.claude) {
+        for account in accounts {
             let path = account.dir.appendingPathComponent("settings.json").path
+            let markerPath = account.dir.appendingPathComponent("mimir-wired").path
+            let backupPath = account.dir.appendingPathComponent("settings.json.mimir-backup").path
             let data = FileManager.default.contents(atPath: path)
             let current = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
             if data?.isEmpty == false, current == nil { continue }   // unparseable: never clobber it
             let cmd = (current?["statusLine"] as? [String: Any])?["command"] as? String
             if on {
-                guard cmd == nil else { continue }   // already ours, or the user's own
-                _ = writeSettings(wiredSettings(from: current).settings, to: path)
+                guard !FileManager.default.fileExists(atPath: markerPath) else { continue }
+                if isOurCommand(cmd) {   // wired before the marker existed
+                    FileManager.default.createFile(atPath: markerPath, contents: nil)
+                    continue
+                }
+                guard cmd == nil else { continue }   // the user's own
+                if FileManager.default.fileExists(atPath: path),
+                   !FileManager.default.fileExists(atPath: backupPath) {
+                    try? FileManager.default.copyItem(atPath: path, toPath: backupPath)
+                }
+                if writeSettings(wiredSettings(from: current).settings, to: path) {
+                    FileManager.default.createFile(atPath: markerPath, contents: nil)
+                }
             } else {
+                try? FileManager.default.removeItem(atPath: markerPath)
                 guard isOurCommand(cmd) else { continue }
                 _ = writeSettings(unwiredSettings(from: current, chained: nil), to: path)
                 try? FileManager.default.removeItem(at: account.dir.appendingPathComponent("mimir-usage.json"))
