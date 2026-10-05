@@ -3,7 +3,12 @@ import Security
 
 @MainActor
 final class UsageStore: ObservableObject {
-    @Published var services: [ServiceStatus] = LiveUsageDataSource.fallbackServices()
+    /// Launch shows the last-known readings straight away. The first refresh waits for all three
+    /// providers — up to their 8-second timeouts — and until then the popover had nothing to draw
+    /// but a spinner, on every launch and after every update.
+    @Published var services: [ServiceStatus] = LiveUsageDataSource.fallbackServices().map {
+        LiveUsageDataSource().snapshotOrFallback($0.name, iconName: $0.iconName)
+    }
     @Published var isRefreshing = false
     private let source = LiveUsageDataSource()
     /// Per-service fetch cooldown: while `Date()` is before the stored value, that service is
@@ -151,9 +156,12 @@ struct LiveUsageDataSource {
 
     // MARK: - Generic last-known snapshot (shared by all services)
 
+    /// Where Mimir keeps its caches and snapshots.
+    static let supportDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("Library/Application Support/Mimir")
+
     func snapshotURL(for service: String) -> URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/Mimir/\(service.lowercased())_snapshot.json")
+        Self.supportDirectory.appendingPathComponent("\(service.lowercased())_snapshot.json")
     }
 
     /// Persist the last live reading of any service so it can be shown (dimmed, marked stale)

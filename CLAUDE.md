@@ -5,9 +5,14 @@ macOS menu bar app — Claude Code, Codex ve Antigravity için quota takibi.
 ## Geliştirme
 
 ```bash
-./script/build_and_run.sh        # build + sign + çalıştır
+./script/build_and_run.sh        # build + Developer ID imza + /Applications'a kur + çalıştır
 ./script/build_and_run.sh logs   # log stream ile çalıştır
 ```
+
+Ayrı bir dev uygulaması yok: yerel build makinedeki Mimir'in yerine kurulur (aynı bundle id,
+widget dahil). Sürümü release dalınınkidir (yoksa son tag); Info.plist'teki `MimirLocalBuild`
+Sentry/TelemetryDeck'i susturur. Build numarası son yayınlanan tag'inkidir (+ zaman damgası), yani
+sıradaki beta/stable çıkınca Sparkle yerel build'i o notarize sürümle değiştirir.
 
 ## Release (CI üzerinden)
 
@@ -21,6 +26,17 @@ Geliştiricinin yaptığı:
 ```bash
 git tag vX.Y && git push && git push origin vX.Y
 ```
+
+Beta: sürüm `X.Y-beta.N` (tag `vX.Y-beta.N`, dal `release/X.Y-beta.N`) — beta kanalına gider.
+
+### Dallar
+
+- **Uzak:** `main` + yayınlanmış son beta dalı (test edilen).
+- **Yerel:** `main` + üzerinde çalışılan sıradaki beta dalı (henüz push edilmez).
+- Beta tag'i atılınca: yerel dal push'lanır, uzaktaki bir önceki beta dalı silinir, yerelde
+  sıradakinin dalı (`release/X.Y-beta.N+1`) açılır.
+- Final (`vX.Y`): beta dalı main'e merge edilir, beta dalları silinir.
+- README/docs değişikliği hemen görünsün diye main'e de cherry-pick edilir.
 
 CI şunları yapar: build → Developer ID imzala → **notarize + staple** → dSYM'i
 Sentry'ye yükle → `Mimir.zip` paketle → Sparkle `edSignature` üret → `appcast.xml`'i

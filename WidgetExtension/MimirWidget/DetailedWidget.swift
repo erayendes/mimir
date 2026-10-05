@@ -36,12 +36,29 @@ private struct FlatMetric: Identifiable {
     let metric: WindowMetric
 }
 
+/// The app rewrites the payload at least every few minutes while it runs (see `WidgetBridge`), so
+/// an older one means Mimir isn't running and the numbers are frozen — show them dimmed and tappable
+/// (the tap launches Mimir) rather than as live.
+private let payloadMaxAge: TimeInterval = 15 * 60
+
+private extension WindowMetric {
+    /// The metric as of `now`: a window whose reset has passed has refilled, so it reads 100% with no
+    /// reset (the countdown falls back to the window length) instead of a spent number beside "1m".
+    func live(at now: Date) -> WindowMetric {
+        var m = self
+        if let r = resetAt, r <= now { m.percent = 100; m.resetAt = nil }
+        if let r = weeklyResetAt, r <= now { m.weeklyPercent = 100; m.weeklyResetAt = nil }
+        return m
+    }
+}
+
 private extension WidgetPayload {
     /// All 5-hour metrics across available providers, in display order (Claude, Codex, then
-    /// Antigravity's Gemini + Claude/GPT). Small picks one out of this.
-    var fiveHourFlat: [FlatMetric] {
-        providers.filter(\.isAvailable)
-            .flatMap { p in p.fiveHour.map { FlatMetric(iconName: p.iconName, providerName: p.name, unavailable: p.unavailable, isStale: p.isStale, metric: $0) } }
+    /// Antigravity's Gemini + Claude/GPT), as of `now`. Small picks one out of this.
+    func fiveHourFlat(at now: Date) -> [FlatMetric] {
+        let frozen = now.timeIntervalSince(generatedAt) > payloadMaxAge
+        return providers.filter(\.isAvailable)
+            .flatMap { p in p.fiveHour.map { FlatMetric(iconName: p.iconName, providerName: p.name, unavailable: p.unavailable, isStale: p.isStale || frozen, metric: $0.live(at: now)) } }
     }
 }
 
@@ -58,14 +75,14 @@ struct DetailedWidgetView: View {
     let entry: MimirEntry
 
     var body: some View {
-        // Guard on fiveHourFlat (not just `available`): a provider can be available but carry no
+        // Guard on the flat list (not just `available`): a provider can be available but carry no
         // 5h metric yet (e.g. right at launch before the first quota read). Empty → EmptyState,
         // never an out-of-range crash.
-        if let payload = entry.payload, !payload.fiveHourFlat.isEmpty {
+        if let payload = entry.payload, case let flat = payload.fiveHourFlat(at: entry.date), !flat.isEmpty {
             if family == .systemMedium {
-                MediumView(metric: smallMetric(payload), now: entry.date)
+                MediumView(metric: smallMetric(flat), now: entry.date)
             } else {
-                SmallView(metric: smallMetric(payload), now: entry.date)
+                SmallView(metric: smallMetric(flat), now: entry.date)
             }
         } else {
             EmptyStateView()
@@ -73,12 +90,12 @@ struct DetailedWidgetView: View {
     }
 
     /// Small and Medium show a single model: the one chosen in the widget config, else the most
-    /// critical (lowest remaining) one. Caller guarantees `fiveHourFlat` is non-empty.
-    private func smallMetric(_ p: WidgetPayload) -> FlatMetric {
-        if let label = entry.selectedLabel, let chosen = p.fiveHourFlat.first(where: { $0.metric.label == label }) {
+    /// critical (lowest remaining) one. Caller guarantees `flat` is non-empty.
+    private func smallMetric(_ flat: [FlatMetric]) -> FlatMetric {
+        if let label = entry.selectedLabel, let chosen = flat.first(where: { $0.metric.label == label }) {
             return chosen
         }
-        return p.fiveHourFlat.min { $0.metric.percent < $1.metric.percent } ?? p.fiveHourFlat[0]
+        return flat.min { $0.metric.percent < $1.metric.percent } ?? flat[0]
     }
 }
 

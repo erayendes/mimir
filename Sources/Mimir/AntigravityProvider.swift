@@ -244,7 +244,7 @@ extension LiveUsageDataSource {
             let minimum = num(one["minimumCreditAmountForUsage"]) ?? 0
             return ModelStatus(name: antigravityCreditLabel(one["creditType"] as? String),
                                remainingPercent: 0, resetAt: nil,
-                               valueText: String(Int(amount)), isLow: amount < minimum, symbol: "sparkles")
+                               valueText: String(Int(amount)), isLow: amount < minimum, symbol: "dollarsign.circle")
         }
         return nil
     }

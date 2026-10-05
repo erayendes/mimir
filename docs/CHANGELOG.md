@@ -9,6 +9,90 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [3.0] - 2026-10-05
+
+**You loved the widgets. You're going to love this.**
+
+A menu bar app. Reinvented.
+
+Every pixel. Reimagined.
+
+Incredibly beautiful. Incredibly simple. Incredibly Mimir.
+
+The most powerful, most beautiful, most Mimir release we've ever made.
+
+Revolutionary. Once again.
+
+**The most Mimir Mimir ever.**
+
+Design-wise, this is the release I'm happiest with. I redesigned the popover from scratch, and it now speaks the same language as the widgets on your desktop. Same Mimir, it just tells you more at a glance. 😊
+
+#### What users are saying (if only they were real)
+
+> "I didn't know I had a reset. Mimir told me it expired in two days. I used it and saved my week."
+— A Mimir user ★★★★★★
+
+> "I thought my Codex quota was gone and the card would sit at 0%. The Luna Reserve panel showed up and I kept working."
+— Another Mimir user ★★★★★★
+
+> "Turns out I had two resets and one was expiring tomorrow. I saw it when the chip turned red. Saved the other one for the weekend."
+— Yet another Mimir user ★★★★★★
+
+> "Mimir is where I first found out Claude gives me resets. I still can't find where Claude shows them."
+— One more Mimir user ★★★★★★
+
+> "My five-hour quota was about to run out and I got a notification. I left the rest for the evening and started fresh in the morning."
+— A transformed Mimir user ★★★★★★
+
+- **The popover, redesigned.** Each card fills from the left with your five-hour quota, with your weekly quota right below. What you see on the widget is what you see here.
+- **Your resets at a glance.** A small chip tells you how many you have and when the next one expires. If one is about to lapse, it changes colour so you don't miss it. Notifications, too.
+  - **Claude's resets are here too.** Mimir reads them from the Claude desktop app's own session.
+  - **Codex [Luna Reserve](https://help.openai.com/en/articles/20001499-luna-reserve-in-codex-and-chatgpt-work) gets its own panel.** When your Codex quota runs out and you're moved to the reserve, you see that instead of a card stuck at 0%.
+- **A more honest widget.** If Mimir isn't running, the widget dims, so you know the numbers are old.
+- **Settings moved to the back of the card.** Tap the gear and the card flips. No more digging through the right-click menu.
+- **Lots of little things fixed:** cut-off titles, settings that didn't fit the panel, links without the pointing hand.
+
+Thanks to everyone who tried the betas. If something isn't right, please open an issue. I read every one.
+
+### [3.0-beta.5] - 2026-09-30
+
+- Settings fit the panel: no longer cut off with a single card, no empty space with several
+
+### [3.0-beta.4] - 2026-09-29
+
+The last beta before release. If no problems are reported or found, this will ship as the stable version.
+
+- UI refinements
+- Security review
+- Code review and cleanup
+
+### [3.0.0-beta.3] - 2026-09-29
+
+- **Luna Reserve shows up.** When Codex moves you to Luna Reserve after the main quota runs out, it gets its own panel on the ChatGPT card, the way an Antigravity family does — instead of the card sitting at 0% while you keep working.
+- **The widget no longer shows a frozen reading as live.** A window whose reset has passed reads as refilled, the countdown keeps moving between updates, and if Mimir isn't running the widget dims and a tap opens it.
+- Long panel titles shrink to fit instead of being cut off.
+- The pointing hand shows on every link in the popover.
+
+### [3.0.0-beta.2] - 2026-09-28
+
+Small improvements.
+
+### [3.0.0-beta.1] - 2026-09-28
+
+**Mimir 3.0. One glance. Everything.**
+
+**The card is the widget.**
+The popover now speaks the same language as the widget on your desktop. Your five-hour quota fills the card from the left; your week runs beneath it. One number, one picture.
+
+**Your resets, at a glance.**
+One chip shows how many you hold and when the nearest runs out. Its colour follows the urgency, so a reset you lose tomorrow never looks like one with a month to go.
+
+**Claude's usage resets. For the first time.**
+The quota resets Claude grants you are now in Mimir. Read with the Claude desktop app's own session — no disguises, just the honest answer.
+
+**Your balance, always in view.**
+Money and credit lines never hide behind a disclosure.
+
 ### [2.24] - 2026-09-28
 
 #### Added
@@ -526,6 +610,90 @@ Bu projedeki tüm önemli değişiklikler bu dosyada belgelenecektir.
 
 Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
+
+### [3.0] - 2026-10-05
+
+**Widget'ları sevdiniz. Buna bayılacaksınız.**
+
+Bir menü çubuğu uygulaması. Yeniden icat edildi.
+
+Her piksel. Yeniden düşünüldü.
+
+İnanılmaz derecede güzel. İnanılmaz derecede sade. İnanılmaz derecede Mimir.
+
+Şimdiye kadar yaptığımız en güçlü, en güzel, en Mimir sürüm.
+
+Devrim niteliğinde. Bir kez daha.
+
+**Bugüne kadarki en Mimir Mimir.**
+
+Bu, tasarım açısından içime en çok sinen sürüm oldu. Popover'ı baştan tasarladım; artık masaüstündeki widget'larla aynı dili konuşuyor. Aynı Mimir, sadece bir bakışta daha çok şey anlatıyor. 😊
+
+#### Kullanıcılardan gelen yorumlar (keşke gerçek olsa)
+
+> "Bir yenileme hakkım olduğunu bilmiyordum. Mimir söyledi, bitmesine iki gün varmış. Kullandım, haftam kurtuldu."
+— Bir Mimir kullanıcısı ★★★★★★
+
+> "Codex kotam bitti sandım, kart %0'da kalacak diye bekledim. Luna Reserve paneli açıldı, çalışmaya devam ettim."
+— Bir başka Mimir kullanıcısı ★★★★★★
+
+> "İki yenileme hakkım varmış, biri yarın bitiyormuş. Çip kırmızıya dönünce gördüm. Öbürünü hafta sonuna sakladım."
+— Bir Mimir kullanıcısı daha ★★★★★★
+
+> "Claude'da sıfırlama hakkım olduğunu ilk kez Mimir'den öğrendim. claude'de nerede yazdığını hâlâ bulamadım."
+— Daha başka bir Mimir kullanıcısı ★★★★★★
+
+> "Beş saatlik kotam bitmek üzereymiş, bildirim geldi. Kalan işi akşama bıraktım, sabah tertemiz başladım."
+— Başkalaşmış bir Mimir kullanıcısı ★★★★★★
+
+- **Popover baştan tasarlandı.** Her kart beş saatlik kotanızla soldan doluyor, haftalık kotanız hemen altında. Widget'ta nasıl görüyorsanız burada da öyle.
+- **Yenileme haklarınız bir bakışta.** Küçük bir çip kaç hakkınız olduğunu ve sıradakinin ne zaman biteceğini söylüyor. Bitmek üzere olan varsa rengi değişiyor, kaçırmıyorsunuz. Bildirimler de cabası.
+  - **Claude'un yenileme hakları da geldi.** Mimir bunları Claude masaüstü uygulamasının kendi oturumundan okuyor.
+  - **Codex [Luna Reserve](https://help.openai.com/en/articles/20001499-luna-reserve-in-codex-and-chatgpt-work)'ün kendi paneli var.** Codex kotanız bitip sizi yedeğe geçirdiğinde, %0'da takılı bir kart yerine onu görüyorsunuz.
+- **Widget daha dürüst.** Mimir çalışmıyorsa widget soluklaşıyor; sayıların eski olduğunu bilin.
+- **Ayarlar kartın arkasına taşındı.** Dişliye basın, kart dönsün. Sağ tık menüsünde aramanıza gerek kalmadı.
+- **Bir sürü küçük şey düzeltildi,** kesilen başlıklar, panele sığmayan ayarlar, el imleci çıkmayan bağlantılar.
+
+Betaları deneyen herkese teşekkürler. Olmaması gereken bir şey olursa lütfen issue açın, hepsini okuyorum.
+
+### [3.0-beta.5] - 2026-09-30
+
+- Ayarlar panele tam oturuyor: tek kartta kesilmiyor, çok kartta altında boşluk kalmıyor
+
+### [3.0-beta.4] - 2026-09-29
+
+Yayın öncesi son beta sürümü. Sorun bildirimi gelmez ya da herhangi bir sorunla karşılaşılmazsa bu sürüm kararlı sürüm olarak yayınlanacak.
+
+- UI düzenlemeleri
+- Güvenlik testleri
+- Code review ve temizlik
+
+### [3.0.0-beta.3] - 2026-09-29
+
+- **Luna Reserve görünüyor.** Ana kota bitince Codex seni Luna Reserve'e geçirdiğinde, ChatGPT kartında ona ait ayrı bir panel çıkıyor — Antigravity ailelerindeki gibi. Kart artık sen çalışmaya devam ederken %0'da takılı kalmıyor.
+- **Widget donmuş bir okumayı artık canlı gibi göstermiyor.** Reset'i geçmiş pencere dolmuş sayılıyor, geri sayım güncellemeler arasında da ilerliyor; Mimir çalışmıyorsa widget soluklaşıyor ve dokununca Mimir açılıyor.
+- Uzun panel başlıkları kesilmek yerine küçülerek sığıyor.
+- Popover'daki her bağlantıda el imleci görünüyor.
+
+### [3.0.0-beta.2] - 2026-09-28
+
+Küçük iyileştirmeler.
+
+### [3.0.0-beta.1] - 2026-09-28
+
+**Mimir 3.0. Tek bakış. Her şey.**
+
+**Kart, widget'ın ta kendisi.**
+Popover artık masaüstündeki widget'la aynı dili konuşuyor. Beş saatlik kota kartı soldan dolduruyor, haftalık kota altında akıyor. Tek bir sayı, tek bir resim.
+
+**Yenileme hakların, bir bakışta.**
+Kaç hakkın olduğunu ve en yakınının ne zaman bittiğini tek bir çip gösteriyor. Rengi aciliyete göre değişiyor. Yarın bitecek hak, bir ay süresi olan hakla aynı görünmüyor.
+
+**Claude'un sıfırlama hakları, ilk kez.**
+Claude'un tanıdığı kota sıfırlamaları artık Mimir'de. Claude masaüstü uygulamasının kendi oturumuyla okunuyor; kılık değiştirmeden, dürüstçe.
+
+**Bakiyen hep gözünün önünde.**
+Para ve kredi satırları hiçbir açılır menünün arkasına saklanmıyor.
 
 ### [2.24] - 2026-09-28
 

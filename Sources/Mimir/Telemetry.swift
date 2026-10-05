@@ -17,8 +17,12 @@ enum Telemetry {
         UserDefaults.standard.object(forKey: enabledKey) as? Bool ?? true
     }
 
+    /// A local build (`script/build_and_run.sh` marks it `MimirLocalBuild`; a bare `swift run` has
+    /// no version at all): it shares the release's bundle id and version, so the mark is what tells
+    /// it apart. Its crashes and signals are development noise.
     static var isDevBuild: Bool {
-        Bundle.main.bundleIdentifier?.hasSuffix(".dev") ?? false
+        let info = Bundle.main.infoDictionary
+        return (info?["MimirLocalBuild"] as? Bool ?? false) || info?["CFBundleShortVersionString"] == nil
     }
 
     /// The single gate every transmission passes through. Pure → unit-tested.

@@ -11,8 +11,8 @@ struct MimirEntry: TimelineEntry {
 /// Reads the App Group snapshot the app writes (see `WidgetBridge`). Never touches keychain or
 /// network — a widget extension is sandboxed and can only see the shared container. The app pokes
 /// `reloadAllTimelines` when the data actually changes (immediately on a structural change, and at
-/// most once per ~75s for routine %-drift), so the widget tracks the popover; the ~15 min policy is
-/// just a fallback so the "kalan süre" countdown doesn't go stale if the app is quiet.
+/// most once per ~75s for routine %-drift), so the widget tracks the popover; the hour of 5-minute
+/// entries keeps the "kalan süre" countdown moving if the app is quiet.
 struct MimirProvider: AppIntentTimelineProvider {
     func placeholder(in context: Context) -> MimirEntry {
         MimirEntry(date: Date(), payload: .sample)
@@ -22,9 +22,15 @@ struct MimirProvider: AppIntentTimelineProvider {
         return MimirEntry(date: Date(), payload: payload, selectedLabel: configuration.model?.id)
     }
     func timeline(for configuration: SelectMetricIntent, in context: Context) async -> Timeline<MimirEntry> {
+        // An entry every 5 min for the next hour: the countdown ticks, a passed reset refills, and a
+        // payload the app stopped rewriting dims — all without spending the reload budget.
         let now = Date()
-        let entry = MimirEntry(date: now, payload: WidgetStore.read(), selectedLabel: configuration.model?.id)
-        return Timeline(entries: [entry], policy: .after(now.addingTimeInterval(15 * 60)))
+        let payload = WidgetStore.read()
+        let entries = (0..<12).map {
+            MimirEntry(date: now.addingTimeInterval(Double($0) * 5 * 60), payload: payload,
+                       selectedLabel: configuration.model?.id)
+        }
+        return Timeline(entries: entries, policy: .after(now.addingTimeInterval(60 * 60)))
     }
 }
 

@@ -19,6 +19,11 @@ extension LiveUsageDataSource {
     /// CLI/hook path) when the desktop app isn't installed/logged-in, the session can't be read, or
     /// the request fails. `userInitiated` gates the one-time Safe Storage grant prompt.
     func fetchClaudeDesktopUsage(userInitiated: Bool) async -> ServiceStatus? {
+        if let web = await fetchClaudeDesktopWebUsage(userInitiated: userInitiated) { return web }
+        return await fetchClaudeDesktopOAuthUsage()
+    }
+
+    private func fetchClaudeDesktopWebUsage(userInitiated: Bool) async -> ServiceStatus? {
         guard let sessionKey = readClaudeDesktopSessionKey(userInitiated: userInitiated) else {
             Self.desktopLog.log("no desktop sessionKey (silent read failed / not granted / not logged in)")
             return nil
@@ -38,15 +43,21 @@ extension LiveUsageDataSource {
             guard orgCode == 200,
                   let orgs = try? JSONSerialization.jsonObject(with: orgData) as? [[String: Any]],
                   let uuid = Self.selectClaudeOrgUUID(orgs) else {
-                Self.desktopLog.log("orgs failed http=\(orgCode) count=\(((try? JSONSerialization.jsonObject(with: orgData)) as? [[String: Any]])?.count ?? -1)")
+                Self.desktopLog.log("orgs failed http=\(orgCode) cloudflare=\(Self.isCloudflareChallenge(orgResp, orgData)) count=\(((try? JSONSerialization.jsonObject(with: orgData)) as? [[String: Any]])?.count ?? -1)")
                 return nil
             }
 
-            let (usageData, usageResp) = try await URLSession.shared.data(for: request("https://claude.ai/api/organizations/\(uuid)/usage"))
+            // `?cedar_ember=1` asks the same endpoint to also return the account's usage-limit reset
+            // grants — the "Resets" card claude.ai shows. The field is gated on the *surface* making
+            // the request (the response echoes `event_props.surface`), and this path already IS
+            // claude.ai with the desktop app's own session, so it arrives honestly. The CLI's
+            // `api.anthropic.com` sibling gates the same field behind Claude Code's own User-Agent,
+            // which Mimir will not impersonate — so this is the one path that can carry it.
+            let (usageData, usageResp) = try await URLSession.shared.data(for: request("https://claude.ai/api/organizations/\(uuid)/usage?cedar_ember=1"))
             let usageCode = (usageResp as? HTTPURLResponse)?.statusCode ?? -1
             guard usageCode == 200,
                   let root = try? JSONSerialization.jsonObject(with: usageData) as? [String: Any] else {
-                Self.desktopLog.log("usage failed http=\(usageCode)")
+                Self.desktopLog.log("usage failed http=\(usageCode) cloudflare=\(Self.isCloudflareChallenge(usageResp, usageData))")
                 return nil
             }
 
@@ -61,6 +72,80 @@ extension LiveUsageDataSource {
             Self.desktopLog.log("request threw: \(error.localizedDescription, privacy: .public)")
             return nil
         }
+    }
+
+    /// Cloudflare's "Just a moment" page: claude.ai sits behind it, and some networks (VPNs,
+    /// datacenter IPs) get the challenge instead of the API. Told apart from a dead session only in
+    /// the log — either way the OAuth path below takes over.
+    static func isCloudflareChallenge(_ response: URLResponse, _ body: Data) -> Bool {
+        if (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "cf-mitigated") == "challenge" { return true }
+        return String(data: body.prefix(4096), encoding: .utf8)?.contains("Just a moment") ?? false
+    }
+
+    /// The desktop app's own OAuth token, used when claude.ai's web API won't answer (Cloudflare,
+    /// an expired cookie). It goes to `api.anthropic.com`, which Cloudflare doesn't front. Second,
+    /// not first: that endpoint leaves out the reset grants, which only the web path carries.
+    /// Read only — never refreshed, the same rule as Claude Code's token.
+    private func fetchClaudeDesktopOAuthUsage() async -> ServiceStatus? {
+        guard let password = readClaudeSafeStoragePassword(interactive: false),
+              let data = FileManager.default.contents(atPath: NSHomeDirectory() + "/Library/Application Support/Claude/config.json"),
+              let config = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let token = Self.claudeDesktopOAuthToken(config: config, safeStoragePassword: password) else {
+            Self.desktopLog.log("no desktop oauth token")
+            return nil
+        }
+        var req = URLRequest(url: URL(string: "https://api.anthropic.com/api/oauth/usage")!, timeoutInterval: 10)
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
+        guard let (body, response) = try? await URLSession.shared.data(for: req),
+              (response as? HTTPURLResponse)?.statusCode == 200,
+              let root = try? JSONSerialization.jsonObject(with: body) as? [String: Any] else {
+            Self.desktopLog.log("desktop oauth usage failed")
+            return nil
+        }
+        writeClaudeUsageCache(body)
+        let status = buildClaudeStatus(from: root, note: "claude desktop oauth")
+        saveSnapshot(status)
+        return status.withCooldownHint(0)
+    }
+
+    /// The unexpired access token in the desktop app's `oauth:tokenCacheV2` (older builds:
+    /// `oauth:tokenCache`) — Electron safeStorage, so the same Safe Storage password and cipher as
+    /// the cookie. The decrypted layout isn't documented, so this looks for any `sk-ant-oat…` token
+    /// with an expiry and takes the one that lasts longest. Pure → unit-testable.
+    static func claudeDesktopOAuthToken(config: [String: Any], safeStoragePassword: String,
+                                        now: Date = Date()) -> String? {
+        guard let blob = (config["oauth:tokenCacheV2"] ?? config["oauth:tokenCache"]) as? String,
+              let encrypted = Data(base64Encoded: blob),
+              let plain = decryptChromium(encrypted, safeStoragePassword: safeStoragePassword),
+              let cache = try? JSONSerialization.jsonObject(with: plain) else { return nil }
+        return claudeOAuthToken(in: cache, now: now)
+    }
+
+    static func claudeOAuthToken(in cache: Any, now: Date = Date()) -> String? {
+        var best: (token: String, expires: Date)?
+        func walk(_ value: Any) {
+            if let dict = value as? [String: Any] {
+                let token = ["token", "accessToken", "access_token"].lazy
+                    .compactMap { dict[$0] as? String }.first { $0.hasPrefix("sk-ant-oat") }
+                if let token, let expires = expiry(dict["expiresAt"] ?? dict["expires_at"]), expires > now,
+                   expires > best?.expires ?? .distantPast {
+                    best = (token, expires)
+                }
+                dict.values.forEach(walk)
+            } else if let array = value as? [Any] {
+                array.forEach(walk)
+            }
+        }
+        walk(cache)
+        return best?.token
+    }
+
+    /// Milliseconds or seconds since 1970, or an ISO 8601 string.
+    private static func expiry(_ raw: Any?) -> Date? {
+        if let text = raw as? String { return ISO8601DateFormatter().date(from: text) }
+        guard let number = (raw as? NSNumber)?.doubleValue else { return nil }
+        return Date(timeIntervalSince1970: number > 1e12 ? number / 1000 : number)
     }
 
     /// Pick the organization whose usage we report. Prefer one that looks like a chat/Pro account
@@ -134,6 +219,17 @@ extension LiveUsageDataSource {
     /// Newer Chromium prepends a 32-byte SHA-256(host) to the plaintext — stripped when the result
     /// doesn't already look like a `sk-ant-…` session key. Pure → unit-testable.
     static func decryptChromiumCookie(_ encrypted: Data, safeStoragePassword: String) -> String? {
+        guard let plain = decryptChromium(encrypted, safeStoragePassword: safeStoragePassword) else { return nil }
+        if let s = String(data: plain, encoding: .utf8), s.hasPrefix("sk-ant") { return s }
+        if plain.count > 32, let s = String(data: plain.subdata(in: 32 ..< plain.count), encoding: .utf8),
+           s.hasPrefix("sk-ant") { return s }
+        // Last resort: return whatever decoded (still usable if the format shifts), else nil.
+        return String(data: plain, encoding: .utf8).flatMap { $0.hasPrefix("sk-") ? $0 : nil }
+    }
+
+    /// Electron/Chromium safeStorage on macOS, the raw plaintext: `v10`/`v11` tag, then AES-128-CBC
+    /// as above.
+    static func decryptChromium(_ encrypted: Data, safeStoragePassword: String) -> Data? {
         guard encrypted.count > 3, let tag = String(data: encrypted.prefix(3), encoding: .utf8),
               tag == "v10" || tag == "v11" else { return nil }
         let ciphertext = encrypted.subdata(in: 3 ..< encrypted.count)
@@ -167,12 +263,6 @@ extension LiveUsageDataSource {
             }
         }
         guard status == kCCSuccess, outLen > 0 else { return nil }
-        let plain = Data(out.prefix(outLen))
-
-        if let s = String(data: plain, encoding: .utf8), s.hasPrefix("sk-ant") { return s }
-        if plain.count > 32, let s = String(data: plain.subdata(in: 32 ..< plain.count), encoding: .utf8),
-           s.hasPrefix("sk-ant") { return s }
-        // Last resort: return whatever decoded (still usable if the format shifts), else nil.
-        return String(data: plain, encoding: .utf8).flatMap { $0.hasPrefix("sk-") ? $0 : nil }
+        return Data(out.prefix(outLen))
     }
 }
