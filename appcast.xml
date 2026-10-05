@@ -8,7 +8,85 @@
     <description>Mimir update feed</description>
     <language>en</language>
 
-                                    <item>
+                                        <item>
+      <title>Mimir 3.0</title>
+      <sparkle:version>300000000</sparkle:version>
+      <sparkle:shortVersionString>3.0</sparkle:shortVersionString>
+      <pubDate>Mon, 05 Oct 2026 08:44:41 +0000</pubDate>
+      <description><![CDATA[
+<p><b>You loved the widgets. You're going to love this.</b></p>
+<p>A menu bar app. Reinvented.</p>
+<p>Every pixel. Reimagined.</p>
+<p>Incredibly beautiful. Incredibly simple. Incredibly Mimir.</p>
+<p>The most powerful, most beautiful, most Mimir release we've ever made.</p>
+<p>Revolutionary. Once again.</p>
+<p><b>The most Mimir Mimir ever.</b></p>
+<p>Design-wise, this is the release I'm happiest with. I redesigned the popover from scratch, and it now speaks the same language as the widgets on your desktop. Same Mimir, it just tells you more at a glance. 😊</p>
+<p><b>What users are saying (if only they were real)</b></p>
+<blockquote>"I didn't know I had a reset. Mimir told me it expired in two days. I used it and saved my week."</blockquote>
+<p>— A Mimir user ★★★★★★</p>
+<blockquote>"I thought my Codex quota was gone and the card would sit at 0%. The Luna Reserve panel showed up and I kept working."</blockquote>
+<p>— Another Mimir user ★★★★★★</p>
+<blockquote>"Turns out I had two resets and one was expiring tomorrow. I saw it when the chip turned red. Saved the other one for the weekend."</blockquote>
+<p>— Yet another Mimir user ★★★★★★</p>
+<blockquote>"Mimir is where I first found out Claude gives me resets. I still can't find where Claude shows them."</blockquote>
+<p>— One more Mimir user ★★★★★★</p>
+<blockquote>"My five-hour quota was about to run out and I got a notification. I left the rest for the evening and started fresh in the morning."</blockquote>
+<p>— A transformed Mimir user ★★★★★★</p>
+<ul>
+<li><b>The popover, redesigned.</b> Each card fills from the left with your five-hour quota, with your weekly quota right below. What you see on the widget is what you see here.</li>
+<li><b>Your resets at a glance.</b> A small chip tells you how many you have and when the next one expires. If one is about to lapse, it changes colour so you don't miss it. Notifications, too.</li>
+</ul>
+<p>- <b>Claude's resets are here too.</b> Mimir reads them from the Claude desktop app's own session.</p>
+<p>- <b>Codex [Luna Reserve](https://help.openai.com/en/articles/20001499-luna-reserve-in-codex-and-chatgpt-work) gets its own panel.</b> When your Codex quota runs out and you're moved to the reserve, you see that instead of a card stuck at 0%.</p>
+<ul>
+<li><b>A more honest widget.</b> If Mimir isn't running, the widget dims, so you know the numbers are old.</li>
+<li><b>Settings moved to the back of the card.</b> Tap the gear and the card flips. No more digging through the right-click menu.</li>
+<li><b>Lots of little things fixed:</b> cut-off titles, settings that didn't fit the panel, links without the pointing hand.</li>
+</ul>
+<p>Thanks to everyone who tried the betas. If something isn't right, please open an issue. I read every one.</p>
+<hr>
+<p><b>Widget'ları sevdiniz. Buna bayılacaksınız.</b></p>
+<p>Bir menü çubuğu uygulaması. Yeniden icat edildi.</p>
+<p>Her piksel. Yeniden düşünüldü.</p>
+<p>İnanılmaz derecede güzel. İnanılmaz derecede sade. İnanılmaz derecede Mimir.</p>
+<p>Şimdiye kadar yaptığımız en güçlü, en güzel, en Mimir sürüm.</p>
+<p>Devrim niteliğinde. Bir kez daha.</p>
+<p><b>Bugüne kadarki en Mimir Mimir.</b></p>
+<p>Bu, tasarım açısından içime en çok sinen sürüm oldu. Popover'ı baştan tasarladım; artık masaüstündeki widget'larla aynı dili konuşuyor. Aynı Mimir, sadece bir bakışta daha çok şey anlatıyor. 😊</p>
+<p><b>Kullanıcılardan gelen yorumlar (keşke gerçek olsa)</b></p>
+<blockquote>"Bir yenileme hakkım olduğunu bilmiyordum. Mimir söyledi, bitmesine iki gün varmış. Kullandım, haftam kurtuldu."</blockquote>
+<p>— Bir Mimir kullanıcısı ★★★★★★</p>
+<blockquote>"Codex kotam bitti sandım, kart %0'da kalacak diye bekledim. Luna Reserve paneli açıldı, çalışmaya devam ettim."</blockquote>
+<p>— Bir başka Mimir kullanıcısı ★★★★★★</p>
+<blockquote>"İki yenileme hakkım varmış, biri yarın bitiyormuş. Çip kırmızıya dönünce gördüm. Öbürünü hafta sonuna sakladım."</blockquote>
+<p>— Bir Mimir kullanıcısı daha ★★★★★★</p>
+<blockquote>"Claude'da sıfırlama hakkım olduğunu ilk kez Mimir'den öğrendim. claude'de nerede yazdığını hâlâ bulamadım."</blockquote>
+<p>— Daha başka bir Mimir kullanıcısı ★★★★★★</p>
+<blockquote>"Beş saatlik kotam bitmek üzereymiş, bildirim geldi. Kalan işi akşama bıraktım, sabah tertemiz başladım."</blockquote>
+<p>— Başkalaşmış bir Mimir kullanıcısı ★★★★★★</p>
+<ul>
+<li><b>Popover baştan tasarlandı.</b> Her kart beş saatlik kotanızla soldan doluyor, haftalık kotanız hemen altında. Widget'ta nasıl görüyorsanız burada da öyle.</li>
+<li><b>Yenileme haklarınız bir bakışta.</b> Küçük bir çip kaç hakkınız olduğunu ve sıradakinin ne zaman biteceğini söylüyor. Bitmek üzere olan varsa rengi değişiyor, kaçırmıyorsunuz. Bildirimler de cabası.</li>
+</ul>
+<p>- <b>Claude'un yenileme hakları da geldi.</b> Mimir bunları Claude masaüstü uygulamasının kendi oturumundan okuyor.</p>
+<p>- <b>Codex [Luna Reserve](https://help.openai.com/en/articles/20001499-luna-reserve-in-codex-and-chatgpt-work)'ün kendi paneli var.</b> Codex kotanız bitip sizi yedeğe geçirdiğinde, %0'da takılı bir kart yerine onu görüyorsunuz.</p>
+<ul>
+<li><b>Widget daha dürüst.</b> Mimir çalışmıyorsa widget soluklaşıyor; sayıların eski olduğunu bilin.</li>
+<li><b>Ayarlar kartın arkasına taşındı.</b> Dişliye basın, kart dönsün. Sağ tık menüsünde aramanıza gerek kalmadı.</li>
+<li><b>Bir sürü küçük şey düzeltildi,</b> kesilen başlıklar, panele sığmayan ayarlar, el imleci çıkmayan bağlantılar.</li>
+</ul>
+<p>Betaları deneyen herkese teşekkürler. Olmaması gereken bir şey olursa lütfen issue açın, hepsini okuyorum.</p>
+      ]]></description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v3.0/Mimir.zip"
+        sparkle:edSignature="3ln6KtzTg2w9VJXd38aPCgyPjrFcnG/8mQCA7O5M7AWNUTxyGolxohskaB/AGLA4ePFewKF2vJaseDBAKIzrDg=="
+        length="6749933"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 3.0-beta.5</title>
       <sparkle:channel>beta</sparkle:channel>
       <sparkle:version>299999005</sparkle:version>
