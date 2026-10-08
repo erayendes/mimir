@@ -34,6 +34,8 @@ private struct FlatMetric: Identifiable {
     let unavailable: Bool      // live source unreachable too long → render the empty state
     let isStale: Bool          // last-known reading → dim + tap-to-refresh (host renews the token)
     let metric: WindowMetric
+    let label: String          // what the header reads: "Claude" for "Claude Work", "Gemini" for a family
+    let plan: String?
 }
 
 /// The app rewrites the payload at least every few minutes while it runs (see `WidgetBridge`), so
@@ -58,7 +60,7 @@ private extension WidgetPayload {
     func fiveHourFlat(at now: Date) -> [FlatMetric] {
         let frozen = now.timeIntervalSince(generatedAt) > payloadMaxAge
         return providers.filter(\.isAvailable)
-            .flatMap { p in p.fiveHour.map { FlatMetric(iconName: p.iconName, providerName: p.name, unavailable: p.unavailable, isStale: p.isStale || frozen, metric: $0.live(at: now)) } }
+            .flatMap { p in p.fiveHour.map { FlatMetric(iconName: p.iconName, providerName: p.name, unavailable: p.unavailable, isStale: p.isStale || frozen, metric: $0.live(at: now), label: p.displayLabel($0), plan: p.plan) } }
     }
 }
 
@@ -113,6 +115,24 @@ private struct Pill: View {
     }
 }
 
+/// The header's left side: logo, name and plan in a quieter tone — as in the popover. The e-mail
+/// stays out: the face has no room for it, and the widget's model picker already names the login.
+private struct MetricHeader: View {
+    let metric: FlatMetric
+    var body: some View {
+        HStack(spacing: 6) {
+            BrandMark(iconName: metric.iconName, size: 14)
+            Text(metric.label).font(.system(size: 13)).foregroundStyle(Tok.secondary).lineLimit(1)
+                .minimumScaleFactor(0.8)
+            if let plan = metric.plan {
+                Text(plan).font(.system(size: 13)).foregroundStyle(Tok.tertiary).lineLimit(1).fixedSize()
+            }
+            if metric.metric.isWeekly { Pill(windowPill(metric.metric)) }
+        }
+        .layoutPriority(1)
+    }
+}
+
 private struct IconText: View {
     let symbol: String
     let text: String?
@@ -151,11 +171,7 @@ private struct SmallView: View {
             ZStack(alignment: .topLeading) {
                 FaceWash(color: faceColor, percent: m.percent, width: geo.size.width)
                 VStack(alignment: .leading, spacing: 0) {
-                    HStack(spacing: 6) {
-                        BrandMark(iconName: metric.iconName, size: 14)
-                        Text(m.label).font(.system(size: 13)).foregroundStyle(Tok.secondary).lineLimit(1)
-                        if m.isWeekly { Pill(windowPill(m)) }
-                    }
+                    MetricHeader(metric: metric)
                     if metric.unavailable {
                         // Live source unreachable too long → an actionable "couldn't fetch" state (no number).
                         Spacer(minLength: 0)
@@ -323,13 +339,9 @@ private struct MediumView: View {
                 // Header and the top-right block share one row so the clock line's top sits on the
                 // header's top; the number centres on the two info lines beside it.
                 HStack(alignment: .top, spacing: 8) {
-                    HStack(spacing: 6) {
-                        BrandMark(iconName: metric.iconName, size: 14)
-                        Text(m.label).font(.system(size: 13)).foregroundStyle(Tok.secondary).lineLimit(1)
-                        // The face is the session by default; when a long window has taken its place
-                        // (Codex Go's 30d), say so — otherwise the 5s needs no label.
-                        if m.isWeekly { Pill(windowPill(m)) }
-                    }
+                    // The face is the session by default; when a long window has taken its place
+                    // (Codex Go's 30d), the header says so — otherwise the 5s needs no label.
+                    MetricHeader(metric: metric)
                     Spacer(minLength: 8)
                     if !metric.unavailable {
                         HStack(alignment: .top, spacing: 10) {

@@ -30,18 +30,36 @@ public struct ProviderPayload: Codable, Equatable {
     // expired and only a user-initiated refresh can renew it (Mimir won't rotate Claude Code's token).
     // The widget dims such rows and makes them tappable so a tap triggers that refresh in the host.
     public var isStale: Bool
+    // The provider's own name ("Claude" for the second login stored as "Claude Work"), and the login
+    // behind the card: its plan and e-mail. `name` stays the identity the widget's picker stores.
+    public var title: String?
+    public var plan: String?
+    public var email: String?
 
     public init(name: String, iconName: String, isAvailable: Bool, fiveHour: [WindowMetric],
-                unavailable: Bool = false, isStale: Bool = false) {
+                unavailable: Bool = false, isStale: Bool = false,
+                title: String? = nil, plan: String? = nil, email: String? = nil) {
         self.name = name
         self.iconName = iconName
         self.isAvailable = isAvailable
         self.fiveHour = fiveHour
         self.unavailable = unavailable
         self.isStale = isStale
+        self.title = title
+        self.plan = plan
+        self.email = email
     }
 
-    private enum CodingKeys: String, CodingKey { case name, iconName, isAvailable, fiveHour, unavailable, isStale }
+    /// What a window of this provider is called on screen: an account-level window carries the
+    /// provider's identity as its label, so it shows the provider's own name; a family ("Gemini")
+    /// keeps its own.
+    public func displayLabel(_ metric: WindowMetric) -> String {
+        metric.label == name ? (title ?? name) : metric.label
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case name, iconName, isAvailable, fiveHour, unavailable, isStale, title, plan, email
+    }
 
     // Custom decode so a payload written by an older app version (no `unavailable`/`isStale` key) still
     // reads — otherwise the widget would fail to decode and blank out during the post-update window.
@@ -53,6 +71,9 @@ public struct ProviderPayload: Codable, Equatable {
         fiveHour = try c.decode([WindowMetric].self, forKey: .fiveHour)
         unavailable = try c.decodeIfPresent(Bool.self, forKey: .unavailable) ?? false
         isStale = try c.decodeIfPresent(Bool.self, forKey: .isStale) ?? false
+        title = try c.decodeIfPresent(String.self, forKey: .title)
+        plan = try c.decodeIfPresent(String.self, forKey: .plan)
+        email = try c.decodeIfPresent(String.self, forKey: .email)
     }
 }
 

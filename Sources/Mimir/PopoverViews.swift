@@ -130,7 +130,7 @@ struct PopoverView: View {
             VStack(alignment: .leading, spacing: 6) {
                 ForEach(down) { svc in
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text(String(format: String(localized: "popover.unavailable"), svc.name))
+                        Text(String(format: String(localized: "popover.unavailable"), svc.titleWithAccount))
                             .font(.system(size: 12, weight: .medium))
                             .foregroundStyle(Color.primary.opacity(0.7))
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -666,6 +666,15 @@ struct ServiceCard: View {
     /// share an account, so each gets its own panel under its own name; every other provider has
     /// exactly one pair and so exactly one panel.
     private var panels: [PanelData] {
+        var panels = quotaPanels
+        if !panels.isEmpty {
+            panels[0].plan = service.account?.plan
+            panels[0].email = service.account?.email
+        }
+        return panels
+    }
+
+    private var quotaPanels: [PanelData] {
         guard hasServiceQuotas else {
             return antigravityFamilies.map { family in
                 PanelData(title: family.name, iconName: service.iconName,
@@ -676,7 +685,7 @@ struct ServiceCard: View {
                           gated: family.weekly?.percent == 0)
             }
         }
-        return [PanelData(title: service.name, iconName: service.iconName,
+        return [PanelData(title: service.providerTitle, iconName: service.iconName,
                           session: service.sessionRemainingPercent.map { ($0, service.sessionResetAt) },
                           weekly: service.weeklyRemainingPercent.map { ($0, service.weeklyResetAt) },
                           weeklyLabel: longWindowLabel ?? "7\(TimeFormatter.dayUnit)",
@@ -764,6 +773,9 @@ struct PanelData {
     let sessionFallback: TimeInterval
     let weeklyWindow: TimeInterval
     let gated: Bool
+    /// The login, on the card's first panel only: plan beside the title, e-mail under it.
+    var plan: String? = nil
+    var email: String? = nil
 
     /// A plan with one long window and no session (Codex Go's 30 days) shows it where the session
     /// sits — the big number, the clock and the face — instead of an empty corner above a capsule.
@@ -771,7 +783,7 @@ struct PanelData {
         guard session == nil, let weekly else { return self }
         return PanelData(title: title, iconName: iconName, session: weekly, weekly: nil,
                          weeklyLabel: weeklyLabel, sessionFallback: weeklyWindow,
-                         weeklyWindow: weeklyWindow, gated: false)
+                         weeklyWindow: weeklyWindow, gated: false, plan: plan, email: email)
     }
 }
 
@@ -790,14 +802,38 @@ struct ProviderPanel: View {
         let f = DateFormatter(); f.dateFormat = "HH:mm"; return f
     }()
 
+    /// The login's e-mail, raised by a click on the plan and gone again on its own.
+    @State private var accountShown = ProcessInfo.processInfo.environment["MIMIR_DEMO_ACCOUNT"] != nil
+    @State private var hideAccount: Task<Void, Never>?
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             header
             if let weekly = panel.weekly {
                 capsule(percent: weekly.percent, resetAt: weekly.resetAt)
+            } else {
+                // A plan without a long window (a Team seat with no weekly limit) keeps the room
+                // the capsule takes, so every panel stands the same height.
+                capsule(percent: 0, resetAt: nil).hidden()
             }
         }
         .padding(9)
+        .overlay(alignment: .topLeading) {
+            // Just the address, just under the plan it came from, over whatever sits there.
+            if accountShown, let email = panel.email {
+                Text(email)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Color.primary.opacity(0.75))
+                    .lineLimit(1)
+                    .fixedSize()
+                    .padding(.horizontal, 8).padding(.vertical, 3)
+                    .background(Capsule().fill(.regularMaterial))
+                    .overlay(Capsule().stroke(Color.primary.opacity(0.1), lineWidth: 1))
+                    .padding(.top, 28).padding(.leading, 6)
+                    .onTapGesture { setAccountShown(false) }
+                    .transition(.opacity)
+            }
+        }
         .background(
             ZStack(alignment: .leading) {
                 RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.primary.opacity(0.05))
@@ -817,43 +853,81 @@ struct ProviderPanel: View {
         panel.gated ? lockedQuotaColor : quotaStatusColor(panel.session?.percent ?? 0)
     }
 
+    /// The name with its plan beside it in a quieter tone — "Claude Team", as Claude's own usage page
+    /// writes it — then the reset clock over the countdown and the number. The plan is the way to the
+    /// login: a click shows the e-mail the card reads, just under it.
     private var header: some View {
         HStack(alignment: .top, spacing: 8) {
-            HStack(spacing: 6) {
+            HStack(spacing: 4) {
                 BrandIconView(iconName: panel.iconName, size: 13)
                     .foregroundStyle(Color.primary.opacity(0.9))
                     .frame(width: 13, height: 13)
+                    .padding(.trailing, 2)
                 Text(panel.title)
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(Color.primary.opacity(0.9))
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
-            }
-            Spacer(minLength: 6)
-            if let session = panel.session {
-                VStack(alignment: .trailing, spacing: 1) {
-                    if let clock = clockText(session.resetAt) {
-                        labelled("clock", clock)
+                if let plan = panel.plan {
+                    let label = Text(plan)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(Color.primary.opacity(0.42))
+                        .lineLimit(1)
+                        .fixedSize()
+                    if panel.email != nil {
+                        Button { setAccountShown(!accountShown) } label: { label }
+                            .buttonStyle(.plain)
+                            .pointingHandCursor()
+                    } else {
+                        label
                     }
-                    labelled("timer", relDuration(session.resetAt, now)
-                             ?? TimeFormatter.duration(from: panel.sessionFallback))
                 }
-                .font(.system(size: 10.5, weight: .medium).monospacedDigit())
-                .foregroundStyle(Color.primary.opacity(0.42))
-                .fixedSize()
-
-                // Caps at 99 like the widget: a third digit buys nothing, and nobody acts
-                // differently on 100 versus 99.
-                HStack(alignment: .firstTextBaseline, spacing: 1) {
-                    Text("\(min(99, clampPct(session.percent)))")
-                        .font(.system(size: 30, weight: .semibold)).monospacedDigit().tracking(-0.5)
-                    Text("%").font(.system(size: 16, weight: .semibold))
-                }
-                .foregroundStyle(panel.gated ? lockedQuotaColor : quotaStatusColor(session.percent))
-                .fixedSize()
-                .offset(y: -6)
-                .frame(height: 22, alignment: .top)
             }
+            // Every point left of the clock goes to the name before the spacer takes any: shared
+            // evenly, the spacer took half and cut "Claude" to "Clau…".
+            .layoutPriority(1)
+            // No minimum: the row's own spacing already parts the name from the clock, and the
+            // six points it held are what "Claude Team" was short of.
+            Spacer(minLength: 0)
+            sessionBlock
+        }
+    }
+
+    private func setAccountShown(_ shown: Bool) {
+        hideAccount?.cancel()
+        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) { accountShown = shown }
+        guard shown else { return }
+        hideAccount = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2.5))
+            guard !Task.isCancelled else { return }
+            withAnimation(.easeOut(duration: 0.2)) { accountShown = false }
+        }
+    }
+
+    @ViewBuilder private var sessionBlock: some View {
+        if let session = panel.session {
+            VStack(alignment: .trailing, spacing: 1) {
+                if let clock = clockText(session.resetAt) {
+                    labelled("clock", clock)
+                }
+                labelled("timer", relDuration(session.resetAt, now)
+                         ?? TimeFormatter.duration(from: panel.sessionFallback))
+            }
+            .font(.system(size: 10.5, weight: .medium).monospacedDigit())
+            .foregroundStyle(Color.primary.opacity(0.42))
+            .fixedSize()
+
+            // Caps at 99 like the widget: a third digit buys nothing, and nobody acts
+            // differently on 100 versus 99.
+            HStack(alignment: .firstTextBaseline, spacing: 1) {
+                Text("\(min(99, clampPct(session.percent)))")
+                    .font(.system(size: 30, weight: .semibold)).monospacedDigit().tracking(-0.5)
+                Text("%").font(.system(size: 16, weight: .semibold))
+            }
+            .foregroundStyle(panel.gated ? lockedQuotaColor : quotaStatusColor(session.percent))
+            .fixedSize()
+            .offset(y: -6)
+            .frame(height: 22, alignment: .top)
         }
     }
 

@@ -4,22 +4,61 @@ import Security
 import LocalAuthentication
 
 extension LiveUsageDataSource {
+    /// Claude's cards. Claude Code's login comes first: it is the account the user works in, and its
+    /// profile names the e-mail and plan. Claude.app's session serves that same card when the app is
+    /// signed in to the same organization — it is the one source of the reset passes, and it never
+    /// prompts — and becomes its own "Claude Desktop" card when the app is on another account.
+    /// Without a CLI login the app's session is the Claude card, as before.
+    func fetchClaudeCards(userInitiated: Bool) async -> [ServiceStatus] {
+        let cli = Self.claudeAccount(configFile: MimirStatusLineHook.claudeConfigFile)
+        // A switched CLI login drops the previous account's cache before anything reads it.
+        if let org = cli?.org { noteClaudeAccount(org) }
+        let desktopSnapshot = { cli == nil ? nil : self.loadSnapshot(for: Self.claudeDesktopCardName, iconName: "claude") }
+
+        if let cached = readClaudeUsageCache(maxAge: 5 * 60, writtenThisSession: true) {
+            let main = buildClaudeStatus(from: cached, note: "oauth usage cache").withCooldownHint(0)
+            return [main] + [desktopSnapshot()].compactMap { $0 }
+        }
+
+        // One-time grant for "Claude Safe Storage" (which, unlike Claude Code's item, isn't rewritten,
+        // so the grant sticks and later reads are silent).
+        let desktop = await fetchClaudeDesktopWebUsage(userInitiated: userInitiated, cliOrg: cli?.org)
+        if let desktop, desktop.sameAccount {
+            // The app is back on the CLI's account: its separate card goes.
+            try? FileManager.default.removeItem(at: snapshotURL(for: Self.claudeDesktopCardName))
+            return [desktop.status]
+        }
+        let main = await fetchClaude(userInitiated: userInitiated, cliOrg: cli?.org)
+        return [main] + [desktop?.status ?? desktopSnapshot()].compactMap { $0 }
+    }
+
+    /// The login a Claude Code config holds, from its `.claude.json` profile — no keychain, no
+    /// network. nil when the config has no signed-in account.
+    static func claudeAccount(configFile: URL) -> AccountInfo? {
+        guard let data = try? Data(contentsOf: configFile),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let oauth = root["oauthAccount"] as? [String: Any] else { return nil }
+        return claudeAccount(oauthAccount: oauth)
+    }
+
+    static func claudeAccount(oauthAccount o: [String: Any]) -> AccountInfo? {
+        let user = o["accountUuid"] as? String, org = o["organizationUuid"] as? String
+        guard user != nil || org != nil else { return nil }
+        return AccountInfo(plan: AccountInfo.claudePlan(o["organizationType"] as? String),
+                           email: o["emailAddress"] as? String,
+                           id: "\(user ?? "-")|\(org ?? "-")", org: org)
+    }
+
+    /// Claude Code's own login: the usage cache, the statusLine hook, then its OAuth token.
     /// `userInitiated` gates whether this fetch may read Claude Code's *own* keychain item — the
     /// only source that pops the macOS permission prompt, because Claude Code resets the item's ACL
     /// (wiping our "Always Allow") every time it rotates its token. A background tick passes `false`
     /// and stays on prompt-free sources (usage cache, the on-disk credential file, Mimir's own token
     /// cache); only a real user action — opening Mimir — passes `true` and may read that item.
-    func fetchClaude(userInitiated: Bool) async -> ServiceStatus {
-        if let cached = readClaudeUsageCache(maxAge: 5 * 60, writtenThisSession: true) {
-            return buildClaudeStatus(from: cached, note: "oauth usage cache").withCooldownHint(0)
-        }
-
-        // Claude *desktop* app users: read the app's own claude.ai session and hit claude.ai directly.
-        // This is the live source when you use the desktop app — the CLI token and statusLine hook only
-        // refresh with CLI use, so for a desktop-only user they're perpetually stale. One-time grant for
-        // "Claude Safe Storage" (which, unlike Claude Code's item, isn't rewritten, so the grant sticks
-        // and later reads are silent). Any miss falls straight through to the CLI/hook path below.
-        if let desktop = await fetchClaudeDesktopUsage(userInitiated: userInitiated) {
+    /// `cliOrg` is the login's organization; without one, Claude.app's OAuth token stands in.
+    func fetchClaude(userInitiated: Bool, cliOrg: String?) async -> ServiceStatus {
+        // No CLI login: Claude.app's own OAuth token, for when claude.ai's web API won't answer.
+        if cliOrg == nil, let desktop = await fetchClaudeDesktopOAuthUsage() {
             return desktop
         }
 
@@ -95,7 +134,8 @@ extension LiveUsageDataSource {
                 let cooldown: TimeInterval? = http.statusCode == 429 ? (retryAfterSeconds(http) ?? 15 * 60) : nil
                 return claudeFailure(note: "claude http \(http.statusCode)").withCooldownHint(cooldown)
             }
-            guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  Self.claudeHasQuota(root) else {
                 return claudeFailure(note: "claude response parse fail")
             }
             writeClaudeUsageCache(data)
@@ -184,8 +224,10 @@ extension LiveUsageDataSource {
             models.append(billing)
         }
 
-        let sessionPct = remainingPercent(fromUsed: fiveHour.utilization)
-        let weeklyPct = remainingPercent(fromUsed: sevenDay.utilization)
+        // A window the plan doesn't have stays nil — no capsule, no number. Read as "nothing used"
+        // it showed a full weekly bar for a Team seat that has no weekly limit at all.
+        let sessionPct = fiveHour.utilization.map { remainingPercent(fromUsed: $0) }
+        let weeklyPct = sevenDay.utilization.map { remainingPercent(fromUsed: $0) }
 
         // Live data is authoritative: trust the percents even if a window's reset has *just* lapsed.
         // Right after a 5-hour boundary the API briefly returns the old window's `resets_at` (already
@@ -351,12 +393,12 @@ extension LiveUsageDataSource {
         return ModelStatus(name: String(localized: "Spending"), remainingPercent: 0, resetAt: nil,
                            valueText: text, isLow: util >= 80, symbol: "dollarsign.circle")
     }
-    private func mergeClaudeWindows(root: [String: Any], baseKey: String) -> (utilization: Double, resetAt: Date?) {
-        var bestUtil = 0.0
+    private func mergeClaudeWindows(root: [String: Any], baseKey: String) -> (utilization: Double?, resetAt: Date?) {
+        var bestUtil: Double?
         var resetDates: [Date] = []
         for (k, raw) in root where k == baseKey || k.hasPrefix("\(baseKey)_") {
             guard let obj = raw as? [String: Any] else { continue }
-            bestUtil = max(bestUtil, obj["utilization"] as? Double ?? 0)
+            bestUtil = max(bestUtil ?? 0, obj["utilization"] as? Double ?? 0)
             if let resetRaw = obj["resets_at"] as? String, let date = parseISO8601(resetRaw) {
                 resetDates.append(date)
             }
@@ -559,10 +601,14 @@ extension LiveUsageDataSource {
             if let r = w.reset { d["resets_at"] = iso.string(from: r) }
             return d
         }
+        // A window the account has but the hook left out has reset: it reads as refilled. One the
+        // account never had (a Team seat without a weekly limit) stays absent.
+        let had = (five: LiveUsageDataSource.claudeHasWindow(root, "five_hour"),
+                   seven: LiveUsageDataSource.claudeHasWindow(root, "seven_day"))
         for k in root.keys where k == "five_hour" || k.hasPrefix("five_hour_")
             || k == "seven_day" || k.hasPrefix("seven_day_") { root.removeValue(forKey: k) }
-        if let five = hook.five { root["five_hour"] = windowDict(five) }
-        if let seven = hook.seven { root["seven_day"] = windowDict(seven) }
+        if let five = hook.five { root["five_hour"] = windowDict(five) } else if had.five { root["five_hour"] = ["utilization": 0.0] }
+        if let seven = hook.seven { root["seven_day"] = windowDict(seven) } else if had.seven { root["seven_day"] = ["utilization": 0.0] }
         return buildClaudeStatus(from: root, note: "statusline hook", live: true)
     }
 
@@ -612,10 +658,8 @@ extension LiveUsageDataSource {
     /// 5-minute cache shows them until it ages out, and the snapshot can show them for up to a day
     /// whenever a live fetch fails.
     ///
-    /// Only the desktop path knows an account id (the organization UUID). Claude Code's OAuth token
-    /// rotates on refresh, so it is not a stable identity and that path records nothing — a switch
-    /// made purely through the CLI is still missed. Recording what we do know beats recording
-    /// nothing, and the desktop session is the path most accounts arrive on.
+    /// The id is the organization UUID: Claude Code's profile (`.claude.json`) names it, and so does
+    /// Claude.app's session, so a switch made through either is caught.
     func noteClaudeAccount(_ accountID: String) {
         let url = claudeAccountFileURL()
         let previous = try? String(contentsOf: url, encoding: .utf8)

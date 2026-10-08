@@ -3,28 +3,31 @@ import Foundation
 extension LiveUsageDataSource {
     func fetchAntigravity() async -> ServiceStatus {
         let defaults = ["Gemini", "Claude"]
+        // Only the IDE's language server names the login; the CLI and Cockpit don't. Their cards keep
+        // the plan and e-mail the last IDE reading saved, instead of losing them whenever the IDE closes.
+        let known = { self.fetchAntigravitySnapshot()?.account }
         // Primary live source: the grouped weekly + 5h quota summary that backs the IDE's
         // "Model Quota" page. Antigravity moved quota off per-model and onto shared group
         // buckets (Gemini / Claude+GPT), each with a weekly and a 5-hour window.
-        if let summary = fetchAntigravityQuotaSummary() {
+        if let summary = fetchAntigravityQuotaSummary()?.withAccount(known()) {
             saveAntigravitySnapshot(summary)
             return summary
         }
         // No IDE running? The CLI carries the same numbers. `agy` users have no language server
         // process, no CSRF token and no Cockpit directory, so every source around this one misses
         // them entirely and their card never appears.
-        if let cli = fetchAntigravityCLI() {
+        if let cli = fetchAntigravityCLI()?.withAccount(known()) {
             saveAntigravitySnapshot(cli)
             return cli
         }
-        if let authorized = await fetchAntigravityAuthorized(models: defaults) {
+        if let authorized = await fetchAntigravityAuthorized(models: defaults)?.withAccount(known()) {
             saveAntigravitySnapshot(authorized)
             return authorized
         }
         if let cached = fetchAntigravityCockpitCache(models: defaults) {
-            return cached
+            return cached.withAccount(known())
         }
-        if let local = fetchAntigravityLocalLanguageServer(models: defaults) {
+        if let local = fetchAntigravityLocalLanguageServer(models: defaults)?.withAccount(known()) {
             saveAntigravitySnapshot(local)
             return local
         }
@@ -211,7 +214,8 @@ extension LiveUsageDataSource {
         guard !models.isEmpty else {
             return nil
         }
-        if let credit = antigravityCreditRow(csrf: csrf, ports: ports) {
+        let userStatus = antigravityUserStatus(csrf: csrf, ports: ports)
+        if let credit = userStatus.flatMap(antigravityCreditRow) {
             models.append(credit)
         }
         return ServiceStatus(
@@ -221,32 +225,45 @@ extension LiveUsageDataSource {
             weeklyResetAt: nil,
             models: models,
             isAvailable: true,
-            statusNote: "quota summary"
+            statusNote: "quota summary",
+            account: userStatus.flatMap(Self.antigravityAccount)
         )
+    }
+
+    /// The signed-in user's `GetUserStatus` from the first port that answers it.
+    private func antigravityUserStatus(csrf: String, ports: [Int]) -> [String: Any]? {
+        let body = "{\"metadata\":{\"ideName\":\"antigravity\",\"locale\":\"en\"}}"
+        for p in ports {
+            let out = antigravityCurl(port: p, path: "GetUserStatus", body: body, csrf: csrf)
+            if let data = out.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let userStatus = json["userStatus"] as? [String: Any] {
+                return userStatus
+            }
+        }
+        return nil
+    }
+
+    /// The login and plan from `GetUserStatus`: `userTier.name` ("Google AI Pro") and `email`.
+    static func antigravityAccount(_ userStatus: [String: Any]) -> AccountInfo? {
+        let email = userStatus["email"] as? String
+        let plan = AccountInfo.antigravityPlan((userStatus["userTier"] as? [String: Any])?["name"] as? String)
+        guard email != nil || plan != nil else { return nil }
+        return AccountInfo(plan: plan, email: email, id: email)
     }
 
     /// Google One AI credit balance from Antigravity's GetUserStatus (`userTier.availableCredits`),
     /// shown alongside the quota rows. `creditAmount`/`minimumCreditAmountForUsage` are JSON strings.
-    private func antigravityCreditRow(csrf: String, ports: [Int]) -> ModelStatus? {
-        let body = "{\"metadata\":{\"ideName\":\"antigravity\",\"locale\":\"en\"}}"
+    private func antigravityCreditRow(_ userStatus: [String: Any]) -> ModelStatus? {
         func num(_ raw: Any?) -> Double? { (raw as? String).flatMap(Double.init) ?? doubleValue(raw) }
-        for p in ports {
-            let out = antigravityCurl(port: p, path: "GetUserStatus", body: body, csrf: csrf)
-            guard let data = out.data(using: .utf8),
-                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let userStatus = json["userStatus"] as? [String: Any],
-                  let tier = userStatus["userTier"] as? [String: Any],
-                  let credits = tier["availableCredits"] as? [[String: Any]], !credits.isEmpty else {
-                continue
-            }
-            let one = credits.first { ($0["creditType"] as? String)?.contains("GOOGLE_ONE") == true } ?? credits[0]
-            guard let amount = num(one["creditAmount"]) else { return nil }
-            let minimum = num(one["minimumCreditAmountForUsage"]) ?? 0
-            return ModelStatus(name: antigravityCreditLabel(one["creditType"] as? String),
-                               remainingPercent: 0, resetAt: nil,
-                               valueText: String(Int(amount)), isLow: amount < minimum, symbol: "dollarsign.circle")
-        }
-        return nil
+        guard let tier = userStatus["userTier"] as? [String: Any],
+              let credits = tier["availableCredits"] as? [[String: Any]], !credits.isEmpty else { return nil }
+        let one = credits.first { ($0["creditType"] as? String)?.contains("GOOGLE_ONE") == true } ?? credits[0]
+        guard let amount = num(one["creditAmount"]) else { return nil }
+        let minimum = num(one["minimumCreditAmountForUsage"]) ?? 0
+        return ModelStatus(name: antigravityCreditLabel(one["creditType"] as? String),
+                           remainingPercent: 0, resetAt: nil,
+                           valueText: String(Int(amount)), isLow: amount < minimum, symbol: "dollarsign.circle")
     }
 
     /// Label for the credit row. Google One is the only type seen in the wild, so it gets the
@@ -324,7 +341,8 @@ extension LiveUsageDataSource {
             weeklyResetAt: nil,
             models: normalized,
             isAvailable: true,
-            statusNote: "local language server"
+            statusNote: "local language server",
+            account: (payload["userStatus"] as? [String: Any]).flatMap(Self.antigravityAccount)
         )
     }
 

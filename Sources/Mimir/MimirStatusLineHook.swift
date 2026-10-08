@@ -42,6 +42,13 @@ enum MimirStatusLineHook {
         (claudeDir as NSString).appendingPathComponent(component)
     }
 
+    /// Claude Code's `.claude.json` (the login's profile): inside `CLAUDE_CONFIG_DIR` when that is
+    /// set, otherwise next to `~/.claude`, in the home folder.
+    static var claudeConfigFile: URL {
+        let defaultDir = (NSHomeDirectory() as NSString).appendingPathComponent(".claude")
+        return URL(fileURLWithPath: claudeDir == defaultDir ? defaultDir + ".json" : claudePath(".claude.json"))
+    }
+
     /// One `launchctl getenv KEY`. Any failure — missing binary, non-zero exit, empty value — reads
     /// as "not set" and the caller falls back, so this can never be the reason a path stops resolving.
     private static func launchctlEnv(_ key: String) -> String? {

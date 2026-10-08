@@ -15,15 +15,17 @@ import os
 extension LiveUsageDataSource {
     private static let desktopLog = Logger(subsystem: "com.erayendes.mimir.desktop", category: "claude")
 
-    /// Fetch usage from claude.ai using the desktop app's session. Returns nil (falling back to the
-    /// CLI/hook path) when the desktop app isn't installed/logged-in, the session can't be read, or
-    /// the request fails. `userInitiated` gates the one-time Safe Storage grant prompt.
-    func fetchClaudeDesktopUsage(userInitiated: Bool) async -> ServiceStatus? {
-        if let web = await fetchClaudeDesktopWebUsage(userInitiated: userInitiated) { return web }
-        return await fetchClaudeDesktopOAuthUsage()
-    }
+    /// The card name for Claude.app's session when it is signed in to a different account than
+    /// Claude Code — its own card beside the CLI's.
+    static let claudeDesktopCardName = "Claude Desktop"
 
-    private func fetchClaudeDesktopWebUsage(userInitiated: Bool) async -> ServiceStatus? {
+    /// Usage from claude.ai with Claude.app's own session. `cliOrg` is the organization Claude Code
+    /// is signed in to: when the app's session can reach it, that organization is read and
+    /// `sameAccount` is true — one login, one card. When it can't, the app is on another account and
+    /// its best organization becomes the separate "Claude Desktop" card. With no CLI login
+    /// (`cliOrg` nil) the app's session is simply the Claude card. nil when the app isn't installed
+    /// or signed in, the session can't be read, the request fails, or the answer carries no quota.
+    func fetchClaudeDesktopWebUsage(userInitiated: Bool, cliOrg: String?) async -> (status: ServiceStatus, sameAccount: Bool)? {
         guard let sessionKey = readClaudeDesktopSessionKey(userInitiated: userInitiated) else {
             Self.desktopLog.log("no desktop sessionKey (silent read failed / not granted / not logged in)")
             return nil
@@ -42,10 +44,12 @@ extension LiveUsageDataSource {
             let orgCode = (orgResp as? HTTPURLResponse)?.statusCode ?? -1
             guard orgCode == 200,
                   let orgs = try? JSONSerialization.jsonObject(with: orgData) as? [[String: Any]],
-                  let uuid = Self.selectClaudeOrgUUID(orgs) else {
+                  let org = Self.selectClaudeOrg(orgs, preferring: cliOrg),
+                  let uuid = org["uuid"] as? String else {
                 Self.desktopLog.log("orgs failed http=\(orgCode) cloudflare=\(Self.isCloudflareChallenge(orgResp, orgData)) count=\(((try? JSONSerialization.jsonObject(with: orgData)) as? [[String: Any]])?.count ?? -1)")
                 return nil
             }
+            let sameAccount = cliOrg == nil || uuid == cliOrg
 
             // `?cedar_ember=1` asks the same endpoint to also return the account's usage-limit reset
             // grants — the "Resets" card claude.ai shows. The field is gated on the *surface* making
@@ -56,18 +60,29 @@ extension LiveUsageDataSource {
             let (usageData, usageResp) = try await URLSession.shared.data(for: request("https://claude.ai/api/organizations/\(uuid)/usage?cedar_ember=1"))
             let usageCode = (usageResp as? HTTPURLResponse)?.statusCode ?? -1
             guard usageCode == 200,
-                  let root = try? JSONSerialization.jsonObject(with: usageData) as? [String: Any] else {
+                  let root = try? JSONSerialization.jsonObject(with: usageData) as? [String: Any],
+                  Self.claudeHasQuota(root) else {
                 Self.desktopLog.log("usage failed http=\(usageCode) cloudflare=\(Self.isCloudflareChallenge(usageResp, usageData))")
                 return nil
             }
 
+            guard sameAccount else {
+                // Another account's numbers: its own card and snapshot, never the CLI card's cache.
+                let status = buildClaudeStatus(from: root, note: "claude.ai desktop", name: Self.claudeDesktopCardName)
+                    .withAccount(AccountInfo(plan: Self.claudeOrgPlan(org), org: uuid))
+                saveSnapshot(status)
+                return (status.withCooldownHint(0), false)
+            }
             // Before trusting anything cached, make sure it belongs to this account.
             noteClaudeAccount(uuid)
             writeClaudeUsageCache(usageData)
-            let status = buildClaudeStatus(from: root, note: "claude.ai desktop")
+            var status = buildClaudeStatus(from: root, note: "claude.ai desktop")
+            // With a CLI login, its profile names the account (e-mail included); without one the
+            // organization's plan is all there is.
+            if cliOrg == nil { status = status.withAccount(AccountInfo(plan: Self.claudeOrgPlan(org), org: uuid)) }
             saveSnapshot(status)
             Self.desktopLog.log("OK session=\(status.sessionRemainingPercent ?? -1) weekly=\(status.weeklyRemainingPercent ?? -1)")
-            return status.withCooldownHint(0)
+            return (status.withCooldownHint(0), true)
         } catch {
             Self.desktopLog.log("request threw: \(error.localizedDescription, privacy: .public)")
             return nil
@@ -86,7 +101,7 @@ extension LiveUsageDataSource {
     /// an expired cookie). It goes to `api.anthropic.com`, which Cloudflare doesn't front. Second,
     /// not first: that endpoint leaves out the reset grants, which only the web path carries.
     /// Read only — never refreshed, the same rule as Claude Code's token.
-    private func fetchClaudeDesktopOAuthUsage() async -> ServiceStatus? {
+    func fetchClaudeDesktopOAuthUsage() async -> ServiceStatus? {
         guard let password = readClaudeSafeStoragePassword(interactive: false),
               let data = FileManager.default.contents(atPath: NSHomeDirectory() + "/Library/Application Support/Claude/config.json"),
               let config = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -99,7 +114,8 @@ extension LiveUsageDataSource {
         req.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
         guard let (body, response) = try? await URLSession.shared.data(for: req),
               (response as? HTTPURLResponse)?.statusCode == 200,
-              let root = try? JSONSerialization.jsonObject(with: body) as? [String: Any] else {
+              let root = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
+              Self.claudeHasQuota(root) else {
             Self.desktopLog.log("desktop oauth usage failed")
             return nil
         }
@@ -148,11 +164,44 @@ extension LiveUsageDataSource {
         return Date(timeIntervalSince1970: number > 1e12 ? number / 1000 : number)
     }
 
-    /// Pick the organization whose usage we report. Prefer one that looks like a chat/Pro account
-    /// (has `capabilities`), else the first — a personal login typically has exactly one.
-    static func selectClaudeOrgUUID(_ orgs: [[String: Any]]) -> String? {
-        let withCaps = orgs.first { ($0["capabilities"] as? [String])?.contains(where: { $0.contains("chat") || $0.contains("claude") }) ?? false }
-        return (withCaps?["uuid"] as? String) ?? (orgs.first?["uuid"] as? String)
+    /// Pick the organization whose usage we report. The one Claude Code is signed in to when the
+    /// session can reach it. Otherwise a paid one: a Team member also holds a personal organization
+    /// with no plan, whose usage carries no quota at all, and it can come first in the list. Then
+    /// any chat organization, then the first.
+    static func selectClaudeOrg(_ orgs: [[String: Any]], preferring wanted: String? = nil) -> [String: Any]? {
+        if let wanted, let match = orgs.first(where: { $0["uuid"] as? String == wanted }) { return match }
+        func caps(_ org: [String: Any]) -> [String] { org["capabilities"] as? [String] ?? [] }
+        return orgs.first { claudeOrgPlan($0) != nil }
+            ?? orgs.first { caps($0).contains { $0.contains("chat") || $0.contains("claude") } }
+            ?? orgs.first
+    }
+
+    static func selectClaudeOrgUUID(_ orgs: [[String: Any]], preferring wanted: String? = nil) -> String? {
+        selectClaudeOrg(orgs, preferring: wanted)?["uuid"] as? String
+    }
+
+    /// The plan an organization's capabilities name: `claude_max` → Max, `claude_pro` → Pro,
+    /// `raven` (claude.ai's Team) → Team, `enterprise` → Enterprise. nil for a free one.
+    static func claudeOrgPlan(_ org: [String: Any]) -> String? {
+        let caps = org["capabilities"] as? [String] ?? []
+        if caps.contains(where: { $0.contains("enterprise") }) { return "Enterprise" }
+        if caps.contains(where: { $0.contains("raven") }) { return "Team" }
+        if caps.contains(where: { $0.contains("claude_max") }) { return "Max" }
+        if caps.contains(where: { $0.contains("claude_pro") }) { return "Pro" }
+        return nil
+    }
+
+    /// Whether a usage answer carries a five-hour or weekly window at all. An organization without
+    /// a plan answers with every window null; read as "nothing used" that is a full card for an
+    /// account that has no quota, so such an answer counts as no answer.
+    static func claudeHasQuota(_ root: [String: Any]) -> Bool {
+        claudeHasWindow(root, "five_hour") || claudeHasWindow(root, "seven_day")
+    }
+
+    /// Whether the answer carries a window under `baseKey` (`five_hour`, `seven_day` or a per-model
+    /// variant of one) — an object, not a null.
+    static func claudeHasWindow(_ root: [String: Any], _ baseKey: String) -> Bool {
+        root.contains { key, value in key.hasPrefix(baseKey) && value is [String: Any] }
     }
 
     // MARK: - Session key extraction

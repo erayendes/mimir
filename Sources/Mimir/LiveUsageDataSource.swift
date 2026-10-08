@@ -117,47 +117,69 @@ struct LiveUsageDataSource {
     /// out also falls back to the snapshot, so a transient failure never empties a card.
     func fetchAll(skip: Set<String> = [], userInitiated: Bool = false) async -> [ServiceStatus] {
         let order = ["Antigravity", "Claude", "Codex"]
-        return await withTaskGroup(of: ServiceStatus.self) { group in
+        // A second config dir signed in to a login another card already reads is the same account:
+        // one card, not two. Read from local profiles only, so this costs no request.
+        let claudeMain = Self.claudeAccount(configFile: MimirStatusLineHook.claudeConfigFile)
+        let codexMain = codexAccount(home: nil)
+        let claudeExtras = Self.distinct(ExtraAccount.claude, seen: claudeMain?.id) {
+            Self.claudeAccount(configFile: $0.dir.appendingPathComponent(".claude.json"))
+        }
+        let codexExtras = Self.distinct(ExtraAccount.codex, seen: codexMain?.id) { codexAccount(home: $0.dir) }
+
+        return await withTaskGroup(of: [ServiceStatus].self) { group in
             group.addTask {
-                if skip.contains("Claude") { return self.snapshotOrFallback("Claude", iconName: "claude") }
-                return await withTimeout(seconds: 8) { await fetchClaude(userInitiated: userInitiated) }
-                    ?? self.snapshotOrFallback("Claude", iconName: "claude")
+                if skip.contains("Claude") { return [self.snapshotOrFallback("Claude", iconName: "claude").withAccount(claudeMain)] }
+                let cards = await withTimeout(seconds: 8) { await fetchClaudeCards(userInitiated: userInitiated) }
+                    ?? [self.snapshotOrFallback("Claude", iconName: "claude")]
+                return cards.map { $0.name == "Claude" ? $0.withAccount(claudeMain) : $0 }
             }
             group.addTask {
-                if skip.contains("Codex") { return self.snapshotOrFallback("Codex", iconName: "codex") }
-                return await withTimeout(seconds: 8) { await fetchCodex() }
-                    ?? self.snapshotOrFallback("Codex", iconName: "codex")
+                if skip.contains("Codex") { return [self.snapshotOrFallback("Codex", iconName: "codex").withAccount(codexMain)] }
+                return [(await withTimeout(seconds: 8) { await fetchCodex() }
+                    ?? self.snapshotOrFallback("Codex", iconName: "codex")).withAccount(codexMain)]
             }
             // Second logins (`~/.claude-work`, `~/.codex-work`): one card each, only when the dir exists.
-            for account in ExtraAccount.claude {
+            for (extra, account) in claudeExtras {
                 group.addTask {
-                    await withTimeout(seconds: 8) {
-                        await fetchClaudeExtraAccount(name: account.name, dir: account.dir, userInitiated: userInitiated)
-                    } ?? self.snapshotOrFallback(account.name, iconName: "claude")
+                    [(await withTimeout(seconds: 8) {
+                        await fetchClaudeExtraAccount(name: extra.name, dir: extra.dir, userInitiated: userInitiated)
+                    } ?? self.snapshotOrFallback(extra.name, iconName: "claude")).withAccount(account)]
                 }
             }
-            for account in ExtraAccount.codex {
+            for (extra, account) in codexExtras {
                 group.addTask {
-                    if skip.contains(account.name) { return self.snapshotOrFallback(account.name, iconName: "codex") }
-                    return await withTimeout(seconds: 8) { await fetchCodex(name: account.name, home: account.dir) }
-                        ?? self.snapshotOrFallback(account.name, iconName: "codex")
+                    if skip.contains(extra.name) { return [self.snapshotOrFallback(extra.name, iconName: "codex").withAccount(account)] }
+                    return [(await withTimeout(seconds: 8) { await fetchCodex(name: extra.name, home: extra.dir) }
+                        ?? self.snapshotOrFallback(extra.name, iconName: "codex")).withAccount(account)]
                 }
             }
             group.addTask {
-                if skip.contains("Antigravity") { return self.snapshotOrFallback("Antigravity", iconName: "antigravity").withInfoText(Self.antigravityInfo) }
+                if skip.contains("Antigravity") { return [self.snapshotOrFallback("Antigravity", iconName: "antigravity").withInfoText(Self.antigravityInfo)] }
                 let status = await withTimeout(seconds: 8) { await fetchAntigravity() }
                     ?? self.snapshotOrFallback("Antigravity", iconName: "antigravity")
-                return status.withInfoText(Self.antigravityInfo)
+                return [status.withInfoText(Self.antigravityInfo)]
             }
 
             var out: [ServiceStatus] = []
-            for await item in group {
-                out.append(item)
+            for await items in group {
+                out.append(contentsOf: items)
             }
             return out.sorted { order.firstIndex(of: $0.name) ?? 99 < order.firstIndex(of: $1.name) ?? 99 }
         }
     }
 
+    /// Second logins paired with their account, dropping any whose login a card already reads
+    /// (`seen` is the main card's) or an earlier dir already holds. A dir whose profile can't be
+    /// read is kept — better a card too many than a login silently missing.
+    static func distinct(_ extras: [ExtraAccount], seen main: String?,
+                         account: (ExtraAccount) -> AccountInfo?) -> [(ExtraAccount, AccountInfo?)] {
+        var seen = Set([main].compactMap { $0 })
+        return extras.compactMap { extra in
+            let info = account(extra)
+            if let id = info?.id, !seen.insert(id).inserted { return nil }
+            return (extra, info)
+        }
+    }
 
     func remainingPercent(fromUsed used: Double) -> Int {
         max(0, min(100, Int((100 - used).rounded())))
@@ -200,6 +222,9 @@ struct LiveUsageDataSource {
         // mislabels a longer window (ChatGPT Go's ~30-day one) and rolls a lapsed reset forward by
         // the wrong step.
         if let s = status.weeklyWindowSeconds { payload["weeklyWindowSeconds"] = s }
+        // Which login the numbers belong to, so a card shown from its snapshot still names it.
+        if let plan = status.account?.plan { payload["plan"] = plan }
+        if let email = status.account?.email { payload["email"] = email }
         if !status.models.isEmpty {
             payload["models"] = status.models.map { m -> [String: Any] in
                 var dict: [String: Any] = ["name": m.name, "remainingPercent": m.remainingPercent]
@@ -290,6 +315,8 @@ struct LiveUsageDataSource {
         let weeklyWindow = (root["weeklyWindowSeconds"] as? NSNumber)
             .map(\.doubleValue)
             .flatMap { $0.isFinite && $0 > 6 * 3600 && $0 <= 366 * 86_400 ? $0 : nil }
+        let plan = root["plan"] as? String, email = root["email"] as? String
+        let account = plan == nil && email == nil ? nil : AccountInfo(plan: plan, email: email)
 
         // Live source unreachable long enough (>4.5 h — just under the 5-hour session window, beyond
         // which the last-known session reading is from a window that has already rotated, so it's
@@ -313,7 +340,7 @@ struct LiveUsageDataSource {
                 weeklyRemainingPercent: root["weeklyRemainingPercent"] as? Int,
                 weeklyWindowSeconds: weeklyWindow,
                 models: allModels, isAvailable: false, statusNote: staleNote,
-                isStale: true, dataUnavailable: true)
+                isStale: true, dataUnavailable: true, account: account)
         }
 
         return staleClassifiedCard(
@@ -321,7 +348,8 @@ struct LiveUsageDataSource {
             sessionPct: root["sessionRemainingPercent"] as? Int, sessionReset: sessionReset,
             weeklyPct: root["weeklyRemainingPercent"] as? Int, weeklyReset: weeklyReset,
             weeklyWindowSeconds: weeklyWindow,
-            models: allModels, freshNote: freshNote, staleNote: staleNote)
+            models: allModels, freshNote: freshNote, staleNote: staleNote)?
+            .withAccount(account)
     }
 
     /// Standard reset periods for the quota windows all three providers expose: a 5-hour session and a

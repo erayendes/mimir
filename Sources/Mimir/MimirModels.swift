@@ -31,6 +31,9 @@ struct ServiceStatus: Identifiable {
     /// message / popover banner) instead of stale numbers. The model labels are kept so
     /// those surfaces still know which rows to render.
     let dataUnavailable: Bool
+    /// Which login this card reads — its plan and e-mail, shown under the provider's name so two
+    /// cards of one provider can be told apart. nil when the source doesn't say.
+    let account: AccountInfo?
 
     init(
         name: String,
@@ -46,7 +49,8 @@ struct ServiceStatus: Identifiable {
         isStale: Bool = false,
         infoText: String? = nil,
         cooldownHint: TimeInterval? = nil,
-        dataUnavailable: Bool = false
+        dataUnavailable: Bool = false,
+        account: AccountInfo? = nil
     ) {
         self.name = name
         self.iconName = iconName
@@ -62,6 +66,7 @@ struct ServiceStatus: Identifiable {
         self.infoText = infoText
         self.cooldownHint = cooldownHint
         self.dataUnavailable = dataUnavailable
+        self.account = account
     }
 
     /// Return a copy with `infoText` attached. Lets the data layer set the explainer once
@@ -81,12 +86,31 @@ struct ServiceStatus: Identifiable {
         copy(cooldownHint: .some(hint))
     }
 
+    /// Return a copy carrying `account`, unless the source already named one — a provider that read
+    /// the plan from its own response knows better than the local config file.
+    func withAccount(_ account: AccountInfo?) -> ServiceStatus {
+        copy(account: .some(self.account ?? account))
+    }
+
+    /// The provider's own name — "Claude" for the second login stored as "Claude Work". `name` stays
+    /// the card's identity (snapshots, cooldowns, the widget's picker); this is what the user reads.
+    var providerTitle: String {
+        serviceDisplayOrder.first { name == $0 || name.hasPrefix("\($0) ") } ?? name
+    }
+
+    /// The provider and the login in one line — "Claude (eray@milowda.com)" — for the places that
+    /// have no room for a second line: notifications, the banner.
+    var titleWithAccount: String {
+        account?.email.map { "\(providerTitle) (\($0))" } ?? providerTitle
+    }
+
     /// One-field copy. Each parameter is a double optional: `nil` keeps the current value,
     /// `.some(x)` overwrites it (so passing `.some(nil)` can clear an optional field).
     private func copy(
         statusNote: String?? = nil,
         infoText: String?? = nil,
-        cooldownHint: TimeInterval?? = nil
+        cooldownHint: TimeInterval?? = nil,
+        account: AccountInfo?? = nil
     ) -> ServiceStatus {
         ServiceStatus(
             name: name,
@@ -102,8 +126,44 @@ struct ServiceStatus: Identifiable {
             isStale: isStale,
             infoText: infoText ?? self.infoText,
             cooldownHint: cooldownHint ?? self.cooldownHint,
-            dataUnavailable: dataUnavailable
+            dataUnavailable: dataUnavailable,
+            account: account ?? self.account
         )
+    }
+}
+
+/// The login behind a card: its plan ("Team", "Plus", "AI Pro") and e-mail for display, and `id` —
+/// stable across token refreshes — so two sources that turn out to be one login become one card.
+struct AccountInfo: Equatable {
+    var plan: String?
+    var email: String?
+    var id: String?
+    /// Claude's organization UUID — what Claude.app's session is matched on, since the app's
+    /// organization list carries no account id.
+    var org: String? = nil
+
+    /// `claude_team` → "Team", `claude_max` → "Max". Unknown values keep their own word, so a new
+    /// plan shows up as itself instead of vanishing.
+    static func claudePlan(_ organizationType: String?) -> String? {
+        planWord(organizationType.map { $0.hasPrefix("claude_") ? String($0.dropFirst(7)) : $0 })
+    }
+
+    /// Codex's `chatgpt_plan_type`: `plus` → "Plus", `team` → "Team".
+    static func codexPlan(_ planType: String?) -> String? { planWord(planType) }
+
+    /// Antigravity's `userTier.name`: "Google AI Pro" → "Pro", the same short word Claude's and
+    /// Codex's plans read as — a family name ("Gemini") has to fit beside it.
+    static func antigravityPlan(_ tierName: String?) -> String? {
+        guard let tierName, !tierName.isEmpty else { return nil }
+        for prefix in ["Google AI ", "Google "] where tierName.hasPrefix(prefix) {
+            return String(tierName.dropFirst(prefix.count))
+        }
+        return tierName
+    }
+
+    private static func planWord(_ raw: String?) -> String? {
+        guard let raw, !raw.isEmpty else { return nil }
+        return raw.split(separator: "_").map { $0.capitalized }.joined(separator: " ")
     }
 }
 

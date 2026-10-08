@@ -3,12 +3,13 @@ import Foundation
 extension LiveUsageDataSource {
     /// `home` is a second login's `CODEX_HOME` (see `ExtraAccount`); nil is the main one.
     func fetchCodex(name: String = "Codex", home: URL? = nil) async -> ServiceStatus {
-        if let apiStatus = await fetchCodexUsageAPI(name: name, home: home) {
+        let account = codexAccount(home: home)
+        if let apiStatus = await fetchCodexUsageAPI(name: name, home: home)?.withAccount(account) {
             saveSnapshot(apiStatus)
             return apiStatus
         }
 
-        let local = fetchCodexLocalSessions(name: name, home: home)
+        let local = fetchCodexLocalSessions(name: name, home: home).withAccount(account)
         if local.isAvailable {
             saveSnapshot(local)
             return local
@@ -21,7 +22,19 @@ extension LiveUsageDataSource {
         // Both live sources failed — show the last-known snapshot instead of vanishing.
         let snapshot = loadSnapshot(for: name, iconName: "codex",
                                     staleNote: note ?? String(localized: "out of date"))
-        return snapshot ?? local
+        return snapshot?.withAccount(account) ?? local
+    }
+
+    /// The login a Codex home holds — e-mail, plan and ChatGPT account id from its `id_token`. Local
+    /// file only; nil when the dir has no usable login.
+    func codexAccount(home: URL?) -> AccountInfo? {
+        guard let auth = readCodexAuthState(home: home)?.auth else { return nil }
+        let idToken = (auth["tokens"] as? [String: Any])?["id_token"] as? String ?? auth["id_token"] as? String
+        let claims = idToken.flatMap(decodeJWTPayload)
+        let openai = claims?["https://api.openai.com/auth"] as? [String: Any]
+        return AccountInfo(plan: AccountInfo.codexPlan(openai?["chatgpt_plan_type"] as? String),
+                           email: claims?["email"] as? String,
+                           id: codexAccountID(from: auth))
     }
 
     /// Set by the token read: the CLI is logged in, but the token it holds has run out.
