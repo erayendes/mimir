@@ -255,9 +255,13 @@ private struct ResetColumn: View {
     let fallback: TimeInterval
     var compact = false
     var body: some View {
-        VStack(alignment: .trailing, spacing: 4) {
-            IconText(symbol: "clock", text: Reset.clock(resetAt, now: now, weekday: !compact), size: 11)
+        // The clock line keeps its place before a session has started (no reset time yet), so the
+        // countdown sits on the same line on every face.
+        let clock = Reset.clock(resetAt, now: now, weekday: !compact)
+        return VStack(alignment: .trailing, spacing: 4) {
+            IconText(symbol: "clock", text: clock ?? "00:00", size: 11)
                 .foregroundStyle(Tok.tertiary)
+                .opacity(clock == nil ? 0 : 1)
             IconText(symbol: "gauge.with.needle",
                      text: Reset.remaining(resetAt, now: now, fallbackWindow: fallback), size: 11)
                 .foregroundStyle(Tok.tertiary)

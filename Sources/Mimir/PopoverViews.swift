@@ -904,13 +904,18 @@ struct ProviderPanel: View {
         }
     }
 
-    @ViewBuilder private var sessionBlock: some View {
-        if let session = panel.session {
+    /// The reset clock over the countdown, then the number. Every line keeps its place whether or not
+    /// it has anything to say — a session that hasn't started has no clock yet, a plan without a
+    /// session has neither — so the panel is the same height and its pieces in the same spots on
+    /// every card.
+    private var sessionBlock: some View {
+        let session = panel.session
+        let clock = session.flatMap { clockText($0.resetAt) }
+        let percent = session.map { clampPct($0.percent) } ?? 0
+        return HStack(alignment: .top, spacing: 8) {
             VStack(alignment: .trailing, spacing: 1) {
-                if let clock = clockText(session.resetAt) {
-                    labelled("clock", clock)
-                }
-                labelled("timer", relDuration(session.resetAt, now)
+                labelled("clock", clock ?? "00:00").opacity(clock == nil ? 0 : 1)
+                labelled("timer", session.flatMap { relDuration($0.resetAt, now) }
                          ?? TimeFormatter.duration(from: panel.sessionFallback))
             }
             .font(.system(size: 10.5, weight: .medium).monospacedDigit())
@@ -920,15 +925,16 @@ struct ProviderPanel: View {
             // Caps at 99 like the widget: a third digit buys nothing, and nobody acts
             // differently on 100 versus 99.
             HStack(alignment: .firstTextBaseline, spacing: 1) {
-                Text("\(min(99, clampPct(session.percent)))")
+                Text("\(min(99, percent))")
                     .font(.system(size: 30, weight: .semibold)).monospacedDigit().tracking(-0.5)
                 Text("%").font(.system(size: 16, weight: .semibold))
             }
-            .foregroundStyle(panel.gated ? lockedQuotaColor : quotaStatusColor(session.percent))
+            .foregroundStyle(panel.gated ? lockedQuotaColor : quotaStatusColor(percent))
             .fixedSize()
             .offset(y: -6)
             .frame(height: 22, alignment: .top)
         }
+        .opacity(session == nil ? 0 : 1)
     }
 
     private func labelled(_ symbol: String, _ text: String) -> some View {
