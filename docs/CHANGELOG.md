@@ -9,6 +9,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [3.1-beta.1] - 2026-10-09
+
+I hope you managed to get into the Claude Startup program, because this version is all about showing more than one account of the same LLM.
+
+- **More than one account.** If you've set up a second Claude in the CLI, it gets its own card in both the popover and the widget. The same goes for Codex and Antigravity.
+- **Plan info.** I added the plan (Claude Team, Codex Plus) next to the name. Click the plan to see which account it is.
+- **Weekly limit.** Plans without one no longer show a full weekly bar.
+- The Codex card reads Codex, not ChatGPT.
+
 ### [3.0] - 2026-10-05
 
 **You loved the widgets. You're going to love this.**
@@ -610,6 +619,15 @@ Bu projedeki tüm önemli değişiklikler bu dosyada belgelenecektir.
 
 Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
+
+### [3.1-beta.1] - 2026-10-09
+
+Umarım Claude Statup programına katılma fırsatını yakalamışsınızdır. Çünkü bu versiyonda birden fazla aynı LLM hesabını göstermek üzerine çalışıyoruz.
+
+- **Birden fazla hesap.** Eğer CLI'da İkinci bir Claude kurduysanız, hem popover'da hem widget'ta kendi kartını alıyor. Bu Codex ve Antigravity için de geçerli.
+- **Plan bilgisi.** Plan adının yanına plan bilgisini (Claude Team, Codex Plus) ekledim. Plana tıklayınca hangi hesabınız olduğu görünüyor.
+- **Haftalık limit.** Olmayan planlarda artık dolu bir haftalık çubuk görünmüyor.
+- Codex kartında ChatGPT değil Codex yazıyor.
 
 ### [3.0] - 2026-10-05
 
