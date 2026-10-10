@@ -171,7 +171,11 @@ jobs:
           # pushed while main is still in flight (v2.24 did exactly this) left the job writing the
           # appcast onto a stale main, and the push was rejected as non-fast-forward.
           git fetch origin main
-          git checkout -B main origin/main
+          # -f: the build leaves its own edits in the tree (SwiftPM rewrites Package.resolved when
+          # main's dependencies have moved on), and a plain checkout refuses to carry them over —
+          # v3.1-beta.1 died here. Nothing tracked is needed past this point; the artifacts are
+          # untracked and stay.
+          git checkout -f -B main origin/main
           python3 script/gen_appcast_item.py \
             --version "$VERSION" \
             --build-number "$BUILD_NUMBER" \
