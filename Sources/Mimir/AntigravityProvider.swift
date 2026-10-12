@@ -58,7 +58,10 @@ extension LiveUsageDataSource {
         guard now.timeIntervalSince(Self.antigravityCLILastRun) >= 5 * 60 else { return nil }
         Self.antigravityCLILastRun = now
 
-        let out = runShell("command -v agy >/dev/null 2>&1 && agy -p /usage --output-format json --print-timeout 30s")
+        // An expired token that `agy` can't refresh sends it into interactive OAuth, which opens the
+        // browser on the user's login screen. Right after boot the network isn't up yet, so only run
+        // it once Google's token endpoint answers.
+        let out = runShell("command -v agy >/dev/null 2>&1 && curl -s -o /dev/null -m 5 https://oauth2.googleapis.com && agy -p /usage --output-format json --print-timeout 30s")
         guard let data = out.data(using: .utf8),
               let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               root["status"] as? String == "SUCCESS",
