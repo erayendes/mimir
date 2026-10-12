@@ -9,6 +9,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [3.1-beta.2] - 2026-10-12
+
+- **No more Google login page after a restart.** Right after boot, before the network was up, Mimir could make Antigravity's CLI open Safari on Google's sign-in page. It now waits until the network is ready.
+
 ### [3.1-beta.1] - 2026-10-10
 
 I hope you managed to get into the Claude Startup program, because this version is all about showing more than one account of the same LLM.
@@ -619,6 +623,10 @@ Bu projedeki tüm önemli değişiklikler bu dosyada belgelenecektir.
 
 Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
+
+### [3.1-beta.2] - 2026-10-12
+
+- **Yeniden başlatınca Google giriş sayfası açılmıyor.** Mac açılır açılmaz, ağ daha bağlanmadan Mimir, Antigravity CLI'ının Safari'de Google giriş sayfasını açmasına yol açabiliyordu. Artık ağ hazır olana kadar bekliyor.
 
 ### [3.1-beta.1] - 2026-10-10
 
