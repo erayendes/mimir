@@ -70,7 +70,7 @@ extension WidgetPayload {
                             fiveHour: [WindowMetric(label: "Codex", percent: 99, resetAt: at(283))]),
             ProviderPayload(name: "Antigravity", iconName: "antigravity", isAvailable: true,
                             fiveHour: [WindowMetric(label: "Gemini", percent: 100, resetAt: at(178)),
-                                       WindowMetric(label: "Claude/GPT", percent: 44, resetAt: at(132))]),
+                                       WindowMetric(label: "Claude", percent: 44, resetAt: at(132))]),
         ])
     }
 }

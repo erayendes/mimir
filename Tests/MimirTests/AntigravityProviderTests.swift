@@ -37,7 +37,7 @@ final class AntigravityProviderTests: XCTestCase {
         // If some account/region *does* return a flat "window" field but it disagrees with the
         // bucket's own id, the id must win — it's the more specific, more widely-agreed-upon signal.
         let groups: [[String: Any]] = [[
-            "displayName": "Claude/GPT",
+            "displayName": "Claude",
             "buckets": [
                 bucket("3p-5h", fraction: 0.9, window: "weekly"),
                 bucket("3p-weekly", fraction: 0.5, window: "weekly"),
@@ -118,7 +118,7 @@ final class AntigravityCLIShapeTests: XCTestCase {
 
     func testBothGroupsSurviveAsSeparateFamilies() {
         let rows = ds.antigravityQuotaSummaryRows(groups: cliGroups)
-        XCTAssertEqual(Set(rows.map(\.name)).count, 2)
+        XCTAssertEqual(Set(rows.map(\.name)), ["Gemini", "Claude"])
         XCTAssertEqual(rows.filter { $0.window == .weekly }.count, 2)
         XCTAssertEqual(rows.filter { $0.window == .session }.count, 2)
     }

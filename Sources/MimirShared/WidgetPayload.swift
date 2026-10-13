@@ -91,7 +91,7 @@ public func quotaWindowDays(_ windowSeconds: TimeInterval?) -> Int? {
 }
 
 public struct WindowMetric: Codable, Equatable {
-    public var label: String         // row label: "Claude" / "Gemini" / "Claude/GPT" / "Sonnet" …
+    public var label: String         // row label: "Claude" / "Gemini" / "Sonnet" …
     public var percent: Int          // remaining %, drives bar width + status colour
     public var resetAt: Date?        // when the window refills — countdown + HH:mm computed per entry
     // The weekly (7-day) quota that gates this same model/account, when known. Lets the widget show

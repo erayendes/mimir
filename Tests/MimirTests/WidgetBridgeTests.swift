@@ -31,15 +31,15 @@ final class WidgetBridgeTests: XCTestCase {
             sessionResetAt: now, weeklyResetAt: nil,
             sessionRemainingPercent: nil, weeklyRemainingPercent: nil,
             models: [ModelStatus(name: "Gemini", remainingPercent: 100, resetAt: now, window: .session),
-                     ModelStatus(name: "Claude/GPT", remainingPercent: 44, resetAt: now, window: .session),
+                     ModelStatus(name: "Claude", remainingPercent: 44, resetAt: now, window: .session),
                      ModelStatus(name: "Gemini", remainingPercent: 88, resetAt: now, window: .weekly)],
             isAvailable: true, statusNote: nil)
 
         let p = WidgetBridge.makePayload([ag], generatedAt: now).providers.first!
         // Only `.session` rows become 5h windows; `.weekly` rows are excluded.
-        XCTAssertEqual(p.fiveHour.map(\.label), ["Gemini", "Claude/GPT"])
+        XCTAssertEqual(p.fiveHour.map(\.label), ["Gemini", "Claude"])
         XCTAssertEqual(p.fiveHour.map(\.percent), [100, 44])
-        // Each session is paired to its own weekly by name: Gemini → 88; Claude/GPT has no weekly → nil.
+        // Each session is paired to its own weekly by name: Gemini → 88; Claude has no weekly → nil.
         XCTAssertEqual(p.fiveHour.map(\.weeklyPercent), [88, nil])
     }
 

@@ -56,7 +56,7 @@ private extension WindowMetric {
 
 private extension WidgetPayload {
     /// All 5-hour metrics across available providers, in display order (Claude, Codex, then
-    /// Antigravity's Gemini + Claude/GPT), as of `now`. Small picks one out of this.
+    /// Antigravity's Gemini + Claude), as of `now`. Small picks one out of this.
     func fiveHourFlat(at now: Date) -> [FlatMetric] {
         let frozen = now.timeIntervalSince(generatedAt) > payloadMaxAge
         return providers.filter(\.isAvailable)

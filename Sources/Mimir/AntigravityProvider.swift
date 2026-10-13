@@ -8,7 +8,7 @@ extension LiveUsageDataSource {
         let known = { self.fetchAntigravitySnapshot()?.account }
         // Primary live source: the grouped weekly + 5h quota summary that backs the IDE's
         // "Model Quota" page. Antigravity moved quota off per-model and onto shared group
-        // buckets (Gemini / Claude+GPT), each with a weekly and a 5-hour window.
+        // buckets (Gemini / Claude), each with a weekly and a 5-hour window.
         if let summary = fetchAntigravityQuotaSummary()?.withAccount(known()) {
             saveAntigravitySnapshot(summary)
             return summary
@@ -199,7 +199,7 @@ extension LiveUsageDataSource {
     }
 
     /// Call the grouped quota summary RPC the IDE's Model Quota page uses. Each group
-    /// (Gemini, Claude+GPT) carries a weekly and a 5-hour bucket — flattened to one row each.
+    /// (Gemini, Claude) carries a weekly and a 5-hour bucket — flattened to one row each.
     private func fetchAntigravityQuotaSummary() -> ServiceStatus? {
         guard let hit = antigravityProbe(path: "RetrieveUserQuotaSummary", accept: { json in
             let g = (json["response"] as? [String: Any])?["groups"] as? [[String: Any]]
@@ -283,7 +283,7 @@ extension LiveUsageDataSource {
     }
 
     /// Flatten `groups[].buckets[]` into one row per (group × window), ordered 5h then
-    /// weekly within each group: Gemini · 5h, Gemini · Weekly, Claude/GPT · 5h, Claude/GPT · Weekly.
+    /// weekly within each group: Gemini · 5h, Gemini · Weekly, Claude · 5h, Claude · Weekly.
     func antigravityQuotaSummaryRows(groups: [[String: Any]]) -> [ModelStatus] {
         var rows: [ModelStatus] = []
         for group in groups {
@@ -326,7 +326,7 @@ extension LiveUsageDataSource {
     private func antigravityFamilyLabel(_ displayName: String) -> String {
         let lower = displayName.lowercased()
         if lower.contains("gemini") { return "Gemini" }
-        if lower.contains("claude") || lower.contains("gpt") { return "Claude/GPT" }
+        if lower.contains("claude") || lower.contains("gpt") { return "Claude" }
         return displayName.isEmpty ? "Antigravity" : displayName
     }
 
