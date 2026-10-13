@@ -103,7 +103,9 @@ struct PopoverView: View {
             // no dividers or rails between them (design v2.9).
             VStack(spacing: 11) {
                 ForEach(visible) { service in
-                    ServiceCard(service: service, now: now)
+                    ServiceCard(service: service, now: now,
+                                onRenew: service.isStale && ["Claude", "Codex"].contains(service.providerTitle)
+                                    ? { store.renewLogin(service) } : nil)
                 }
             }
             .padding(.horizontal, 11)
@@ -542,6 +544,8 @@ struct PopoverBackdrop: View {
 struct ServiceCard: View {
     let service: ServiceStatus
     let now: Date
+    /// Set on a stale card whose login Mimir can renew: a click on the card runs it.
+    var onRenew: (() -> Void)? = nil
 
     /// Opens the renewal-pass list. The chip already carries the count and the nearest expiry, so
     /// the list is for the dates behind them; collapsed is the resting state.
@@ -587,6 +591,13 @@ struct ServiceCard: View {
         )
         // Dim a stale snapshot so it reads as "last known, not live".
         .opacity(service.isStale ? 0.66 : 1)
+        .contentShape(Rectangle())
+        .onTapGesture { onRenew?() }
+        .help(onRenew == nil ? "" : String(localized: "Click to renew the login"))
+        .onContinuousHover { phase in
+            guard onRenew != nil else { return }
+            if case .active = phase { NSCursor.pointingHand.set() } else { NSCursor.arrow.set() }
+        }
     }
 
     // MARK: Renewal passes
@@ -667,6 +678,7 @@ struct ServiceCard: View {
     /// exactly one pair and so exactly one panel.
     private var panels: [PanelData] {
         var panels = quotaPanels
+        for i in panels.indices { panels[i].stale = service.isStale }
         if !panels.isEmpty {
             panels[0].plan = service.account?.plan
             panels[0].email = service.account?.email
@@ -773,6 +785,8 @@ struct PanelData {
     let sessionFallback: TimeInterval
     let weeklyWindow: TimeInterval
     let gated: Bool
+    /// A last-known reading, not a live one: drawn grey like a gated panel, so it can't read as usable.
+    var stale = false
     /// The login, on the card's first panel only: plan beside the title, e-mail under it.
     var plan: String? = nil
     var email: String? = nil
@@ -783,7 +797,7 @@ struct PanelData {
         guard session == nil, let weekly else { return self }
         return PanelData(title: title, iconName: iconName, session: weekly, weekly: nil,
                          weeklyLabel: weeklyLabel, sessionFallback: weeklyWindow,
-                         weeklyWindow: weeklyWindow, gated: false, plan: plan, email: email)
+                         weeklyWindow: weeklyWindow, gated: false, stale: stale, plan: plan, email: email)
     }
 }
 
@@ -850,7 +864,7 @@ struct ProviderPanel: View {
     }
 
     private var faceColor: Color {
-        panel.gated ? lockedQuotaColor : quotaStatusColor(panel.session?.percent ?? 0)
+        panel.gated || panel.stale ? lockedQuotaColor : quotaStatusColor(panel.session?.percent ?? 0)
     }
 
     /// The name with its plan beside it in a quieter tone — "Claude Team", as Claude's own usage page
@@ -929,7 +943,7 @@ struct ProviderPanel: View {
                     .font(.system(size: 30, weight: .semibold)).monospacedDigit().tracking(-0.5)
                 Text("%").font(.system(size: 16, weight: .semibold))
             }
-            .foregroundStyle(panel.gated ? lockedQuotaColor : quotaStatusColor(percent))
+            .foregroundStyle(panel.gated || panel.stale ? lockedQuotaColor : quotaStatusColor(percent))
             .fixedSize()
             .offset(y: -6)
             .frame(height: 22, alignment: .top)
@@ -947,7 +961,7 @@ struct ProviderPanel: View {
     /// The long window: a capsule with its percent riding the fill, and the countdown and reset
     /// clock underneath.
     private func capsule(percent: Int, resetAt: Date?) -> some View {
-        let color = panel.gated ? lockedQuotaColor : quotaStatusColor(percent)
+        let color = panel.gated || panel.stale ? lockedQuotaColor : quotaStatusColor(percent)
         return VStack(alignment: .leading, spacing: 9) {
             GeometryReader { geo in
                 let fill = max(18, geo.size.width * CGFloat(clampPct(percent)) / 100)

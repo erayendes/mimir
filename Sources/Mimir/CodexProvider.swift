@@ -9,16 +9,18 @@ extension LiveUsageDataSource {
             return apiStatus
         }
 
-        let local = fetchCodexLocalSessions(name: name, home: home).withAccount(account)
-        if local.isAvailable {
-            saveSnapshot(local)
-            return local
-        }
-
         // Mimir never refreshes Codex's token (see `codexAccessToken(from:)`), so an expired one
         // stays expired until the user runs the CLI. Say that, rather than leaving them with a
         // silently ageing snapshot and no idea what to do about it.
         let note = codexTokenExpired(home: home) ? String(localized: "token expired — run codex login") : nil
+
+        let local = fetchCodexLocalSessions(name: name, home: home).withAccount(account)
+        if local.isAvailable {
+            saveSnapshot(local)
+            // An expired token means the CLI hasn't run since it lapsed, so its session file is at
+            // least that old: dim it instead of passing days-old numbers off as live.
+            return note.map(local.markedStale) ?? local
+        }
         // Both live sources failed — show the last-known snapshot instead of vanishing.
         let snapshot = loadSnapshot(for: name, iconName: "codex",
                                     staleNote: note ?? String(localized: "out of date"))

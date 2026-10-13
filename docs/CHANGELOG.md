@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **No more Google login page after a restart.** Right after boot, before the network was up, Mimir could make Antigravity's CLI open Safari on Google's sign-in page. It now waits until the network is ready.
 - Antigravity's second quota reads Claude, not Claude/GPT. GPT is being dropped from Antigravity.
+- **An old reading looks old.** A card Mimir can't refresh turns grey instead of showing days-old numbers in green. That includes a Codex login whose token has expired, which used to pass as live.
+- **Click a grey card to sign back in.** For Claude and Codex, Mimir has the CLI renew its own expired login, then reads the card again.
 
 ### [3.1-beta.1] - 2026-10-10
 
@@ -629,6 +631,8 @@ sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) k
 
 - **Yeniden başlatınca Google giriş sayfası açılmıyor.** Mac açılır açılmaz, ağ daha bağlanmadan Mimir, Antigravity CLI'ının Safari'de Google giriş sayfasını açmasına yol açabiliyordu. Artık ağ hazır olana kadar bekliyor.
 - Antigravity'nin ikinci kotasında Claude/GPT değil Claude yazıyor. GPT, Antigravity'den kaldırılıyor.
+- **Eski veri eski görünüyor.** Mimir'in güncelleyemediği kart, günler önceki sayıları yeşille göstermek yerine griye dönüyor. Süresi dolmuş Codex girişi de buna dahil; önceden canlı gibi görünüyordu.
+- **Gri karta tıklayınca oturum yenileniyor.** Claude ve Codex'te Mimir, CLI'ın kendi süresi dolmuş girişini yenilemesini sağlıyor, sonra kartı yeniden okuyor.
 
 ### [3.1-beta.1] - 2026-10-10
 

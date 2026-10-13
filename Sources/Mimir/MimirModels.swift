@@ -81,6 +81,11 @@ struct ServiceStatus: Identifiable {
         copy(statusNote: .some(note))
     }
 
+    /// Return a dimmed copy that says why it's old — a reading the live source couldn't confirm.
+    func markedStale(_ note: String) -> ServiceStatus {
+        copy(statusNote: .some(note), isStale: true)
+    }
+
     /// Return a copy carrying a cooldown signal for `UsageStore` (see `cooldownHint`).
     func withCooldownHint(_ hint: TimeInterval?) -> ServiceStatus {
         copy(cooldownHint: .some(hint))
@@ -108,6 +113,7 @@ struct ServiceStatus: Identifiable {
     /// `.some(x)` overwrites it (so passing `.some(nil)` can clear an optional field).
     private func copy(
         statusNote: String?? = nil,
+        isStale: Bool? = nil,
         infoText: String?? = nil,
         cooldownHint: TimeInterval?? = nil,
         account: AccountInfo?? = nil
@@ -123,7 +129,7 @@ struct ServiceStatus: Identifiable {
             models: models,
             isAvailable: isAvailable,
             statusNote: statusNote ?? self.statusNote,
-            isStale: isStale,
+            isStale: isStale ?? self.isStale,
             infoText: infoText ?? self.infoText,
             cooldownHint: cooldownHint ?? self.cooldownHint,
             dataUnavailable: dataUnavailable,

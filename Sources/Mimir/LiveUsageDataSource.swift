@@ -24,6 +24,18 @@ final class UsageStore: ObservableObject {
 
     private static let dismissedKey = "popover.dismissedUnavailable"
 
+    /// A stale Claude/Codex card was clicked: have the CLI renew its own expired login, then read again.
+    func renewLogin(_ service: ServiceStatus) {
+        let provider = service.providerTitle
+        let extras = provider == "Codex" ? ExtraAccount.codex : ExtraAccount.claude
+        let dir = extras.first { $0.name == service.name }?.dir
+        let source = source
+        Task {
+            await Task.detached(priority: .userInitiated) { source.renewLogin(provider: provider, dir: dir) }.value
+            refresh(userInitiated: true)
+        }
+    }
+
     func dismissUnavailable(_ name: String) {
         guard dismissedUnavailable.insert(name).inserted else { return }
         UserDefaults.standard.set(Array(dismissedUnavailable), forKey: Self.dismissedKey)
@@ -541,6 +553,17 @@ struct LiveUsageDataSource {
         let range = NSRange(location: 0, length: ns.length)
         guard let m = regex.firstMatch(in: command, range: range), m.numberOfRanges > 1 else { return nil }
         return ns.substring(with: m.range(at: 1))
+    }
+
+    /// Mimir never refreshes a CLI's token itself — Claude Code's and Codex's refresh tokens are
+    /// single-use, and rotating one would log the CLI out. Their own `doctor` does: its auth check
+    /// renews an expired login and stores it where the CLI reads it (Codex's `auth.json`, Claude
+    /// Code's keychain item), so nothing is left holding the old token. Only on a click, never on
+    /// the timer. `dir` is a second login's config dir; nil is the main one.
+    func renewLogin(provider: String, dir: URL?) {
+        let (tool, variable) = provider == "Codex" ? ("codex", "CODEX_HOME") : ("claude", "CLAUDE_CONFIG_DIR")
+        let env = dir.map { "\(variable)='\($0.path.replacingOccurrences(of: "'", with: "'\\''"))' " } ?? ""
+        _ = runShell("\(env)\(tool) doctor </dev/null >/dev/null 2>&1")
     }
 
     func runShell(_ script: String) -> String {

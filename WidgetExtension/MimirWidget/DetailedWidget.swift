@@ -163,8 +163,9 @@ private struct SmallView: View {
         guard !m.isWeekly, let w = m.weeklyPercent else { return nil }
         return (w, m.weeklyResetAt)
     }
-    // A spent weekly quota locks the model: grey the face so a full session can't read as usable.
-    private var faceColor: Color { weekly?.percent == 0 ? Tok.passive : statusColor(m.percent) }
+    // A spent weekly quota locks the model, and a last-known reading isn't live: grey the face
+    // either way, so neither can read as usable.
+    private var faceColor: Color { metric.isStale || weekly?.percent == 0 ? Tok.passive : statusColor(m.percent) }
 
     var body: some View {
         GeometryReader { geo in
@@ -194,7 +195,7 @@ private struct SmallView: View {
                             }
                             Spacer(minLength: 0)
                             if let weekly {
-                                WeeklyBar(percent: weekly.percent, resetAt: weekly.resetAt, now: now, height: 18, compact: true)
+                                WeeklyBar(percent: weekly.percent, resetAt: weekly.resetAt, now: now, height: 18, compact: true, passive: metric.isStale)
                             }
                         }
                         .opacity(metric.isStale ? 0.55 : 1)
@@ -279,6 +280,8 @@ private struct WeeklyBar: View {
     let now: Date
     var height: CGFloat = 22
     var compact = false
+    /// Grey instead of the status colour: the reading is last-known, not live.
+    var passive = false
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             GeometryReader { geo in
@@ -287,7 +290,7 @@ private struct WeeklyBar: View {
                 ZStack(alignment: .leading) {
                     Capsule().fill(Tok.track)
                     ZStack(alignment: .leading) {
-                        Capsule().fill(statusColor(percent))
+                        Capsule().fill(passive ? Tok.passive : statusColor(percent))
                         if barW >= 48 {
                             // Full colour: painted white, which reads on every status colour. The
                             // vibrant/accented modes flatten colours to white, so there the label is
@@ -332,8 +335,9 @@ private struct MediumView: View {
         guard !m.isWeekly, let w = m.weeklyPercent else { return nil }
         return (w, m.weeklyResetAt)
     }
-    // A spent weekly quota locks the model: grey the face so a full session can't read as usable.
-    private var faceColor: Color { weekly?.percent == 0 ? Tok.passive : statusColor(m.percent) }
+    // A spent weekly quota locks the model, and a last-known reading isn't live: grey the face
+    // either way, so neither can read as usable.
+    private var faceColor: Color { metric.isStale || weekly?.percent == 0 ? Tok.passive : statusColor(m.percent) }
 
     var body: some View {
         GeometryReader { geo in
@@ -368,7 +372,7 @@ private struct MediumView: View {
                     }
                     .padding(16).padding(.top, 34)
                 } else if let weekly {
-                    WeeklyBar(percent: weekly.percent, resetAt: weekly.resetAt, now: now, height: 22)
+                    WeeklyBar(percent: weekly.percent, resetAt: weekly.resetAt, now: now, height: 22, passive: metric.isStale)
                         .padding(.horizontal, 16)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                         .padding(.bottom, 12)
