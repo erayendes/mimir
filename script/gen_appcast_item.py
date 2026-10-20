@@ -13,7 +13,8 @@ def md_to_html(text):
     """Convert the subset of markdown used in Mimir release notes to HTML."""
     import re
     def inline(s):
-        # **bold** → <b>bold</b>, applied inside paragraphs, list items, and blockquotes.
+        # **bold** → <b>bold</b> and [text](url) → <a>, inside paragraphs, list items, blockquotes.
+        s = re.sub(r"\[([^\]]+)\]\((https?://[^)\s]+)\)", r'<a href="\2">\1</a>', s)
         return re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", s)
     lines = text.strip().splitlines()
     out = []
@@ -58,9 +59,7 @@ def md_to_html(text):
             if in_ul:
                 out.append("</ul>")
                 in_ul = False
-            # inline bold
-            line = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", line)
-            out.append(f"<p>{line.strip()}</p>")
+            out.append(f"<p>{inline(line.strip())}</p>")
     if in_ul:
         out.append("</ul>")
     return "\n".join(out)
