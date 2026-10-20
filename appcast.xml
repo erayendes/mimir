@@ -8,7 +8,34 @@
     <description>Mimir update feed</description>
     <language>en</language>
 
-                                                <item>
+                                                    <item>
+      <title>Mimir 3.1-beta.3</title>
+      <sparkle:channel>beta</sparkle:channel>
+      <sparkle:version>300099003</sparkle:version>
+      <sparkle:shortVersionString>3.1-beta.3</sparkle:shortVersionString>
+      <pubDate>Tue, 20 Oct 2026 18:03:02 +0000</pubDate>
+      <description><![CDATA[
+<p>If you have more than one account for the same model, you now see each one on its own card and widget. That's why every card also shows the model's plan. Click the plan and you'll see which account it belongs to.</p>
+<p>Some plans turned out to have no weekly quota. Mimir showed them as full; that's fixed now.</p>
+<p>If a card couldn't get its data, it turns grey. Click it and it refreshes itself. <a href="https://www.youtube.com/shorts/ZrgFhEojipE">Technologiaaaa</a></p>
+<p>Claude's Fable and Antigravity's Argon only have a weekly quota, so they show up as a coloured row under the card.</p>
+<p>The Gemini card looked empty once Argon's quota ran out; that's fixed too.</p>
+<hr>
+<p>Aynı modele ait birden fazla hesabınız varsa, artık onları da ayrı kartlarda ve widget'larda görebilirsiniz. Bu yüzden her kartta modelin planı da yazıyor. Hatta plana tıklarsanız hangi hesaba ait olduğunu da görebilirsiniz.</p>
+<p>Bazı planlarda haftalık kota yokmuş. Mimir bunları dolu gösteriyordu ama artık düzeldi.</p>
+<p>Eğer bir kart veri alamadıysa gri görünüyor. Üzerine tıklarsanız kendini yeniliyor. <a href="https://www.youtube.com/shorts/ZrgFhEojipE">Technologiaaaa</a></p>
+<p>Claude'un Fable'ı ve Antigravity'nin Argon'u sadece haftalık kotaları olduğu için kartın altında renkli bir satır olarak görünüyor.</p>
+<p>Gemini kartı Argon'un kotası bitince boş görünüyordu, o da düzeldi.</p>
+      ]]></description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v3.1-beta.3/Mimir.zip"
+        sparkle:edSignature="WJiUrV98H06dlJ1/8v35QUl1VzCBjcUqHoVqCP+qE03BYgZj64PvKyK1nHvFzyXh0TcuhQs8qZWTegH/6HmQCw=="
+        length="6916793"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 3.1-beta.2</title>
       <sparkle:channel>beta</sparkle:channel>
       <sparkle:version>300099002</sparkle:version>
