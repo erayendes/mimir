@@ -9,6 +9,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [3.1-beta.3] - 2026-10-20
+
+If you have more than one account for the same model, you now see each one on its own card and widget. That's why every card also shows the model's plan. Click the plan and you'll see which account it belongs to.
+
+Some plans turned out to have no weekly quota. Mimir showed them as full; that's fixed now.
+
+If a card couldn't get its data, it turns grey. Click it and it refreshes itself. [Technologiaaaa](https://www.youtube.com/shorts/ZrgFhEojipE)
+
+Claude's Fable and Antigravity's Argon only have a weekly quota, so they show up as a coloured row under the card.
+
+The Gemini card looked empty once Argon's quota ran out; that's fixed too.
+
 ### [3.1-beta.2] - 2026-10-13
 
 - **No more Google login page after a restart.** Right after boot, before the network was up, Mimir could make Antigravity's CLI open Safari on Google's sign-in page. It now waits until the network is ready.
@@ -626,6 +638,18 @@ Bu projedeki tüm önemli değişiklikler bu dosyada belgelenecektir.
 
 Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
+
+### [3.1-beta.3] - 2026-10-20
+
+Aynı modele ait birden fazla hesabınız varsa, artık onları da ayrı kartlarda ve widget'larda görebilirsiniz. Bu yüzden her kartta modelin planı da yazıyor. Hatta plana tıklarsanız hangi hesaba ait olduğunu da görebilirsiniz.
+
+Bazı planlarda haftalık kota yokmuş. Mimir bunları dolu gösteriyordu ama artık düzeldi.
+
+Eğer bir kart veri alamadıysa gri görünüyor. Üzerine tıklarsanız kendini yeniliyor. [Technologiaaaa](https://www.youtube.com/shorts/ZrgFhEojipE)
+
+Claude'un Fable'ı ve Antigravity'nin Argon'u sadece haftalık kotaları olduğu için kartın altında renkli bir satır olarak görünüyor.
+
+Gemini kartı Argon'un kotası bitince boş görünüyordu, o da düzeldi.
 
 ### [3.1-beta.2] - 2026-10-13
 
