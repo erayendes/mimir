@@ -122,4 +122,17 @@ final class AntigravityCLIShapeTests: XCTestCase {
         XCTAssertEqual(rows.filter { $0.window == .weekly }.count, 2)
         XCTAssertEqual(rows.filter { $0.window == .session }.count, 2)
     }
+
+    /// A model with a weekly of its own ("Gemini 4 Argon", agy 2026-10-20) is its own family: folded
+    /// into "Gemini", its 0% weekly replaced the shared group's 77% and greyed the Gemini card.
+    func testModelOwnWeeklyStaysItsOwnFamily() {
+        let argon: [String: Any] = [
+            "name": "Gemini 4 Argon",
+            "buckets": [["id": "argon-weekly", "name": "Gemini 4 Argon Weekly Limit", "window": "weekly",
+                         "remaining_fraction": 0, "reset_time": "2026-10-25T09:56:13Z"]],
+        ]
+        let rows = ds.antigravityQuotaSummaryRows(groups: cliGroups + [argon])
+        XCTAssertEqual(rows.filter { $0.name == "Gemini" && $0.window == .weekly }.map(\.remainingPercent), [99])
+        XCTAssertEqual(rows.first { $0.name == "Gemini 4 Argon" }?.window, .weekly)
+    }
 }

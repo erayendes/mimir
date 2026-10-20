@@ -325,7 +325,11 @@ extension LiveUsageDataSource {
 
     private func antigravityFamilyLabel(_ displayName: String) -> String {
         let lower = displayName.lowercased()
-        if lower.contains("gemini") { return "Gemini" }
+        // Only the shared group is "Gemini": a model with its own weekly ("Gemini 4 Argon") keeps its
+        // name, or its 0% weekly overwrites the shared one in the family merge.
+        if lower.replacingOccurrences(of: "models", with: "").trimmingCharacters(in: .whitespaces) == "gemini" {
+            return "Gemini"
+        }
         if lower.contains("claude") || lower.contains("gpt") { return "Claude" }
         return displayName.isEmpty ? "Antigravity" : displayName
     }
