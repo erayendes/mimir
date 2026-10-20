@@ -557,6 +557,10 @@ struct ServiceCard: View {
                 ProviderPanel(panel: panel.promotingLoneWindow(), now: now)
             }
 
+            ForEach(Array(modelLimitRows.enumerated()), id: \.offset) { _, row in
+                modelLimitPill(row)
+            }
+
             if !renewalRows.isEmpty {
                 renewalChip
                 if passesOpen && passes.count > 1 {
@@ -642,6 +646,26 @@ struct ServiceCard: View {
         .contentShape(Capsule())
     }
 
+    /// A model's own weekly as a full-width row: what's left, the model, when it resets — in the
+    /// quota's own green / amber / red, the same colours its panel number would take.
+    private func modelLimitPill(_ row: (name: String, percent: Int, resetAt: Date?)) -> some View {
+        HStack(spacing: 6) {
+            Text("\(row.percent)%")
+                .monospacedDigit()
+                .padding(.horizontal, 5).padding(.vertical, 1)
+                .background(Capsule().fill(Color.primary.opacity(0.10)))
+            Text(row.name)
+            Spacer(minLength: 6)
+            Text(relDuration(row.resetAt, now) ?? "—").monospacedDigit()
+        }
+        .font(.system(size: 10.5, weight: .medium))
+        .foregroundStyle(quotaStatusColor(row.percent))
+        .padding(.horizontal, Self.chipInset).padding(.vertical, 4)
+        .frame(maxWidth: .infinity)
+        .background(Capsule().fill(Color.primary.opacity(0.06)))
+        .help(String(localized: "Weekly limit for this model"))
+    }
+
     /// Under three days an expiry is worth noticing, under a day it's worth acting on. Above that
     /// it's just a date, and reads in the same quiet grey as everything else.
     private func expiryColor(_ at: Date?) -> Color {
@@ -688,7 +712,7 @@ struct ServiceCard: View {
 
     private var quotaPanels: [PanelData] {
         guard hasServiceQuotas else {
-            return antigravityFamilies.map { family in
+            return antigravityPanelFamilies.map { family in
                 PanelData(title: family.name, iconName: service.iconName,
                           session: family.session.map { ($0.percent, $0.resetAt) },
                           weekly: family.weekly.map { ($0.percent, $0.resetAt) },
@@ -740,6 +764,27 @@ struct ServiceCard: View {
     /// its own session (5h) and weekly (7g) so they render together.
     private var antigravityFamilies: [(name: String, session: (percent: Int, resetAt: Date?)?, weekly: (percent: Int, resetAt: Date?)?)] {
         families(in: service.models)
+    }
+
+    /// The families that get a panel: those with a five-hour window. A weekly-only family is one
+    /// model's own cap and goes to a chip — unless no family has a session, when all stay panels.
+    private var antigravityPanelFamilies: [(name: String, session: (percent: Int, resetAt: Date?)?, weekly: (percent: Int, resetAt: Date?)?)] {
+        let withSession = antigravityFamilies.filter { $0.session != nil }
+        return withSession.isEmpty ? antigravityFamilies : withSession
+    }
+
+    /// Weekly caps on a single model (Claude's Fable, Antigravity's Gemini 4 Argon). They only bite
+    /// when you pick that model, so each rides a chip under the panels instead of claiming one.
+    private var modelLimitRows: [(name: String, percent: Int, resetAt: Date?)] {
+        if hasServiceQuotas {
+            return service.models.filter { $0.valueText == nil && $0.groupLabel == nil }
+                .map { ($0.name, $0.remainingPercent, $0.resetAt) }
+        }
+        let panelNames = Set(antigravityPanelFamilies.map(\.name))
+        return antigravityFamilies.compactMap { family in
+            guard !panelNames.contains(family.name), let weekly = family.weekly else { return nil }
+            return (family.name, weekly.percent, weekly.resetAt)
+        }
     }
 
     /// Rows grouped by name into session/weekly pairs, in the order they first appear.

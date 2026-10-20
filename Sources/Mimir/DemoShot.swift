@@ -75,6 +75,8 @@ enum DemoShot {
                             resetAt: now.addingTimeInterval(51 * 60), window: .session),
                 ModelStatus(name: "Claude", remainingPercent: 9,
                             resetAt: now.addingTimeInterval(4 * 86_400), window: .weekly),
+                ModelStatus(name: "Gemini 4 Argon", remainingPercent: 0,
+                            resetAt: now.addingTimeInterval(4 * 86_400 + 18 * 3600), window: .weekly),
                 ModelStatus(name: String(localized: "AI credit"), remainingPercent: 0, resetAt: nil,
                             valueText: "1250", symbol: "dollarsign.circle"),
             ],
