@@ -12,7 +12,7 @@ struct SelectMetricIntent: WidgetConfigurationIntent {
     var model: MetricOption?
 }
 
-/// One selectable model/window, identified by its label ("Claude", "Claude Work", "Gemini"). Shown
+/// One selectable model/window, identified by provider and label ("Antigravity|Claude"). Shown
 /// by the provider's own name with the login under it, so two Claude accounts are two clear choices.
 struct MetricOption: AppEntity {
     let id: String
@@ -29,7 +29,7 @@ struct MetricOption: AppEntity {
     static func all() -> [MetricOption] {
         (WidgetStore.read()?.providers ?? []).filter(\.isAvailable).flatMap { p in
             p.fiveHour.map { m in
-                MetricOption(id: m.label, title: p.displayLabel(m),
+                MetricOption(id: ProviderPayload.optionID(provider: p.name, label: m.label), title: p.displayLabel(m),
                              subtitle: [p.plan, p.email].compactMap { $0 }.joined(separator: " · ").nilIfEmpty)
             }
         }

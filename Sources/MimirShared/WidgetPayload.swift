@@ -57,6 +57,18 @@ public struct ProviderPayload: Codable, Equatable {
         metric.label == name ? (title ?? name) : metric.label
     }
 
+    /// The widget picker's id for one window: provider and label, since a label alone isn't unique —
+    /// Antigravity's "Claude" family and Claude Code's own card are both "Claude".
+    public static func optionID(provider: String, label: String) -> String { "\(provider)|\(label)" }
+
+    /// Whether a saved picker id names this window. Ids saved before 3.1 carry the label only: they
+    /// match by label, and Antigravity's former "Claude/GPT" family finds its "Claude".
+    public static func option(_ id: String, matches provider: String, label: String) -> Bool {
+        if id.contains("|") { return id == optionID(provider: provider, label: label) }
+        if id == "Claude/GPT" { return provider == "Antigravity" && label == "Claude" }
+        return id == label
+    }
+
     private enum CodingKeys: String, CodingKey {
         case name, iconName, isAvailable, fiveHour, unavailable, isStale, title, plan, email
     }

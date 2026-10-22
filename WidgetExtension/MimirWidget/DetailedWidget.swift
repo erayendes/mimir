@@ -94,7 +94,8 @@ struct DetailedWidgetView: View {
     /// Small and Medium show a single model: the one chosen in the widget config, else the most
     /// critical (lowest remaining) one. Caller guarantees `flat` is non-empty.
     private func smallMetric(_ flat: [FlatMetric]) -> FlatMetric {
-        if let label = entry.selectedLabel, let chosen = flat.first(where: { $0.metric.label == label }) {
+        if let id = entry.selectedLabel,
+           let chosen = flat.first(where: { ProviderPayload.option(id, matches: $0.providerName, label: $0.metric.label) }) {
             return chosen
         }
         return flat.min { $0.metric.percent < $1.metric.percent } ?? flat[0]

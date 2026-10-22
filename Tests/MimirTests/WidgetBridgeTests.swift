@@ -152,4 +152,15 @@ final class WidgetBridgeTests: XCTestCase {
         XCTAssertTrue(WidgetBridge.shouldReload(previous: prov(50), next: prov(50, unavailable: true),
                                                 lastReload: now, now: now.addingTimeInterval(60), throttle: t))
     }
+
+    /// Antigravity's "Claude" family and Claude Code's card share a label; the picker id tells them
+    /// apart, and an id saved before 3.1 (label only, or the old "Claude/GPT") still finds its window.
+    func testPickerIdSeparatesSameLabelAcrossProviders() {
+        let antigravity = ProviderPayload.optionID(provider: "Antigravity", label: "Claude")
+        XCTAssertTrue(ProviderPayload.option(antigravity, matches: "Antigravity", label: "Claude"))
+        XCTAssertFalse(ProviderPayload.option(antigravity, matches: "Claude", label: "Claude"))
+        XCTAssertTrue(ProviderPayload.option("Claude/GPT", matches: "Antigravity", label: "Claude"))
+        XCTAssertFalse(ProviderPayload.option("Claude/GPT", matches: "Claude", label: "Claude"))
+        XCTAssertTrue(ProviderPayload.option("Gemini", matches: "Antigravity", label: "Gemini"))
+    }
 }
