@@ -163,4 +163,16 @@ final class WidgetBridgeTests: XCTestCase {
         XCTAssertFalse(ProviderPayload.option("Claude/GPT", matches: "Claude", label: "Claude"))
         XCTAssertTrue(ProviderPayload.option("Gemini", matches: "Antigravity", label: "Gemini"))
     }
+
+    /// Codex's Luna Reserve carries a session row of its own; the widget still shows Codex's session.
+    func testExtraQuotaSessionDoesNotReplaceAccountSession() {
+        let codex = ServiceStatus(
+            name: "Codex", iconName: "codex",
+            sessionResetAt: now, weeklyResetAt: now, sessionRemainingPercent: 70, weeklyRemainingPercent: 40,
+            models: [ModelStatus(name: "Luna Reserve", remainingPercent: 10, resetAt: now, window: .session,
+                                 groupLabel: LiveUsageDataSource.codexExtraLimitGroup)],
+            isAvailable: true, statusNote: nil)
+        XCTAssertEqual(codex.sessionWindows.map(\.label), ["Codex"])
+        XCTAssertEqual(codex.sessionWindows.first?.sessionPercent, 70)
+    }
 }

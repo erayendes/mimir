@@ -240,7 +240,9 @@ struct SessionWindow: Equatable {
 
 extension ServiceStatus {
     var sessionWindows: [SessionWindow] {
-        let sessionModels = models.filter { $0.window == .session }
+        // A plan's extra quota (Codex's Luna Reserve) has a session row too, but it's not the
+        // account's own: taken here, it replaced Codex's session in the widget and the menu bar.
+        let sessionModels = models.filter { $0.window == .session && $0.groupLabel == nil }
         if !sessionModels.isEmpty {
             return sessionModels.map { m in
                 let weekly = models.first { $0.window == .weekly && $0.name == m.name }
