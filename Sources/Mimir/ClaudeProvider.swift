@@ -44,7 +44,8 @@ extension LiveUsageDataSource {
     static func claudeAccount(oauthAccount o: [String: Any]) -> AccountInfo? {
         let user = o["accountUuid"] as? String, org = o["organizationUuid"] as? String
         guard user != nil || org != nil else { return nil }
-        return AccountInfo(plan: AccountInfo.claudePlan(o["organizationType"] as? String),
+        return AccountInfo(plan: AccountInfo.claudePlan(o["organizationType"] as? String)
+                               ?? org.flatMap { UserDefaults.standard.string(forKey: claudePlanKey($0)) },
                            email: o["emailAddress"] as? String,
                            id: "\(user ?? "-")|\(org ?? "-")", org: org)
     }
@@ -100,7 +101,7 @@ extension LiveUsageDataSource {
                 // so there's nothing to rate-limit; fall straight to claudeFailure, which reads the fresh
                 // hook every tick and shows live session/weekly numbers without a prompt.
                 let note = String(localized: "token expired — open Claude Code")
-                return claudeFailure(note: note, staleNote: note)
+                return claudeFailure(note: note, staleNote: note, expired: true)
             }
             await Self.claudeTokenCache.set(tokenInfo)
             // Mirror the access token into Mimir's own keychain item so the next background tick can
@@ -109,7 +110,7 @@ extension LiveUsageDataSource {
         }
 
         guard let token = tokenInfo else {
-            return claudeFailure(note: "claude token missing")
+            return claudeFailure(note: String(localized: "claude token missing"))
         }
 
         var req = URLRequest(url: URL(string: "https://api.anthropic.com/api/oauth/usage")!, timeoutInterval: 10)
@@ -139,6 +140,9 @@ extension LiveUsageDataSource {
                 return claudeFailure(note: "claude response parse fail")
             }
             writeClaudeUsageCache(data)
+            if Self.claudeAccount(configFile: MimirStatusLineHook.claudeConfigFile)?.plan == nil {
+                await rememberClaudePlan(token.accessToken)
+            }
             let status = buildClaudeStatus(from: root, note: "oauth usage api")
             saveSnapshot(status)
             return status.withCooldownHint(0)   // live success → clear any cooldown
@@ -150,7 +154,8 @@ extension LiveUsageDataSource {
     /// Claude's live fetch failed — show last-known data instead of vanishing: the still-valid
     /// 24h usage cache, else the persisted snapshot (dimmed when its windows have reset), else
     /// the hidden unavailable card (only when nothing was ever cached).
-    private func claudeFailure(note: String, staleNote: String = String(localized: "out of date")) -> ServiceStatus {
+    private func claudeFailure(note: String, staleNote: String = String(localized: "out of date"),
+                               expired: Bool = false) -> ServiceStatus {
         // Prompt-free statusLine hook first — the live session/weekly numbers Claude Code itself
         // renders, available without a token, so a background tick whose Mimir token cache expired (or
         // any live-fetch failure) stays fresh instead of falling to "open Mimir to refresh". Fresher
@@ -160,6 +165,13 @@ extension LiveUsageDataSource {
             saveSnapshot(card)
             return card
         }
+        let card = claudeLastKnown(note: note, staleNote: staleNote)
+        // An expired login can't refresh these numbers until it is renewed: grey, so opening Mimir
+        // renews it, however much of the windows is still left.
+        return expired && card.isAvailable ? card.markedStale(staleNote) : card
+    }
+
+    private func claudeLastKnown(note: String, staleNote: String) -> ServiceStatus {
         // Recent cache → normal card (seed a snapshot so the cooldown/skip path can serve it too).
         // This is a failure fallback, so reset-classify it (`live: false`): a window that refilled
         // since this cache was written shouldn't show a phantom percent.
@@ -524,42 +536,89 @@ extension LiveUsageDataSource {
         return nil
     }
 
-    /// A second Claude Code login (`ExtraAccount`). Its status line hook file first — prompt-free,
-    /// but Claude Code only renders a status line in an interactive session, so a login driven by
-    /// `claude -p` never writes it. Then that login's own keychain item, under the same rules as the
-    /// main card: silent once granted, the prompting read only on a user action. Then the snapshot.
-    func fetchClaudeExtraAccount(name: String, dir: URL, userInitiated: Bool) async -> ServiceStatus {
-        if let hook = readClaudeHookUsage(maxAge: 30 * 60, path: dir.appendingPathComponent("mimir-usage.json").path) {
+    /// A second Claude Code login (`ExtraAccount`). Its status line hook file is prompt-free, but
+    /// Claude Code only renders a status line in an interactive session (a login driven by `claude -p`
+    /// never writes it) and it carries no per-model limits. So the login's own keychain item serves
+    /// the API too, under the main card's rules: silent once granted, the prompting read only on a
+    /// user action and only when no fresh hook covers us. Then the snapshot.
+    func fetchClaudeExtraAccount(name: String, dir: URL, userInitiated: Bool,
+                                 accountID: String? = nil) async -> ServiceStatus {
+        let service = Self.claudeKeychainService(forConfigDir: dir.path)
+        let hookPath = dir.appendingPathComponent("mimir-usage.json").path
+        // Another login in the same dir: the previous one's token, hook and snapshot would show its
+        // numbers under the new login's name, so they go before anything reads them.
+        if await Self.extraTokenCache.switched(service, to: accountID) {
+            await Self.extraTokenCache.set(service, nil)
+            try? FileManager.default.removeItem(atPath: hookPath)
+            try? FileManager.default.removeItem(at: snapshotURL(for: name))
+        }
+        let hook = readClaudeHookUsage(maxAge: 30 * 60, path: hookPath)
+
+        // Opening Mimir also asks the API, for what the hook lacks (Fable's own weekly, say).
+        var expired = false
+        if hook == nil || userInitiated {
+            var token = await Self.extraTokenCache.get(service)
+            if token.map({ ($0.expiresAt?.timeIntervalSinceNow ?? 0) <= 300 }) ?? true {
+                let raw = readClaudeKeychainItem(interactive: false, service: service)
+                    ?? (userInitiated && hook == nil ? readClaudeKeychainItem(interactive: true, service: service) : nil)
+                let parsed = raw.flatMap { parseClaudeToken($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
+                expired = parsed.map { ($0.expiresAt?.timeIntervalSinceNow ?? 0) <= 30 } ?? false
+                token = expired ? nil : parsed
+                await Self.extraTokenCache.set(service, token)
+            }
+            if let token {
+                if let root = await fetchClaudeOAuthUsage(token.accessToken) {
+                    if Self.claudeAccount(configFile: dir.appendingPathComponent(".claude.json"))?.plan == nil {
+                        await rememberClaudePlan(token.accessToken)
+                    }
+                    let status = buildClaudeStatus(from: root, note: "oauth usage api", name: name)
+                    saveSnapshot(status)
+                    return status
+                }
+                await Self.extraTokenCache.set(service, nil)
+            }
+        }
+
+        if let hook {
+            // The hook's live windows, with the per-model rows of the last full read carried over —
+            // the main card's overlay, from this login's own snapshot.
             let status = ServiceStatus(
                 name: name, iconName: "claude",
                 sessionResetAt: hook.five?.reset, weeklyResetAt: hook.seven?.reset,
                 sessionRemainingPercent: hook.five.map { remainingPercent(fromUsed: $0.used) },
                 weeklyRemainingPercent: hook.seven.map { remainingPercent(fromUsed: $0.used) },
-                models: [], isAvailable: true, statusNote: "statusline hook")
+                models: loadSnapshot(for: name, iconName: "claude")?.models ?? [],
+                isAvailable: true, statusNote: "statusline hook")
             saveSnapshot(status)
             return status
         }
-
-        let service = Self.claudeKeychainService(forConfigDir: dir.path)
-        var token = await Self.extraTokenCache.get(service)
-        if token.map({ ($0.expiresAt?.timeIntervalSinceNow ?? 0) <= 300 }) ?? true {
-            let raw = readClaudeKeychainItem(interactive: false, service: service)
-                ?? (userInitiated ? readClaudeKeychainItem(interactive: true, service: service) : nil)
-            token = raw.flatMap { parseClaudeToken($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
-                .flatMap { ($0.expiresAt?.timeIntervalSinceNow ?? 0) > 30 ? $0 : nil }
-            await Self.extraTokenCache.set(service, token)
-        }
-
-        if let token {
-            if let root = await fetchClaudeOAuthUsage(token.accessToken) {
-                let status = buildClaudeStatus(from: root, note: "oauth usage api", name: name)
-                saveSnapshot(status)
-                return status
-            }
-            await Self.extraTokenCache.set(service, nil)
-        }
-        return loadSnapshot(for: name, iconName: "claude", staleNote: String(localized: "out of date"))
+        let note = expired ? String(localized: "token expired — open Claude Code") : String(localized: "out of date")
+        let snapshot = loadSnapshot(for: name, iconName: "claude", staleNote: note)
+        // An expired login can't refresh these numbers: grey, so opening Mimir renews it.
+        return (expired ? snapshot?.markedStale(note) : snapshot)
             ?? unavailableService(name: name, iconName: "claude", models: [])
+    }
+
+    static func claudePlanKey(_ org: String) -> String { "claude.plan.\(org)" }
+
+    /// Claude Code writes the plan into its profile file only after its own profile fetch, so a
+    /// fresh login can lack it — and the card shows no plan, and no way to its e-mail. Then ask the
+    /// endpoint Claude Code asks, and remember the answer by organization.
+    func rememberClaudePlan(_ accessToken: String) async {
+        var req = URLRequest(url: URL(string: "https://api.anthropic.com/api/oauth/profile")!, timeoutInterval: 10)
+        req.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        guard let (data, response) = try? await URLSession.shared.data(for: req),
+              (response as? HTTPURLResponse)?.statusCode == 200,
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let (org, plan) = Self.claudeProfilePlan(root) else { return }
+        UserDefaults.standard.set(plan, forKey: Self.claudePlanKey(org))
+    }
+
+    /// The organization and plan in an `/api/oauth/profile` answer. Pure → unit-testable.
+    static func claudeProfilePlan(_ root: [String: Any]) -> (org: String, plan: String)? {
+        guard let org = root["organization"] as? [String: Any], let uuid = org["uuid"] as? String,
+              let plan = AccountInfo.claudePlan(org["organization_type"] as? String) else { return nil }
+        return (uuid, plan)
     }
 
     /// One GET of the OAuth usage endpoint; nil on any failure (the caller falls back to its snapshot).
@@ -577,6 +636,14 @@ extension LiveUsageDataSource {
         private var tokens: [String: ClaudeToken] = [:]
         func get(_ service: String) -> ClaudeToken? { tokens[service] }
         func set(_ service: String, _ token: ClaudeToken?) { tokens[service] = token }
+
+        private var accounts: [String: String] = [:]
+        /// Records the login a dir holds; true when it differs from the one seen before.
+        func switched(_ service: String, to account: String?) -> Bool {
+            guard let account else { return false }
+            defer { accounts[service] = account }
+            return accounts[service].map { $0 != account } ?? false
+        }
     }
     private static let extraTokenCache = ExtraTokenCache()
 

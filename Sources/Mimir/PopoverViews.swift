@@ -103,9 +103,7 @@ struct PopoverView: View {
             // no dividers or rails between them (design v2.9).
             VStack(spacing: 11) {
                 ForEach(visible) { service in
-                    ServiceCard(service: service, now: now,
-                                onRenew: service.isStale && ["Claude", "Codex"].contains(service.providerTitle)
-                                    ? { store.renewLogin(service) } : nil)
+                    ServiceCard(service: service, now: now)
                 }
             }
             .padding(.horizontal, 11)
@@ -544,8 +542,6 @@ struct PopoverBackdrop: View {
 struct ServiceCard: View {
     let service: ServiceStatus
     let now: Date
-    /// Set on a stale card whose login Mimir can renew: a click on the card runs it.
-    var onRenew: (() -> Void)? = nil
 
     /// Opens the renewal-pass list. The chip already carries the count and the nearest expiry, so
     /// the list is for the dates behind them; collapsed is the resting state.
@@ -595,13 +591,6 @@ struct ServiceCard: View {
         )
         // Dim a stale snapshot so it reads as "last known, not live".
         .opacity(service.isStale ? 0.66 : 1)
-        .contentShape(Rectangle())
-        .onTapGesture { onRenew?() }
-        .help(onRenew == nil ? "" : String(localized: "Click to renew the login"))
-        .onContinuousHover { phase in
-            guard onRenew != nil else { return }
-            if case .active = phase { NSCursor.pointingHand.set() } else { NSCursor.arrow.set() }
-        }
     }
 
     // MARK: Renewal passes

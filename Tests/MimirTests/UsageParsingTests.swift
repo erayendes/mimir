@@ -492,6 +492,36 @@ final class UsageParsingTests: XCTestCase {
         XCTAssertEqual(rolled.timeIntervalSince(past), 60 * 86_400, accuracy: 60)
     }
 
+    /// A fresh login's profile file can lack the plan; the profile endpoint's answer fills it.
+    func testClaudeProfilePlanFromProfileAnswer() {
+        let root: [String: Any] = ["account": ["email": "a@b.c"],
+                                   "organization": ["uuid": "org-1", "organization_type": "claude_team"]]
+        XCTAssertEqual(LiveUsageDataSource.claudeProfilePlan(root)?.org, "org-1")
+        XCTAssertEqual(LiveUsageDataSource.claudeProfilePlan(root)?.plan, "Team")
+        XCTAssertNil(LiveUsageDataSource.claudeProfilePlan(["organization": ["uuid": "org-1"]]))
+    }
+
+    /// A restored card keeps each row's grouping: renewal passes stay in their chip and a plan's extra
+    /// quota stays its own panel instead of reading as a single-model limit.
+    func testSnapshotRoundTripKeepsRowGrouping() throws {
+        let future = Date(timeIntervalSinceNow: 86_400)
+        let status = ServiceStatus(
+            name: "RoundTrip", iconName: "codex",
+            sessionResetAt: future, weeklyResetAt: future, sessionRemainingPercent: 50,
+            models: [ModelStatus(name: "22.10.26", remainingPercent: 0, resetAt: future, valueText: "1g",
+                                 symbol: "arrow.clockwise", groupLabel: "Renewal credit"),
+                     ModelStatus(name: "Luna", remainingPercent: 40, resetAt: future, window: .session,
+                                 groupLabel: LiveUsageDataSource.codexExtraLimitGroup)],
+            isAvailable: true, statusNote: nil)
+        ds.saveSnapshot(status)
+        defer { try? FileManager.default.removeItem(at: ds.snapshotURL(for: "RoundTrip")) }
+
+        let card = try XCTUnwrap(ds.loadSnapshot(for: "RoundTrip", iconName: "codex"))
+        XCTAssertEqual(card.models.map(\.groupLabel), ["Renewal credit", LiveUsageDataSource.codexExtraLimitGroup])
+        XCTAssertEqual(card.models.first?.symbol, "arrow.clockwise")
+        XCTAssertEqual(card.models.last?.window, .session)
+    }
+
     /// An absurd on-disk window length (corrupt or hand-edited snapshot) is dropped at load instead
     /// of reaching quotaWindowDays' Double→Int conversion, where 1e300 would trap and crash the app
     /// on every launch until the file is deleted.

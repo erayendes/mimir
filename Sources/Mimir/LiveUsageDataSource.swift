@@ -24,14 +24,33 @@ final class UsageStore: ObservableObject {
 
     private static let dismissedKey = "popover.dismissedUnavailable"
 
-    /// A stale Claude/Codex card was clicked: have the CLI renew its own expired login, then read again.
-    func renewLogin(_ service: ServiceStatus) {
-        let provider = service.providerTitle
-        let extras = provider == "Codex" ? ExtraAccount.codex : ExtraAccount.claude
-        let dir = extras.first { $0.name == service.name }?.dir
+    /// When each card's login was last renewed, so a card that stays grey (no network, say, where
+    /// renewing can't help) isn't renewed on every open.
+    private var lastRenewal: [String: Date] = [:]
+
+    /// Opening Mimir renews any grey Claude/Codex card's login itself — the CLI's own `doctor`, at
+    /// most every 10 minutes per card — and reads again, the logo spinning throughout. Claude
+    /// Desktop's card is another account's claude.ai session: there is no CLI login to renew for it.
+    private func renewStaleLogins(_ services: [ServiceStatus]) {
+        let now = Date()
+        let due = services.filter { s in
+            s.isStale && ["Claude", "Codex"].contains(s.providerTitle)
+                && s.name != LiveUsageDataSource.claudeDesktopCardName
+                && now.timeIntervalSince(lastRenewal[s.name] ?? .distantPast) >= 10 * 60
+        }
+        guard !due.isEmpty else { return }
+        let jobs = due.map { s -> (provider: String, dir: URL?) in
+            lastRenewal[s.name] = now
+            let extras = s.providerTitle == "Codex" ? ExtraAccount.codex : ExtraAccount.claude
+            return (s.providerTitle, extras.first { $0.name == s.name }?.dir)
+        }
+        isRefreshing = true
         let source = source
         Task {
-            await Task.detached(priority: .userInitiated) { source.renewLogin(provider: provider, dir: dir) }.value
+            await Task.detached(priority: .userInitiated) {
+                for job in jobs { source.renewLogin(provider: job.provider, dir: job.dir) }
+            }.value
+            isRefreshing = false
             refresh(userInitiated: true)
         }
     }
@@ -58,6 +77,7 @@ final class UsageStore: ObservableObject {
             self.forgetRecoveredDismissals(result)
             self.services = result
             self.isRefreshing = false
+            if userInitiated { self.renewStaleLogins(result) }
         }
     }
 
@@ -154,7 +174,8 @@ struct LiveUsageDataSource {
             for (extra, account) in claudeExtras {
                 group.addTask {
                     [(await withTimeout(seconds: 8) {
-                        await fetchClaudeExtraAccount(name: extra.name, dir: extra.dir, userInitiated: userInitiated)
+                        await fetchClaudeExtraAccount(name: extra.name, dir: extra.dir, userInitiated: userInitiated,
+                                                     accountID: account?.id)
                     } ?? self.snapshotOrFallback(extra.name, iconName: "claude")).withAccount(account)]
                 }
             }
@@ -243,6 +264,12 @@ struct LiveUsageDataSource {
                 if let reset = m.resetAt { dict["resetAt"] = iso.string(from: reset) }
                 if let valueText = m.valueText { dict["valueText"] = valueText }
                 if let w = m.window { dict["window"] = (w == .weekly) ? "weekly" : "session" }
+                // Without these a restored card loses its grouping: renewal passes fall out of their
+                // chip and a plan's extra quota reads as a single-model limit.
+                if let g = m.groupLabel { dict["groupLabel"] = g }
+                if let sym = m.symbol { dict["symbol"] = sym }
+                if let c = m.caption { dict["caption"] = c }
+                if m.isLow { dict["isLow"] = true }
                 return dict
             }
         }
@@ -316,7 +343,9 @@ struct LiveUsageDataSource {
             default: nil
             }
             return ModelStatus(name: name, remainingPercent: percent, resetAt: reset,
-                               valueText: dict["valueText"] as? String, window: window)
+                               valueText: dict["valueText"] as? String, isLow: dict["isLow"] as? Bool ?? false,
+                               window: window, caption: dict["caption"] as? String,
+                               symbol: dict["symbol"] as? String, groupLabel: dict["groupLabel"] as? String)
         }
         let sessionReset = (root["sessionResetAt"] as? String).flatMap { parseISO8601($0) }
         let weeklyReset = (root["weeklyResetAt"] as? String).flatMap { parseISO8601($0) }
@@ -413,7 +442,9 @@ struct LiveUsageDataSource {
             if m.valueText != nil { return (m, true) }
             let live = m.resetAt.map { now < $0 } ?? true
             if live { return (m, true) }
-            return (ModelStatus(name: m.name, remainingPercent: 100, resetAt: rollForward(m.resetAt, weeklyPeriod)), false)
+            let period = m.window == .session ? Self.sessionResetPeriod : weeklyPeriod
+            return (ModelStatus(name: m.name, remainingPercent: 100, resetAt: rollForward(m.resetAt, period),
+                                window: m.window, groupLabel: m.groupLabel), false)
         }
 
         let anyLive = s.live || w.live || rows.contains { $0.live }
@@ -558,8 +589,8 @@ struct LiveUsageDataSource {
     /// Mimir never refreshes a CLI's token itself — Claude Code's and Codex's refresh tokens are
     /// single-use, and rotating one would log the CLI out. Their own `doctor` does: its auth check
     /// renews an expired login and stores it where the CLI reads it (Codex's `auth.json`, Claude
-    /// Code's keychain item), so nothing is left holding the old token. Only on a click, never on
-    /// the timer. `dir` is a second login's config dir; nil is the main one.
+    /// Code's keychain item), so nothing is left holding the old token. Only when Mimir is opened,
+    /// never on the timer. `dir` is a second login's config dir; nil is the main one.
     func renewLogin(provider: String, dir: URL?) {
         let (tool, variable) = provider == "Codex" ? ("codex", "CODEX_HOME") : ("claude", "CLAUDE_CONFIG_DIR")
         let env = dir.map { "\(variable)='\($0.path.replacingOccurrences(of: "'", with: "'\\''"))' " } ?? ""

@@ -24,7 +24,7 @@ extension LiveUsageDataSource {
         // Both live sources failed — show the last-known snapshot instead of vanishing.
         let snapshot = loadSnapshot(for: name, iconName: "codex",
                                     staleNote: note ?? String(localized: "out of date"))
-        return snapshot?.withAccount(account) ?? local
+        return (note.flatMap { snapshot?.markedStale($0) } ?? snapshot)?.withAccount(account) ?? local
     }
 
     /// The login a Codex home holds — e-mail, plan and ChatGPT account id from its `id_token`. Local
