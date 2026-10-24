@@ -550,10 +550,14 @@ extension LiveUsageDataSource {
                                  accountID: String? = nil) async -> ServiceStatus {
         let service = Self.claudeKeychainService(forConfigDir: dir.path)
         let hookPath = dir.appendingPathComponent("mimir-usage.json").path
+        // Mimir's own copy of this login's access token: read back without a prompt, so the keychain
+        // prompt comes at most once per token, not on every open.
+        let mirror = "\(Self.mimirClaudeKeychainService)-\(service)"
         // Another login in the same dir: the previous one's token, hook and snapshot would show its
         // numbers under the new login's name, so they go before anything reads them.
         if await Self.extraTokenCache.switched(service, to: accountID) {
             await Self.extraTokenCache.set(service, nil)
+            deleteMimirClaudeToken(service: mirror)
             try? FileManager.default.removeItem(atPath: hookPath)
             try? FileManager.default.removeItem(at: snapshotURL(for: name))
         }
@@ -563,6 +567,7 @@ extension LiveUsageDataSource {
         var expired = false
         if hook == nil || userInitiated {
             var token = await Self.extraTokenCache.get(service)
+                ?? readMimirClaudeToken(service: mirror).flatMap { ($0.expiresAt?.timeIntervalSinceNow ?? 0) > 300 ? $0 : nil }
             if token.map({ ($0.expiresAt?.timeIntervalSinceNow ?? 0) <= 300 }) ?? true {
                 let raw = readClaudeKeychainItem(interactive: false, service: service)
                     ?? (userInitiated && hook == nil && Self.mayPromptForClaudeCode
@@ -571,6 +576,7 @@ extension LiveUsageDataSource {
                 expired = parsed.map { ($0.expiresAt?.timeIntervalSinceNow ?? 0) <= 30 } ?? false
                 token = expired ? nil : parsed
                 await Self.extraTokenCache.set(service, token)
+                if let token { cacheMimirClaudeToken(token, service: mirror) }
             }
             if let token {
                 if let root = await fetchClaudeOAuthUsage(token.accessToken) {
@@ -582,6 +588,7 @@ extension LiveUsageDataSource {
                     return status
                 }
                 await Self.extraTokenCache.set(service, nil)
+                deleteMimirClaudeToken(service: mirror)
             }
         }
 
@@ -921,7 +928,7 @@ extension LiveUsageDataSource {
     /// Code, so refreshing from a private copy would silently invalidate Claude Code's own login.
     /// This item is owned by Mimir, so reading it back never prompts — it lets a background tick
     /// reuse a still-valid access token instead of reaching for Claude Code's keychain item.
-    private func cacheMimirClaudeToken(_ token: ClaudeToken) {
+    private func cacheMimirClaudeToken(_ token: ClaudeToken, service: String = mimirClaudeKeychainService) {
         guard let expiresAt = token.expiresAt else { return }  // nothing to expiry-check → don't cache
         let payload: [String: Any] = [
             "accessToken": token.accessToken,
@@ -930,7 +937,7 @@ extension LiveUsageDataSource {
         guard let data = try? JSONSerialization.data(withJSONObject: payload) else { return }
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: Self.mimirClaudeKeychainService,
+            kSecAttrService as String: service,
             kSecAttrAccount as String: NSUserName()
         ]
         if SecItemUpdate(query as CFDictionary, [kSecValueData as String: data] as CFDictionary) == errSecItemNotFound {
@@ -946,19 +953,19 @@ extension LiveUsageDataSource {
     /// Drop Mimir's cached access token. Called when the server rejects it (401/403): otherwise a
     /// background tick would keep replaying the dead token, since the keychain holding a fresh one is
     /// read only on a user action. Safe to call when the item is absent (`SecItemDelete` no-ops).
-    private func deleteMimirClaudeToken() {
+    private func deleteMimirClaudeToken(service: String = mimirClaudeKeychainService) {
         SecItemDelete([
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: Self.mimirClaudeKeychainService
+            kSecAttrService as String: service
         ] as CFDictionary)
     }
 
     /// Read Mimir's own cached access token (prompt-free — Mimir owns this item). Returns nil when
     /// the item is missing or malformed; the caller checks `expiresAt` before trusting it.
-    private func readMimirClaudeToken() -> ClaudeToken? {
+    private func readMimirClaudeToken(service: String = mimirClaudeKeychainService) -> ClaudeToken? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: Self.mimirClaudeKeychainService,
+            kSecAttrService as String: service,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne
         ]
