@@ -77,7 +77,7 @@ extension LiveUsageDataSource {
         let needsKeychain = tokenInfo.map { $0.expiresAt.map { $0.timeIntervalSinceNow <= 300 } ?? false } ?? true
 
         if needsKeychain {
-            guard let read = readClaudeTokenInfo(userInitiated: userInitiated && !hookFresh) else {
+            guard let read = readClaudeTokenInfo(userInitiated: userInitiated && !hookFresh && Self.mayPromptForClaudeCode) else {
                 // No prompt-free source had a usable token. We deliberately did NOT read Claude
                 // Code's keychain item in the background; opening Mimir (a user action) will.
                 let note = userInitiated
@@ -536,6 +536,11 @@ extension LiveUsageDataSource {
         return nil
     }
 
+    /// With prompt-free tracking on, Mimir never shows the keychain prompt for Claude Code's items:
+    /// Claude Code rewrites an item on every token renewal and macOS drops "Always Allow" with it,
+    /// so the prompt would keep coming back. Silent reads still run; past them, the last-known card.
+    static var mayPromptForClaudeCode: Bool { !MimirStatusLineHook.isWired() }
+
     /// A second Claude Code login (`ExtraAccount`). Its status line hook file is prompt-free, but
     /// Claude Code only renders a status line in an interactive session (a login driven by `claude -p`
     /// never writes it) and it carries no per-model limits. So the login's own keychain item serves
@@ -560,7 +565,8 @@ extension LiveUsageDataSource {
             var token = await Self.extraTokenCache.get(service)
             if token.map({ ($0.expiresAt?.timeIntervalSinceNow ?? 0) <= 300 }) ?? true {
                 let raw = readClaudeKeychainItem(interactive: false, service: service)
-                    ?? (userInitiated && hook == nil ? readClaudeKeychainItem(interactive: true, service: service) : nil)
+                    ?? (userInitiated && hook == nil && Self.mayPromptForClaudeCode
+                        ? readClaudeKeychainItem(interactive: true, service: service) : nil)
                 let parsed = raw.flatMap { parseClaudeToken($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
                 expired = parsed.map { ($0.expiresAt?.timeIntervalSinceNow ?? 0) <= 30 } ?? false
                 token = expired ? nil : parsed
