@@ -9,6 +9,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [3.1-beta.5] - 2026-10-24
+
+When choosing a widget's model, Antigravity's Claude now says Antigravity under it, so it's not confused with Claude Code.
+
+If your Codex plan has an extra quota (like Luna Reserve), the widget and the menu bar show Codex's own quota again, not the extra one.
+
+For a second Claude account used only with `claude -p`, Mimir asks for the keychain password at most once per token when you open it, instead of after every renewal.
+
 ### [3.1-beta.4] - 2026-10-22
 
 If you have more than one account for the same model, you now see each one on its own card and widget. That's why every card also shows the model's plan. Click the plan and you'll see which account it belongs to.
@@ -648,6 +656,14 @@ Bu projedeki tüm önemli değişiklikler bu dosyada belgelenecektir.
 
 Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
+
+### [3.1-beta.5] - 2026-10-24
+
+Widget'ın modelini seçerken Antigravity'nin Claude'unun altında artık Antigravity yazıyor, Claude Code ile karışmıyor.
+
+Codex planınızda ek bir kota varsa (Luna Reserve gibi), widget ve menü çubuğu yine Codex'in kendi kotasını gösteriyor, ek kotayı değil.
+
+Sadece `claude -p` ile kullanılan ikinci bir Claude hesabı için Mimir, açıldığında anahtar zinciri parolasını her yenilemeden sonra değil, token başına en fazla bir kez soruyor.
 
 ### [3.1-beta.4] - 2026-10-22
 
