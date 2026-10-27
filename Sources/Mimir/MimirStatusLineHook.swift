@@ -42,6 +42,13 @@ enum MimirStatusLineHook {
         (claudeDir as NSString).appendingPathComponent(component)
     }
 
+    /// Claude Code's `.claude.json` (the login's profile): inside `CLAUDE_CONFIG_DIR` when that is
+    /// set, otherwise next to `~/.claude`, in the home folder.
+    static var claudeConfigFile: URL {
+        let defaultDir = (NSHomeDirectory() as NSString).appendingPathComponent(".claude")
+        return URL(fileURLWithPath: claudeDir == defaultDir ? defaultDir + ".json" : claudePath(".claude.json"))
+    }
+
     /// One `launchctl getenv KEY`. Any failure — missing binary, non-zero exit, empty value — reads
     /// as "not set" and the caller falls back, so this can never be the reason a path stops resolving.
     private static func launchctlEnv(_ key: String) -> String? {
@@ -125,7 +132,7 @@ enum MimirStatusLineHook {
         # Saves Claude Code's status data so the Mimir menu bar app can read your usage locally —
         # no API, no token, no keychain prompt. Toggle it from Mimir's menu.
         input=$(cat)
-        printf '%s' "$input" > "$HOME/.claude/mimir-usage.json"
+        printf '%s' "$input" > "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/mimir-usage.json"
         \(render)
         """
     }
@@ -149,12 +156,13 @@ enum MimirStatusLineHook {
         return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] == nil
     }
 
-    private static func writeSettings(_ settings: [String: Any]) -> Bool {
+    private static func writeSettings(_ settings: [String: Any], to path: String = settingsPath) -> Bool {
         guard let data = try? JSONSerialization.data(
             withJSONObject: settings, options: [.prettyPrinted, .sortedKeys]) else { return false }
         do {
-            try FileManager.default.createDirectory(atPath: claudePath(""), withIntermediateDirectories: true)
-            try data.write(to: URL(fileURLWithPath: settingsPath), options: .atomic)
+            try FileManager.default.createDirectory(atPath: (path as NSString).deletingLastPathComponent,
+                                                    withIntermediateDirectories: true)
+            try data.write(to: URL(fileURLWithPath: path), options: .atomic)
             return true
         } catch { return false }
     }
@@ -179,6 +187,42 @@ enum MimirStatusLineHook {
     static func refreshScript() {
         guard isWired() else { return }
         _ = writeScript(chained: savedChain())
+        wireExtraDirs(true)
+    }
+
+    /// Second logins (`ExtraAccount.claude`, e.g. `~/.claude-work`) point at the same script, which
+    /// writes into whichever config dir Claude Code runs with. ponytail: a dir that already has a
+    /// status line of its own is left alone — chaining it would need a sidecar per dir.
+    static func wireExtraDirs(_ on: Bool, accounts: [ExtraAccount] = ExtraAccount.claude) {
+        for account in accounts {
+            let path = account.dir.appendingPathComponent("settings.json").path
+            let markerPath = account.dir.appendingPathComponent("mimir-wired").path
+            let backupPath = account.dir.appendingPathComponent("settings.json.mimir-backup").path
+            let data = FileManager.default.contents(atPath: path)
+            let current = data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+            if data?.isEmpty == false, current == nil { continue }   // unparseable: never clobber it
+            let cmd = (current?["statusLine"] as? [String: Any])?["command"] as? String
+            if on {
+                guard !FileManager.default.fileExists(atPath: markerPath) else { continue }
+                if isOurCommand(cmd) {   // wired before the marker existed
+                    FileManager.default.createFile(atPath: markerPath, contents: nil)
+                    continue
+                }
+                guard cmd == nil else { continue }   // the user's own
+                if FileManager.default.fileExists(atPath: path),
+                   !FileManager.default.fileExists(atPath: backupPath) {
+                    try? FileManager.default.copyItem(atPath: path, toPath: backupPath)
+                }
+                if writeSettings(wiredSettings(from: current).settings, to: path) {
+                    FileManager.default.createFile(atPath: markerPath, contents: nil)
+                }
+            } else {
+                try? FileManager.default.removeItem(atPath: markerPath)
+                guard isOurCommand(cmd) else { continue }
+                _ = writeSettings(unwiredSettings(from: current, chained: nil), to: path)
+                try? FileManager.default.removeItem(at: account.dir.appendingPathComponent("mimir-usage.json"))
+            }
+        }
     }
 
     /// Wire the hook: chain any existing statusLine, back up settings.json (once), write the script,
@@ -189,6 +233,7 @@ enum MimirStatusLineHook {
         let current = readSettings()
         if isOurCommand((current?["statusLine"] as? [String: Any])?["command"] as? String) {
             _ = writeScript(chained: savedChain())   // still refresh the script body
+            wireExtraDirs(true)
             return .alreadyOn
         }
         let (settings, chained) = wiredSettings(from: current)
@@ -202,6 +247,7 @@ enum MimirStatusLineHook {
         guard writeScript(chained: chained), writeSettings(settings) else {
             return .failed(String(localized: "couldn't write to ~/.claude"))
         }
+        wireExtraDirs(true)
         return chained == nil ? .enabled : .chained
     }
 
@@ -211,6 +257,7 @@ enum MimirStatusLineHook {
         if settingsIsCorrupt() { return .failed(String(localized: "~/.claude/settings.json is not valid JSON")) }
         let settings = unwiredSettings(from: readSettings(), chained: savedChain())
         guard writeSettings(settings) else { return .failed(String(localized: "couldn't write to ~/.claude")) }
+        wireExtraDirs(false)
         for path in [scriptPath, prevPath, usagePath] {
             try? FileManager.default.removeItem(atPath: path)
         }

@@ -31,6 +31,9 @@ struct ServiceStatus: Identifiable {
     /// message / popover banner) instead of stale numbers. The model labels are kept so
     /// those surfaces still know which rows to render.
     let dataUnavailable: Bool
+    /// Which login this card reads — its plan and e-mail, shown under the provider's name so two
+    /// cards of one provider can be told apart. nil when the source doesn't say.
+    let account: AccountInfo?
 
     init(
         name: String,
@@ -46,7 +49,8 @@ struct ServiceStatus: Identifiable {
         isStale: Bool = false,
         infoText: String? = nil,
         cooldownHint: TimeInterval? = nil,
-        dataUnavailable: Bool = false
+        dataUnavailable: Bool = false,
+        account: AccountInfo? = nil
     ) {
         self.name = name
         self.iconName = iconName
@@ -62,6 +66,7 @@ struct ServiceStatus: Identifiable {
         self.infoText = infoText
         self.cooldownHint = cooldownHint
         self.dataUnavailable = dataUnavailable
+        self.account = account
     }
 
     /// Return a copy with `infoText` attached. Lets the data layer set the explainer once
@@ -76,17 +81,42 @@ struct ServiceStatus: Identifiable {
         copy(statusNote: .some(note))
     }
 
+    /// Return a dimmed copy that says why it's old — a reading the live source couldn't confirm.
+    func markedStale(_ note: String) -> ServiceStatus {
+        copy(statusNote: .some(note), isStale: true)
+    }
+
     /// Return a copy carrying a cooldown signal for `UsageStore` (see `cooldownHint`).
     func withCooldownHint(_ hint: TimeInterval?) -> ServiceStatus {
         copy(cooldownHint: .some(hint))
+    }
+
+    /// Return a copy carrying `account`, unless the source already named one — a provider that read
+    /// the plan from its own response knows better than the local config file.
+    func withAccount(_ account: AccountInfo?) -> ServiceStatus {
+        copy(account: .some(self.account ?? account))
+    }
+
+    /// The provider's own name — "Claude" for the second login stored as "Claude Work". `name` stays
+    /// the card's identity (snapshots, cooldowns, the widget's picker); this is what the user reads.
+    var providerTitle: String {
+        serviceDisplayOrder.first { name == $0 || name.hasPrefix("\($0) ") } ?? name
+    }
+
+    /// The provider and the login in one line — "Claude (eray@milowda.com)" — for the places that
+    /// have no room for a second line: notifications, the banner.
+    var titleWithAccount: String {
+        account?.email.map { "\(providerTitle) (\($0))" } ?? providerTitle
     }
 
     /// One-field copy. Each parameter is a double optional: `nil` keeps the current value,
     /// `.some(x)` overwrites it (so passing `.some(nil)` can clear an optional field).
     private func copy(
         statusNote: String?? = nil,
+        isStale: Bool? = nil,
         infoText: String?? = nil,
-        cooldownHint: TimeInterval?? = nil
+        cooldownHint: TimeInterval?? = nil,
+        account: AccountInfo?? = nil
     ) -> ServiceStatus {
         ServiceStatus(
             name: name,
@@ -99,11 +129,47 @@ struct ServiceStatus: Identifiable {
             models: models,
             isAvailable: isAvailable,
             statusNote: statusNote ?? self.statusNote,
-            isStale: isStale,
+            isStale: isStale ?? self.isStale,
             infoText: infoText ?? self.infoText,
             cooldownHint: cooldownHint ?? self.cooldownHint,
-            dataUnavailable: dataUnavailable
+            dataUnavailable: dataUnavailable,
+            account: account ?? self.account
         )
+    }
+}
+
+/// The login behind a card: its plan ("Team", "Plus", "AI Pro") and e-mail for display, and `id` —
+/// stable across token refreshes — so two sources that turn out to be one login become one card.
+struct AccountInfo: Equatable {
+    var plan: String?
+    var email: String?
+    var id: String?
+    /// Claude's organization UUID — what Claude.app's session is matched on, since the app's
+    /// organization list carries no account id.
+    var org: String? = nil
+
+    /// `claude_team` → "Team", `claude_max` → "Max". Unknown values keep their own word, so a new
+    /// plan shows up as itself instead of vanishing.
+    static func claudePlan(_ organizationType: String?) -> String? {
+        planWord(organizationType.map { $0.hasPrefix("claude_") ? String($0.dropFirst(7)) : $0 })
+    }
+
+    /// Codex's `chatgpt_plan_type`: `plus` → "Plus", `team` → "Team".
+    static func codexPlan(_ planType: String?) -> String? { planWord(planType) }
+
+    /// Antigravity's `userTier.name`: "Google AI Pro" → "Pro", the same short word Claude's and
+    /// Codex's plans read as — a family name ("Gemini") has to fit beside it.
+    static func antigravityPlan(_ tierName: String?) -> String? {
+        guard let tierName, !tierName.isEmpty else { return nil }
+        for prefix in ["Google AI ", "Google "] where tierName.hasPrefix(prefix) {
+            return String(tierName.dropFirst(prefix.count))
+        }
+        return tierName
+    }
+
+    private static func planWord(_ raw: String?) -> String? {
+        guard let raw, !raw.isEmpty else { return nil }
+        return raw.split(separator: "_").map { $0.capitalized }.joined(separator: " ")
     }
 }
 
@@ -123,9 +189,38 @@ let serviceDisplayOrder = ["Claude", "Codex", "Antigravity"]
 extension Array where Element == ServiceStatus {
     /// Sorted into the canonical display order (Claude, Codex, Antigravity); unknown names last.
     /// Shared by the popover's cards and its notification banner so a service can't reorder between them.
+    /// A second account ("Claude Work") sits right after its provider's main card.
     func sortedByDisplayOrder() -> [ServiceStatus] {
-        sorted { (serviceDisplayOrder.firstIndex(of: $0.name) ?? 99) < (serviceDisplayOrder.firstIndex(of: $1.name) ?? 99) }
+        func rank(_ name: String) -> Int {
+            serviceDisplayOrder.firstIndex { name == $0 || name.hasPrefix("\($0) ") } ?? 99
+        }
+        return sorted { (rank($0.name), $0.name) < (rank($1.name), $1.name) }
     }
+}
+
+/// A second CLI login kept in its own config dir — `~/.claude-work` (`CLAUDE_CONFIG_DIR`) or
+/// `~/.codex-work` (`CODEX_HOME`). Each one found becomes its own card, named after the dir's
+/// suffix: `~/.codex-work` → "Codex Work". Nobody without such a dir sees any change.
+struct ExtraAccount: Equatable {
+    let name: String
+    let dir: URL
+
+    /// Dirs named `<base>-<suffix>` in the home folder that hold `marker` (the file that proves the
+    /// CLI actually uses it), e.g. `~/.codex-work` holding `auth.json`.
+    static func find(base: String, title: String, marker: String,
+                     home: URL = FileManager.default.homeDirectoryForCurrentUser) -> [ExtraAccount] {
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: home.path)) ?? []
+        return names.filter { $0.hasPrefix("\(base)-") }.sorted().compactMap { entry in
+            let suffix = String(entry.dropFirst(base.count + 1))
+            let dir = home.appendingPathComponent(entry)
+            guard !suffix.isEmpty,
+                  FileManager.default.fileExists(atPath: dir.appendingPathComponent(marker).path) else { return nil }
+            return ExtraAccount(name: "\(title) \(suffix.capitalized)", dir: dir)
+        }
+    }
+
+    static var claude: [ExtraAccount] { find(base: ".claude", title: "Claude", marker: ".claude.json") }
+    static var codex: [ExtraAccount] { find(base: ".codex", title: "Codex", marker: "auth.json") }
 }
 
 /// One 5-hour session window a service exposes, paired with the weekly (7g) quota that gates it.
@@ -145,7 +240,9 @@ struct SessionWindow: Equatable {
 
 extension ServiceStatus {
     var sessionWindows: [SessionWindow] {
-        let sessionModels = models.filter { $0.window == .session }
+        // A plan's extra quota (Codex's Luna Reserve) has a session row too, but it's not the
+        // account's own: taken here, it replaced Codex's session in the widget and the menu bar.
+        let sessionModels = models.filter { $0.window == .session && $0.groupLabel == nil }
         if !sessionModels.isEmpty {
             return sessionModels.map { m in
                 let weekly = models.first { $0.window == .weekly && $0.name == m.name }

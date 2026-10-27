@@ -3,28 +3,31 @@ import Foundation
 extension LiveUsageDataSource {
     func fetchAntigravity() async -> ServiceStatus {
         let defaults = ["Gemini", "Claude"]
+        // Only the IDE's language server names the login; the CLI and Cockpit don't. Their cards keep
+        // the plan and e-mail the last IDE reading saved, instead of losing them whenever the IDE closes.
+        let known = { self.fetchAntigravitySnapshot()?.account }
         // Primary live source: the grouped weekly + 5h quota summary that backs the IDE's
         // "Model Quota" page. Antigravity moved quota off per-model and onto shared group
-        // buckets (Gemini / Claude+GPT), each with a weekly and a 5-hour window.
-        if let summary = fetchAntigravityQuotaSummary() {
+        // buckets (Gemini / Claude), each with a weekly and a 5-hour window.
+        if let summary = fetchAntigravityQuotaSummary()?.withAccount(known()) {
             saveAntigravitySnapshot(summary)
             return summary
         }
         // No IDE running? The CLI carries the same numbers. `agy` users have no language server
         // process, no CSRF token and no Cockpit directory, so every source around this one misses
         // them entirely and their card never appears.
-        if let cli = fetchAntigravityCLI() {
+        if let cli = fetchAntigravityCLI()?.withAccount(known()) {
             saveAntigravitySnapshot(cli)
             return cli
         }
-        if let authorized = await fetchAntigravityAuthorized(models: defaults) {
+        if let authorized = await fetchAntigravityAuthorized(models: defaults)?.withAccount(known()) {
             saveAntigravitySnapshot(authorized)
             return authorized
         }
         if let cached = fetchAntigravityCockpitCache(models: defaults) {
-            return cached
+            return cached.withAccount(known())
         }
-        if let local = fetchAntigravityLocalLanguageServer(models: defaults) {
+        if let local = fetchAntigravityLocalLanguageServer(models: defaults)?.withAccount(known()) {
             saveAntigravitySnapshot(local)
             return local
         }
@@ -55,7 +58,10 @@ extension LiveUsageDataSource {
         guard now.timeIntervalSince(Self.antigravityCLILastRun) >= 5 * 60 else { return nil }
         Self.antigravityCLILastRun = now
 
-        let out = runShell("command -v agy >/dev/null 2>&1 && agy -p /usage --output-format json --print-timeout 30s")
+        // An expired token that `agy` can't refresh sends it into interactive OAuth, which opens the
+        // browser on the user's login screen. Right after boot the network isn't up yet, so only run
+        // it once Google's token endpoint answers.
+        let out = runShell("command -v agy >/dev/null 2>&1 && curl -s -o /dev/null -m 5 https://oauth2.googleapis.com && agy -p /usage --output-format json --print-timeout 30s")
         guard let data = out.data(using: .utf8),
               let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               root["status"] as? String == "SUCCESS",
@@ -193,7 +199,7 @@ extension LiveUsageDataSource {
     }
 
     /// Call the grouped quota summary RPC the IDE's Model Quota page uses. Each group
-    /// (Gemini, Claude+GPT) carries a weekly and a 5-hour bucket — flattened to one row each.
+    /// (Gemini, Claude) carries a weekly and a 5-hour bucket — flattened to one row each.
     private func fetchAntigravityQuotaSummary() -> ServiceStatus? {
         guard let hit = antigravityProbe(path: "RetrieveUserQuotaSummary", accept: { json in
             let g = (json["response"] as? [String: Any])?["groups"] as? [[String: Any]]
@@ -211,7 +217,8 @@ extension LiveUsageDataSource {
         guard !models.isEmpty else {
             return nil
         }
-        if let credit = antigravityCreditRow(csrf: csrf, ports: ports) {
+        let userStatus = antigravityUserStatus(csrf: csrf, ports: ports)
+        if let credit = userStatus.flatMap(antigravityCreditRow) {
             models.append(credit)
         }
         return ServiceStatus(
@@ -221,32 +228,45 @@ extension LiveUsageDataSource {
             weeklyResetAt: nil,
             models: models,
             isAvailable: true,
-            statusNote: "quota summary"
+            statusNote: "quota summary",
+            account: userStatus.flatMap(Self.antigravityAccount)
         )
+    }
+
+    /// The signed-in user's `GetUserStatus` from the first port that answers it.
+    private func antigravityUserStatus(csrf: String, ports: [Int]) -> [String: Any]? {
+        let body = "{\"metadata\":{\"ideName\":\"antigravity\",\"locale\":\"en\"}}"
+        for p in ports {
+            let out = antigravityCurl(port: p, path: "GetUserStatus", body: body, csrf: csrf)
+            if let data = out.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let userStatus = json["userStatus"] as? [String: Any] {
+                return userStatus
+            }
+        }
+        return nil
+    }
+
+    /// The login and plan from `GetUserStatus`: `userTier.name` ("Google AI Pro") and `email`.
+    static func antigravityAccount(_ userStatus: [String: Any]) -> AccountInfo? {
+        let email = userStatus["email"] as? String
+        let plan = AccountInfo.antigravityPlan((userStatus["userTier"] as? [String: Any])?["name"] as? String)
+        guard email != nil || plan != nil else { return nil }
+        return AccountInfo(plan: plan, email: email, id: email)
     }
 
     /// Google One AI credit balance from Antigravity's GetUserStatus (`userTier.availableCredits`),
     /// shown alongside the quota rows. `creditAmount`/`minimumCreditAmountForUsage` are JSON strings.
-    private func antigravityCreditRow(csrf: String, ports: [Int]) -> ModelStatus? {
-        let body = "{\"metadata\":{\"ideName\":\"antigravity\",\"locale\":\"en\"}}"
+    private func antigravityCreditRow(_ userStatus: [String: Any]) -> ModelStatus? {
         func num(_ raw: Any?) -> Double? { (raw as? String).flatMap(Double.init) ?? doubleValue(raw) }
-        for p in ports {
-            let out = antigravityCurl(port: p, path: "GetUserStatus", body: body, csrf: csrf)
-            guard let data = out.data(using: .utf8),
-                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let userStatus = json["userStatus"] as? [String: Any],
-                  let tier = userStatus["userTier"] as? [String: Any],
-                  let credits = tier["availableCredits"] as? [[String: Any]], !credits.isEmpty else {
-                continue
-            }
-            let one = credits.first { ($0["creditType"] as? String)?.contains("GOOGLE_ONE") == true } ?? credits[0]
-            guard let amount = num(one["creditAmount"]) else { return nil }
-            let minimum = num(one["minimumCreditAmountForUsage"]) ?? 0
-            return ModelStatus(name: antigravityCreditLabel(one["creditType"] as? String),
-                               remainingPercent: 0, resetAt: nil,
-                               valueText: String(Int(amount)), isLow: amount < minimum, symbol: "dollarsign.circle")
-        }
-        return nil
+        guard let tier = userStatus["userTier"] as? [String: Any],
+              let credits = tier["availableCredits"] as? [[String: Any]], !credits.isEmpty else { return nil }
+        let one = credits.first { ($0["creditType"] as? String)?.contains("GOOGLE_ONE") == true } ?? credits[0]
+        guard let amount = num(one["creditAmount"]) else { return nil }
+        let minimum = num(one["minimumCreditAmountForUsage"]) ?? 0
+        return ModelStatus(name: antigravityCreditLabel(one["creditType"] as? String),
+                           remainingPercent: 0, resetAt: nil,
+                           valueText: String(Int(amount)), isLow: amount < minimum, symbol: "dollarsign.circle")
     }
 
     /// Label for the credit row. Google One is the only type seen in the wild, so it gets the
@@ -263,7 +283,7 @@ extension LiveUsageDataSource {
     }
 
     /// Flatten `groups[].buckets[]` into one row per (group × window), ordered 5h then
-    /// weekly within each group: Gemini · 5h, Gemini · Weekly, Claude/GPT · 5h, Claude/GPT · Weekly.
+    /// weekly within each group: Gemini · 5h, Gemini · Weekly, Claude · 5h, Claude · Weekly.
     func antigravityQuotaSummaryRows(groups: [[String: Any]]) -> [ModelStatus] {
         var rows: [ModelStatus] = []
         for group in groups {
@@ -305,8 +325,12 @@ extension LiveUsageDataSource {
 
     private func antigravityFamilyLabel(_ displayName: String) -> String {
         let lower = displayName.lowercased()
-        if lower.contains("gemini") { return "Gemini" }
-        if lower.contains("claude") || lower.contains("gpt") { return "Claude/GPT" }
+        // Only the shared group is "Gemini": a model with its own weekly ("Gemini 4 Argon") keeps its
+        // name, or its 0% weekly overwrites the shared one in the family merge.
+        if lower.replacingOccurrences(of: "models", with: "").trimmingCharacters(in: .whitespaces) == "gemini" {
+            return "Gemini"
+        }
+        if lower.contains("claude") || lower.contains("gpt") { return "Claude" }
         return displayName.isEmpty ? "Antigravity" : displayName
     }
 
@@ -324,7 +348,8 @@ extension LiveUsageDataSource {
             weeklyResetAt: nil,
             models: normalized,
             isAvailable: true,
-            statusNote: "local language server"
+            statusNote: "local language server",
+            account: (payload["userStatus"] as? [String: Any]).flatMap(Self.antigravityAccount)
         )
     }
 

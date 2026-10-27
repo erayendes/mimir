@@ -24,6 +24,37 @@ final class UsageStore: ObservableObject {
 
     private static let dismissedKey = "popover.dismissedUnavailable"
 
+    /// When each card's login was last renewed, so a card that stays grey (no network, say, where
+    /// renewing can't help) isn't renewed on every open.
+    private var lastRenewal: [String: Date] = [:]
+
+    /// Opening Mimir renews any grey Claude/Codex card's login itself — the CLI's own `doctor`, at
+    /// most every 10 minutes per card — and reads again, the logo spinning throughout. Claude
+    /// Desktop's card is another account's claude.ai session: there is no CLI login to renew for it.
+    private func renewStaleLogins(_ services: [ServiceStatus]) {
+        let now = Date()
+        let due = services.filter { s in
+            s.isStale && ["Claude", "Codex"].contains(s.providerTitle)
+                && s.name != LiveUsageDataSource.claudeDesktopCardName
+                && now.timeIntervalSince(lastRenewal[s.name] ?? .distantPast) >= 10 * 60
+        }
+        guard !due.isEmpty else { return }
+        let jobs = due.map { s -> (provider: String, dir: URL?) in
+            lastRenewal[s.name] = now
+            let extras = s.providerTitle == "Codex" ? ExtraAccount.codex : ExtraAccount.claude
+            return (s.providerTitle, extras.first { $0.name == s.name }?.dir)
+        }
+        isRefreshing = true
+        let source = source
+        Task {
+            await Task.detached(priority: .userInitiated) {
+                for job in jobs { source.renewLogin(provider: job.provider, dir: job.dir) }
+            }.value
+            isRefreshing = false
+            refresh(userInitiated: true)
+        }
+    }
+
     func dismissUnavailable(_ name: String) {
         guard dismissedUnavailable.insert(name).inserted else { return }
         UserDefaults.standard.set(Array(dismissedUnavailable), forKey: Self.dismissedKey)
@@ -46,6 +77,7 @@ final class UsageStore: ObservableObject {
             self.forgetRecoveredDismissals(result)
             self.services = result
             self.isRefreshing = false
+            if userInitiated { self.renewStaleLogins(result) }
         }
     }
 
@@ -117,32 +149,70 @@ struct LiveUsageDataSource {
     /// out also falls back to the snapshot, so a transient failure never empties a card.
     func fetchAll(skip: Set<String> = [], userInitiated: Bool = false) async -> [ServiceStatus] {
         let order = ["Antigravity", "Claude", "Codex"]
-        return await withTaskGroup(of: ServiceStatus.self) { group in
+        // A second config dir signed in to a login another card already reads is the same account:
+        // one card, not two. Read from local profiles only, so this costs no request.
+        let claudeMain = Self.claudeAccount(configFile: MimirStatusLineHook.claudeConfigFile)
+        let codexMain = codexAccount(home: nil)
+        let claudeExtras = Self.distinct(ExtraAccount.claude, seen: claudeMain?.id) {
+            Self.claudeAccount(configFile: $0.dir.appendingPathComponent(".claude.json"))
+        }
+        let codexExtras = Self.distinct(ExtraAccount.codex, seen: codexMain?.id) { codexAccount(home: $0.dir) }
+
+        return await withTaskGroup(of: [ServiceStatus].self) { group in
             group.addTask {
-                if skip.contains("Claude") { return self.snapshotOrFallback("Claude", iconName: "claude") }
-                return await withTimeout(seconds: 8) { await fetchClaude(userInitiated: userInitiated) }
-                    ?? self.snapshotOrFallback("Claude", iconName: "claude")
+                if skip.contains("Claude") { return [self.snapshotOrFallback("Claude", iconName: "claude").withAccount(claudeMain)] }
+                let cards = await withTimeout(seconds: 8) { await fetchClaudeCards(userInitiated: userInitiated) }
+                    ?? [self.snapshotOrFallback("Claude", iconName: "claude")]
+                return cards.map { $0.name == "Claude" ? $0.withAccount(claudeMain) : $0 }
             }
             group.addTask {
-                if skip.contains("Codex") { return self.snapshotOrFallback("Codex", iconName: "codex") }
-                return await withTimeout(seconds: 8) { await fetchCodex() }
-                    ?? self.snapshotOrFallback("Codex", iconName: "codex")
+                if skip.contains("Codex") { return [self.snapshotOrFallback("Codex", iconName: "codex").withAccount(codexMain)] }
+                return [(await withTimeout(seconds: 8) { await fetchCodex() }
+                    ?? self.snapshotOrFallback("Codex", iconName: "codex")).withAccount(codexMain)]
+            }
+            // Second logins (`~/.claude-work`, `~/.codex-work`): one card each, only when the dir exists.
+            for (extra, account) in claudeExtras {
+                group.addTask {
+                    [(await withTimeout(seconds: 8) {
+                        await fetchClaudeExtraAccount(name: extra.name, dir: extra.dir, userInitiated: userInitiated,
+                                                     accountID: account?.id)
+                    } ?? self.snapshotOrFallback(extra.name, iconName: "claude")).withAccount(account)]
+                }
+            }
+            for (extra, account) in codexExtras {
+                group.addTask {
+                    if skip.contains(extra.name) { return [self.snapshotOrFallback(extra.name, iconName: "codex").withAccount(account)] }
+                    return [(await withTimeout(seconds: 8) { await fetchCodex(name: extra.name, home: extra.dir) }
+                        ?? self.snapshotOrFallback(extra.name, iconName: "codex")).withAccount(account)]
+                }
             }
             group.addTask {
-                if skip.contains("Antigravity") { return self.snapshotOrFallback("Antigravity", iconName: "antigravity").withInfoText(Self.antigravityInfo) }
+                if skip.contains("Antigravity") { return [self.snapshotOrFallback("Antigravity", iconName: "antigravity").withInfoText(Self.antigravityInfo)] }
                 let status = await withTimeout(seconds: 8) { await fetchAntigravity() }
                     ?? self.snapshotOrFallback("Antigravity", iconName: "antigravity")
-                return status.withInfoText(Self.antigravityInfo)
+                return [status.withInfoText(Self.antigravityInfo)]
             }
 
             var out: [ServiceStatus] = []
-            for await item in group {
-                out.append(item)
+            for await items in group {
+                out.append(contentsOf: items)
             }
             return out.sorted { order.firstIndex(of: $0.name) ?? 99 < order.firstIndex(of: $1.name) ?? 99 }
         }
     }
 
+    /// Second logins paired with their account, dropping any whose login a card already reads
+    /// (`seen` is the main card's) or an earlier dir already holds. A dir whose profile can't be
+    /// read is kept — better a card too many than a login silently missing.
+    static func distinct(_ extras: [ExtraAccount], seen main: String?,
+                         account: (ExtraAccount) -> AccountInfo?) -> [(ExtraAccount, AccountInfo?)] {
+        var seen = Set([main].compactMap { $0 })
+        return extras.compactMap { extra in
+            let info = account(extra)
+            if let id = info?.id, !seen.insert(id).inserted { return nil }
+            return (extra, info)
+        }
+    }
 
     func remainingPercent(fromUsed used: Double) -> Int {
         max(0, min(100, Int((100 - used).rounded())))
@@ -185,12 +255,21 @@ struct LiveUsageDataSource {
         // mislabels a longer window (ChatGPT Go's ~30-day one) and rolls a lapsed reset forward by
         // the wrong step.
         if let s = status.weeklyWindowSeconds { payload["weeklyWindowSeconds"] = s }
+        // Which login the numbers belong to, so a card shown from its snapshot still names it.
+        if let plan = status.account?.plan { payload["plan"] = plan }
+        if let email = status.account?.email { payload["email"] = email }
         if !status.models.isEmpty {
             payload["models"] = status.models.map { m -> [String: Any] in
                 var dict: [String: Any] = ["name": m.name, "remainingPercent": m.remainingPercent]
                 if let reset = m.resetAt { dict["resetAt"] = iso.string(from: reset) }
                 if let valueText = m.valueText { dict["valueText"] = valueText }
                 if let w = m.window { dict["window"] = (w == .weekly) ? "weekly" : "session" }
+                // Without these a restored card loses its grouping: renewal passes fall out of their
+                // chip and a plan's extra quota reads as a single-model limit.
+                if let g = m.groupLabel { dict["groupLabel"] = g }
+                if let sym = m.symbol { dict["symbol"] = sym }
+                if let c = m.caption { dict["caption"] = c }
+                if m.isLow { dict["isLow"] = true }
                 return dict
             }
         }
@@ -264,7 +343,9 @@ struct LiveUsageDataSource {
             default: nil
             }
             return ModelStatus(name: name, remainingPercent: percent, resetAt: reset,
-                               valueText: dict["valueText"] as? String, window: window)
+                               valueText: dict["valueText"] as? String, isLow: dict["isLow"] as? Bool ?? false,
+                               window: window, caption: dict["caption"] as? String,
+                               symbol: dict["symbol"] as? String, groupLabel: dict["groupLabel"] as? String)
         }
         let sessionReset = (root["sessionResetAt"] as? String).flatMap { parseISO8601($0) }
         let weeklyReset = (root["weeklyResetAt"] as? String).flatMap { parseISO8601($0) }
@@ -275,6 +356,8 @@ struct LiveUsageDataSource {
         let weeklyWindow = (root["weeklyWindowSeconds"] as? NSNumber)
             .map(\.doubleValue)
             .flatMap { $0.isFinite && $0 > 6 * 3600 && $0 <= 366 * 86_400 ? $0 : nil }
+        let plan = root["plan"] as? String, email = root["email"] as? String
+        let account = plan == nil && email == nil ? nil : AccountInfo(plan: plan, email: email)
 
         // Live source unreachable long enough (>4.5 h — just under the 5-hour session window, beyond
         // which the last-known session reading is from a window that has already rotated, so it's
@@ -298,7 +381,7 @@ struct LiveUsageDataSource {
                 weeklyRemainingPercent: root["weeklyRemainingPercent"] as? Int,
                 weeklyWindowSeconds: weeklyWindow,
                 models: allModels, isAvailable: false, statusNote: staleNote,
-                isStale: true, dataUnavailable: true)
+                isStale: true, dataUnavailable: true, account: account)
         }
 
         return staleClassifiedCard(
@@ -306,7 +389,8 @@ struct LiveUsageDataSource {
             sessionPct: root["sessionRemainingPercent"] as? Int, sessionReset: sessionReset,
             weeklyPct: root["weeklyRemainingPercent"] as? Int, weeklyReset: weeklyReset,
             weeklyWindowSeconds: weeklyWindow,
-            models: allModels, freshNote: freshNote, staleNote: staleNote)
+            models: allModels, freshNote: freshNote, staleNote: staleNote)?
+            .withAccount(account)
     }
 
     /// Standard reset periods for the quota windows all three providers expose: a 5-hour session and a
@@ -358,7 +442,9 @@ struct LiveUsageDataSource {
             if m.valueText != nil { return (m, true) }
             let live = m.resetAt.map { now < $0 } ?? true
             if live { return (m, true) }
-            return (ModelStatus(name: m.name, remainingPercent: 100, resetAt: rollForward(m.resetAt, weeklyPeriod)), false)
+            let period = m.window == .session ? Self.sessionResetPeriod : weeklyPeriod
+            return (ModelStatus(name: m.name, remainingPercent: 100, resetAt: rollForward(m.resetAt, period),
+                                window: m.window, groupLabel: m.groupLabel), false)
         }
 
         let anyLive = s.live || w.live || rows.contains { $0.live }
@@ -390,7 +476,8 @@ struct LiveUsageDataSource {
     /// skipped (cooldown) or times out, so the card shows stale data instead of disappearing.
     func snapshotOrFallback(_ name: String, iconName: String) -> ServiceStatus {
         loadSnapshot(for: name, iconName: iconName)
-            ?? Self.fallbackServices().first { $0.name == name }!
+            ?? Self.fallbackServices().first { $0.name == name }
+            ?? unavailableService(name: name, iconName: iconName, models: [])
     }
 
 
@@ -499,14 +586,28 @@ struct LiveUsageDataSource {
         return ns.substring(with: m.range(at: 1))
     }
 
-    func runShell(_ script: String) -> String {
-        runCommand("/bin/zsh", ["-lc", script])
+    /// Mimir never refreshes a CLI's token itself — Claude Code's and Codex's refresh tokens are
+    /// single-use, and rotating one would log the CLI out. Their own `doctor` does: its auth check
+    /// renews an expired login and stores it where the CLI reads it (Codex's `auth.json`, Claude
+    /// Code's keychain item), so nothing is left holding the old token. Only when Mimir is opened,
+    /// never on the timer. `dir` is a second login's config dir; nil is the main one.
+    func renewLogin(provider: String, dir: URL?) {
+        let (tool, variable) = provider == "Codex" ? ("codex", "CODEX_HOME") : ("claude", "CLAUDE_CONFIG_DIR")
+        let env = dir.map { "\(variable)='\($0.path.replacingOccurrences(of: "'", with: "'\\''"))' " } ?? ""
+        // `exec`, so the time limit stops doctor itself rather than only its shell. Without a limit
+        // a doctor stuck on the network held `isRefreshing`, and no card refreshed until a relaunch.
+        _ = runShell("\(env)exec \(tool) doctor </dev/null >/dev/null 2>&1", timeout: 20)
+    }
+
+    func runShell(_ script: String, timeout: TimeInterval? = nil) -> String {
+        runCommand("/bin/zsh", ["-lc", script], timeout: timeout)
     }
 
     /// `stdin`, when set, is written to the process's standard input. Used to feed
     /// secrets (e.g. a curl `--config -` block) without exposing them in `arguments`,
     /// which are world-readable via the process table (`ps aux`).
-    func runCommand(_ launchPath: String, _ args: [String], stdin: String? = nil) -> String {
+    func runCommand(_ launchPath: String, _ args: [String], stdin: String? = nil,
+                    timeout: TimeInterval? = nil) -> String {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: launchPath)
         p.arguments = args
@@ -520,6 +621,11 @@ struct LiveUsageDataSource {
             if let input, let stdin {
                 input.fileHandleForWriting.write(Data(stdin.utf8))
                 input.fileHandleForWriting.closeFile()
+            }
+            if let timeout {
+                let deadline = Date().addingTimeInterval(timeout)
+                while p.isRunning && Date() < deadline { Thread.sleep(forTimeInterval: 0.1) }
+                if p.isRunning { p.terminate() }
             }
             p.waitUntilExit()
             let data = out.fileHandleForReading.readDataToEndOfFile()

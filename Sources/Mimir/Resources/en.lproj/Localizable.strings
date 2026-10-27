@@ -57,6 +57,8 @@
 /* Status notes */
 "out of date" = "out of date";
 "token expired — open Claude Code" = "token expired — open Claude Code";
+"claude token missing" = "claude token missing";
+"open Mimir to refresh Claude" = "open Mimir to refresh Claude";
 "open Antigravity or Cockpit" = "open Antigravity or Cockpit";
 "no local source" = "no local source";
 
@@ -94,6 +96,7 @@
 "couldn't write to ~/.claude" = "couldn't write to ~/.claude";
 "%@ session" = "%@ session";
 "Renewal credit" = "Renewal credit";
+"Weekly limit for this model" = "Weekly limit for this model";
 "⏳ Reset credit expires in %@" = "⏳ Reset credit expires in %@";
 "You have %@ waiting. Spend one now and it clears a used-up window — unused, it just lapses." = "You have %@ waiting. Spend one now and it clears a used-up window — unused, it just lapses.";
 "Cloud session credits" = "Cloud session credits";

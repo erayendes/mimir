@@ -34,6 +34,8 @@ private struct FlatMetric: Identifiable {
     let unavailable: Bool      // live source unreachable too long → render the empty state
     let isStale: Bool          // last-known reading → dim + tap-to-refresh (host renews the token)
     let metric: WindowMetric
+    let label: String          // what the header reads: "Claude" for "Claude Work", "Gemini" for a family
+    let plan: String?
 }
 
 /// The app rewrites the payload at least every few minutes while it runs (see `WidgetBridge`), so
@@ -54,11 +56,11 @@ private extension WindowMetric {
 
 private extension WidgetPayload {
     /// All 5-hour metrics across available providers, in display order (Claude, Codex, then
-    /// Antigravity's Gemini + Claude/GPT), as of `now`. Small picks one out of this.
+    /// Antigravity's Gemini + Claude), as of `now`. Small picks one out of this.
     func fiveHourFlat(at now: Date) -> [FlatMetric] {
         let frozen = now.timeIntervalSince(generatedAt) > payloadMaxAge
         return providers.filter(\.isAvailable)
-            .flatMap { p in p.fiveHour.map { FlatMetric(iconName: p.iconName, providerName: p.name, unavailable: p.unavailable, isStale: p.isStale || frozen, metric: $0.live(at: now)) } }
+            .flatMap { p in p.fiveHour.map { FlatMetric(iconName: p.iconName, providerName: p.name, unavailable: p.unavailable, isStale: p.isStale || frozen, metric: $0.live(at: now), label: p.displayLabel($0), plan: p.plan) } }
     }
 }
 
@@ -92,7 +94,8 @@ struct DetailedWidgetView: View {
     /// Small and Medium show a single model: the one chosen in the widget config, else the most
     /// critical (lowest remaining) one. Caller guarantees `flat` is non-empty.
     private func smallMetric(_ flat: [FlatMetric]) -> FlatMetric {
-        if let label = entry.selectedLabel, let chosen = flat.first(where: { $0.metric.label == label }) {
+        if let id = entry.selectedLabel,
+           let chosen = flat.first(where: { ProviderPayload.option(id, matches: $0.providerName, label: $0.metric.label) }) {
             return chosen
         }
         return flat.min { $0.metric.percent < $1.metric.percent } ?? flat[0]
@@ -110,6 +113,24 @@ private struct Pill: View {
             .foregroundStyle(Tok.brand)
             .padding(.horizontal, 6).padding(.vertical, 2)
             .background(Capsule().fill(Tok.badgeBg))
+    }
+}
+
+/// The header's left side: logo, name and plan in a quieter tone — as in the popover. The e-mail
+/// stays out: the face has no room for it, and the widget's model picker already names the login.
+private struct MetricHeader: View {
+    let metric: FlatMetric
+    var body: some View {
+        HStack(spacing: 6) {
+            BrandMark(iconName: metric.iconName, size: 14)
+            Text(metric.label).font(.system(size: 13)).foregroundStyle(Tok.secondary).lineLimit(1)
+                .minimumScaleFactor(0.8)
+            if let plan = metric.plan {
+                Text(plan).font(.system(size: 13)).foregroundStyle(Tok.tertiary).lineLimit(1).fixedSize()
+            }
+            if metric.metric.isWeekly { Pill(windowPill(metric.metric)) }
+        }
+        .layoutPriority(1)
     }
 }
 
@@ -143,19 +164,16 @@ private struct SmallView: View {
         guard !m.isWeekly, let w = m.weeklyPercent else { return nil }
         return (w, m.weeklyResetAt)
     }
-    // A spent weekly quota locks the model: grey the face so a full session can't read as usable.
-    private var faceColor: Color { weekly?.percent == 0 ? Tok.passive : statusColor(m.percent) }
+    // A spent weekly quota locks the model, and a last-known reading isn't live: grey the face
+    // either way, so neither can read as usable.
+    private var faceColor: Color { metric.isStale || weekly?.percent == 0 ? Tok.passive : statusColor(m.percent) }
 
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .topLeading) {
                 FaceWash(color: faceColor, percent: m.percent, width: geo.size.width)
                 VStack(alignment: .leading, spacing: 0) {
-                    HStack(spacing: 6) {
-                        BrandMark(iconName: metric.iconName, size: 14)
-                        Text(m.label).font(.system(size: 13)).foregroundStyle(Tok.secondary).lineLimit(1)
-                        if m.isWeekly { Pill(windowPill(m)) }
-                    }
+                    MetricHeader(metric: metric)
                     if metric.unavailable {
                         // Live source unreachable too long → an actionable "couldn't fetch" state (no number).
                         Spacer(minLength: 0)
@@ -178,7 +196,7 @@ private struct SmallView: View {
                             }
                             Spacer(minLength: 0)
                             if let weekly {
-                                WeeklyBar(percent: weekly.percent, resetAt: weekly.resetAt, now: now, height: 18, compact: true)
+                                WeeklyBar(percent: weekly.percent, resetAt: weekly.resetAt, now: now, height: 18, compact: true, passive: metric.isStale)
                             }
                         }
                         .opacity(metric.isStale ? 0.55 : 1)
@@ -239,9 +257,13 @@ private struct ResetColumn: View {
     let fallback: TimeInterval
     var compact = false
     var body: some View {
-        VStack(alignment: .trailing, spacing: 4) {
-            IconText(symbol: "clock", text: Reset.clock(resetAt, now: now, weekday: !compact), size: 11)
+        // The clock line keeps its place before a session has started (no reset time yet), so the
+        // countdown sits on the same line on every face.
+        let clock = Reset.clock(resetAt, now: now, weekday: !compact)
+        return VStack(alignment: .trailing, spacing: 4) {
+            IconText(symbol: "clock", text: clock ?? "00:00", size: 11)
                 .foregroundStyle(Tok.tertiary)
+                .opacity(clock == nil ? 0 : 1)
             IconText(symbol: "gauge.with.needle",
                      text: Reset.remaining(resetAt, now: now, fallbackWindow: fallback), size: 11)
                 .foregroundStyle(Tok.tertiary)
@@ -259,6 +281,8 @@ private struct WeeklyBar: View {
     let now: Date
     var height: CGFloat = 22
     var compact = false
+    /// Grey instead of the status colour: the reading is last-known, not live.
+    var passive = false
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             GeometryReader { geo in
@@ -267,7 +291,7 @@ private struct WeeklyBar: View {
                 ZStack(alignment: .leading) {
                     Capsule().fill(Tok.track)
                     ZStack(alignment: .leading) {
-                        Capsule().fill(statusColor(percent))
+                        Capsule().fill(passive ? Tok.passive : statusColor(percent))
                         if barW >= 48 {
                             // Full colour: painted white, which reads on every status colour. The
                             // vibrant/accented modes flatten colours to white, so there the label is
@@ -312,8 +336,9 @@ private struct MediumView: View {
         guard !m.isWeekly, let w = m.weeklyPercent else { return nil }
         return (w, m.weeklyResetAt)
     }
-    // A spent weekly quota locks the model: grey the face so a full session can't read as usable.
-    private var faceColor: Color { weekly?.percent == 0 ? Tok.passive : statusColor(m.percent) }
+    // A spent weekly quota locks the model, and a last-known reading isn't live: grey the face
+    // either way, so neither can read as usable.
+    private var faceColor: Color { metric.isStale || weekly?.percent == 0 ? Tok.passive : statusColor(m.percent) }
 
     var body: some View {
         GeometryReader { geo in
@@ -323,13 +348,9 @@ private struct MediumView: View {
                 // Header and the top-right block share one row so the clock line's top sits on the
                 // header's top; the number centres on the two info lines beside it.
                 HStack(alignment: .top, spacing: 8) {
-                    HStack(spacing: 6) {
-                        BrandMark(iconName: metric.iconName, size: 14)
-                        Text(m.label).font(.system(size: 13)).foregroundStyle(Tok.secondary).lineLimit(1)
-                        // The face is the session by default; when a long window has taken its place
-                        // (Codex Go's 30d), say so — otherwise the 5s needs no label.
-                        if m.isWeekly { Pill(windowPill(m)) }
-                    }
+                    // The face is the session by default; when a long window has taken its place
+                    // (Codex Go's 30d), the header says so — otherwise the 5s needs no label.
+                    MetricHeader(metric: metric)
                     Spacer(minLength: 8)
                     if !metric.unavailable {
                         HStack(alignment: .top, spacing: 10) {
@@ -352,7 +373,7 @@ private struct MediumView: View {
                     }
                     .padding(16).padding(.top, 34)
                 } else if let weekly {
-                    WeeklyBar(percent: weekly.percent, resetAt: weekly.resetAt, now: now, height: 22)
+                    WeeklyBar(percent: weekly.percent, resetAt: weekly.resetAt, now: now, height: 22, passive: metric.isStale)
                         .padding(.horizontal, 16)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                         .padding(.bottom, 12)

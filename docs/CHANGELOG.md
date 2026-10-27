@@ -9,6 +9,62 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [3.1] - 2026-10-27
+
+If you have more than one account for the same model, you now see each one on its own card and widget. That's why every card also shows the model's plan. Click the plan and you'll see which account it belongs to.
+
+Some plans turned out to have no weekly quota. Mimir showed them as full; that's fixed now.
+
+If a card couldn't get its data, it turns grey. When the popover opens, it refreshes the data right away. [Technologiaaaa](https://www.youtube.com/shorts/ZrgFhEojipE)
+
+Claude's Fable and Antigravity's Argon only have a weekly quota, so they show up as a coloured row under the card.
+
+### [3.1-beta.5] - 2026-10-24
+
+When choosing a widget's model, Antigravity's Claude now says Antigravity under it, so it's not confused with Claude Code.
+
+If your Codex plan has an extra quota (like Luna Reserve), the widget and the menu bar show Codex's own quota again, not the extra one.
+
+For a second Claude account used only with `claude -p`, Mimir asks for the keychain password at most once per token when you open it, instead of after every renewal.
+
+### [3.1-beta.4] - 2026-10-22
+
+If you have more than one account for the same model, you now see each one on its own card and widget. That's why every card also shows the model's plan. Click the plan and you'll see which account it belongs to.
+
+Some plans turned out to have no weekly quota. Mimir showed them as full; that's fixed now.
+
+If a card couldn't get its data, it turns grey. When the popover opens, it refreshes the data right away. [Technologiaaaa](https://www.youtube.com/shorts/ZrgFhEojipE)
+
+Claude's Fable and Antigravity's Argon only have a weekly quota, so they show up as a coloured row under the card.
+
+### [3.1-beta.3] - 2026-10-20
+
+If you have more than one account for the same model, you now see each one on its own card and widget. That's why every card also shows the model's plan. Click the plan and you'll see which account it belongs to.
+
+Some plans turned out to have no weekly quota. Mimir showed them as full; that's fixed now.
+
+If a card couldn't get its data, it turns grey. Click it and it refreshes itself. [Technologiaaaa](https://www.youtube.com/shorts/ZrgFhEojipE)
+
+Claude's Fable and Antigravity's Argon only have a weekly quota, so they show up as a coloured row under the card.
+
+The Gemini card looked empty once Argon's quota ran out; that's fixed too.
+
+### [3.1-beta.2] - 2026-10-13
+
+- **No more Google login page after a restart.** Right after boot, before the network was up, Mimir could make Antigravity's CLI open Safari on Google's sign-in page. It now waits until the network is ready.
+- Antigravity's second quota reads Claude, not Claude/GPT. GPT is being dropped from Antigravity.
+- **An old reading looks old.** A card Mimir can't refresh turns grey instead of showing days-old numbers in green. That includes a Codex login whose token has expired, which used to pass as live.
+- **Click a grey card to sign back in.** For Claude and Codex, Mimir has the CLI renew its own expired login, then reads the card again.
+
+### [3.1-beta.1] - 2026-10-10
+
+I hope you managed to get into the Claude Startup program, because this version is all about showing more than one account of the same LLM.
+
+- **More than one account.** If you've set up a second Claude in the CLI, it gets its own card in both the popover and the widget. The same goes for Codex.
+- **Plan info.** I added the plan (Claude Team, Codex Plus) next to the name. Click the plan to see which account it is.
+- **Weekly limit.** Plans without one no longer show a full weekly bar.
+- The Codex card reads Codex, not ChatGPT.
+
 ### [3.0] - 2026-10-05
 
 **You loved the widgets. You're going to love this.**
@@ -610,6 +666,62 @@ Bu projedeki tüm önemli değişiklikler bu dosyada belgelenecektir.
 
 Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
+
+### [3.1] - 2026-10-27
+
+Aynı modele ait birden fazla hesabınız varsa, artık onları da ayrı kartlarda ve widget'larda görebilirsiniz. Bu yüzden her kartta modelin planı da yazıyor. Hatta plana tıklarsanız hangi hesaba ait olduğunu da görebilirsiniz.
+
+Bazı planlarda haftalık kota yokmuş. Mimir bunları dolu gösteriyordu ama artık düzeldi.
+
+Eğer bir kart veri alamadıysa gri görünüyor. Popover açıldığında hemen bilgileri tazeliyor. [Technologiaaaa](https://www.youtube.com/shorts/ZrgFhEojipE)
+
+Claude'un Fable'ı ve Antigravity'nin Argon'u sadece haftalık kotaları olduğu için kartın altında renkli bir satır olarak görünüyor.
+
+### [3.1-beta.5] - 2026-10-24
+
+Widget'ın modelini seçerken Antigravity'nin Claude'unun altında artık Antigravity yazıyor, Claude Code ile karışmıyor.
+
+Codex planınızda ek bir kota varsa (Luna Reserve gibi), widget ve menü çubuğu yine Codex'in kendi kotasını gösteriyor, ek kotayı değil.
+
+Sadece `claude -p` ile kullanılan ikinci bir Claude hesabı için Mimir, açıldığında anahtar zinciri parolasını her yenilemeden sonra değil, token başına en fazla bir kez soruyor.
+
+### [3.1-beta.4] - 2026-10-22
+
+Aynı modele ait birden fazla hesabınız varsa, artık onları da ayrı kartlarda ve widget'larda görebilirsiniz. Bu yüzden her kartta modelin planı da yazıyor. Hatta plana tıklarsanız hangi hesaba ait olduğunu da görebilirsiniz.
+
+Bazı planlarda haftalık kota yokmuş. Mimir bunları dolu gösteriyordu ama artık düzeldi.
+
+Eğer bir kart veri alamadıysa gri görünüyor. Popover açıldığında hemen bilgileri tazeliyor. [Technologiaaaa](https://www.youtube.com/shorts/ZrgFhEojipE)
+
+Claude'un Fable'ı ve Antigravity'nin Argon'u sadece haftalık kotaları olduğu için kartın altında renkli bir satır olarak görünüyor.
+
+### [3.1-beta.3] - 2026-10-20
+
+Aynı modele ait birden fazla hesabınız varsa, artık onları da ayrı kartlarda ve widget'larda görebilirsiniz. Bu yüzden her kartta modelin planı da yazıyor. Hatta plana tıklarsanız hangi hesaba ait olduğunu da görebilirsiniz.
+
+Bazı planlarda haftalık kota yokmuş. Mimir bunları dolu gösteriyordu ama artık düzeldi.
+
+Eğer bir kart veri alamadıysa gri görünüyor. Üzerine tıklarsanız kendini yeniliyor. [Technologiaaaa](https://www.youtube.com/shorts/ZrgFhEojipE)
+
+Claude'un Fable'ı ve Antigravity'nin Argon'u sadece haftalık kotaları olduğu için kartın altında renkli bir satır olarak görünüyor.
+
+Gemini kartı Argon'un kotası bitince boş görünüyordu, o da düzeldi.
+
+### [3.1-beta.2] - 2026-10-13
+
+- **Yeniden başlatınca Google giriş sayfası açılmıyor.** Mac açılır açılmaz, ağ daha bağlanmadan Mimir, Antigravity CLI'ının Safari'de Google giriş sayfasını açmasına yol açabiliyordu. Artık ağ hazır olana kadar bekliyor.
+- Antigravity'nin ikinci kotasında Claude/GPT değil Claude yazıyor. GPT, Antigravity'den kaldırılıyor.
+- **Eski veri eski görünüyor.** Mimir'in güncelleyemediği kart, günler önceki sayıları yeşille göstermek yerine griye dönüyor. Süresi dolmuş Codex girişi de buna dahil; önceden canlı gibi görünüyordu.
+- **Gri karta tıklayınca oturum yenileniyor.** Claude ve Codex'te Mimir, CLI'ın kendi süresi dolmuş girişini yenilemesini sağlıyor, sonra kartı yeniden okuyor.
+
+### [3.1-beta.1] - 2026-10-10
+
+Umarım Claude Startup programına katılma fırsatını yakalamışsınızdır. Çünkü bu versiyonda birden fazla aynı LLM hesabını göstermek üzerine çalışıyoruz.
+
+- **Birden fazla hesap.** Eğer CLI'da ikinci bir Claude kurduysanız, hem popover'da hem widget'ta kendi kartını alıyor. Bu Codex için de geçerli.
+- **Plan bilgisi.** Model adının yanına plan bilgisini (Claude Team, Codex Plus) ekledim. Plana tıklayınca hangi hesabınız olduğu görünüyor.
+- **Haftalık limit.** Olmayan planlarda artık dolu bir haftalık çubuk görünmüyor.
+- Codex kartında ChatGPT değil Codex yazıyor.
 
 ### [3.0] - 2026-10-05
 

@@ -37,7 +37,7 @@ final class AntigravityProviderTests: XCTestCase {
         // If some account/region *does* return a flat "window" field but it disagrees with the
         // bucket's own id, the id must win — it's the more specific, more widely-agreed-upon signal.
         let groups: [[String: Any]] = [[
-            "displayName": "Claude/GPT",
+            "displayName": "Claude",
             "buckets": [
                 bucket("3p-5h", fraction: 0.9, window: "weekly"),
                 bucket("3p-weekly", fraction: 0.5, window: "weekly"),
@@ -118,8 +118,21 @@ final class AntigravityCLIShapeTests: XCTestCase {
 
     func testBothGroupsSurviveAsSeparateFamilies() {
         let rows = ds.antigravityQuotaSummaryRows(groups: cliGroups)
-        XCTAssertEqual(Set(rows.map(\.name)).count, 2)
+        XCTAssertEqual(Set(rows.map(\.name)), ["Gemini", "Claude"])
         XCTAssertEqual(rows.filter { $0.window == .weekly }.count, 2)
         XCTAssertEqual(rows.filter { $0.window == .session }.count, 2)
+    }
+
+    /// A model with a weekly of its own ("Gemini 4 Argon", agy 2026-10-20) is its own family: folded
+    /// into "Gemini", its 0% weekly replaced the shared group's 77% and greyed the Gemini card.
+    func testModelOwnWeeklyStaysItsOwnFamily() {
+        let argon: [String: Any] = [
+            "name": "Gemini 4 Argon",
+            "buckets": [["id": "argon-weekly", "name": "Gemini 4 Argon Weekly Limit", "window": "weekly",
+                         "remaining_fraction": 0, "reset_time": "2026-10-25T09:56:13Z"]],
+        ]
+        let rows = ds.antigravityQuotaSummaryRows(groups: cliGroups + [argon])
+        XCTAssertEqual(rows.filter { $0.name == "Gemini" && $0.window == .weekly }.map(\.remainingPercent), [99])
+        XCTAssertEqual(rows.first { $0.name == "Gemini 4 Argon" }?.window, .weekly)
     }
 }

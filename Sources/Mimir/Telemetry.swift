@@ -35,7 +35,8 @@ enum Telemetry {
     /// provider added later becomes another value of that dimension: neither this function nor any
     /// saved query has to change.
     static func activeProviderNames(from services: [ServiceStatus]) -> [String] {
-        services.filter { $0.isAvailable || $0.isStale }.map(\.name)
+        // Known providers only: a second login's name comes from the user's own dir ("Codex Work").
+        services.filter { ($0.isAvailable || $0.isStale) && serviceDisplayOrder.contains($0.name) }.map(\.name)
     }
 
     /// Count of placed widgets per supported family (from WidgetCenter family raw names).

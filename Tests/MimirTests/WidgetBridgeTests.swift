@@ -31,15 +31,15 @@ final class WidgetBridgeTests: XCTestCase {
             sessionResetAt: now, weeklyResetAt: nil,
             sessionRemainingPercent: nil, weeklyRemainingPercent: nil,
             models: [ModelStatus(name: "Gemini", remainingPercent: 100, resetAt: now, window: .session),
-                     ModelStatus(name: "Claude/GPT", remainingPercent: 44, resetAt: now, window: .session),
+                     ModelStatus(name: "Claude", remainingPercent: 44, resetAt: now, window: .session),
                      ModelStatus(name: "Gemini", remainingPercent: 88, resetAt: now, window: .weekly)],
             isAvailable: true, statusNote: nil)
 
         let p = WidgetBridge.makePayload([ag], generatedAt: now).providers.first!
         // Only `.session` rows become 5h windows; `.weekly` rows are excluded.
-        XCTAssertEqual(p.fiveHour.map(\.label), ["Gemini", "Claude/GPT"])
+        XCTAssertEqual(p.fiveHour.map(\.label), ["Gemini", "Claude"])
         XCTAssertEqual(p.fiveHour.map(\.percent), [100, 44])
-        // Each session is paired to its own weekly by name: Gemini → 88; Claude/GPT has no weekly → nil.
+        // Each session is paired to its own weekly by name: Gemini → 88; Claude has no weekly → nil.
         XCTAssertEqual(p.fiveHour.map(\.weeklyPercent), [88, nil])
     }
 
@@ -151,5 +151,28 @@ final class WidgetBridgeTests: XCTestCase {
         // Unavailable flip inside the window → reload now (structural).
         XCTAssertTrue(WidgetBridge.shouldReload(previous: prov(50), next: prov(50, unavailable: true),
                                                 lastReload: now, now: now.addingTimeInterval(60), throttle: t))
+    }
+
+    /// Antigravity's "Claude" family and Claude Code's card share a label; the picker id tells them
+    /// apart, and an id saved before 3.1 (label only, or the old "Claude/GPT") still finds its window.
+    func testPickerIdSeparatesSameLabelAcrossProviders() {
+        let antigravity = ProviderPayload.optionID(provider: "Antigravity", label: "Claude")
+        XCTAssertTrue(ProviderPayload.option(antigravity, matches: "Antigravity", label: "Claude"))
+        XCTAssertFalse(ProviderPayload.option(antigravity, matches: "Claude", label: "Claude"))
+        XCTAssertTrue(ProviderPayload.option("Claude/GPT", matches: "Antigravity", label: "Claude"))
+        XCTAssertFalse(ProviderPayload.option("Claude/GPT", matches: "Claude", label: "Claude"))
+        XCTAssertTrue(ProviderPayload.option("Gemini", matches: "Antigravity", label: "Gemini"))
+    }
+
+    /// Codex's Luna Reserve carries a session row of its own; the widget still shows Codex's session.
+    func testExtraQuotaSessionDoesNotReplaceAccountSession() {
+        let codex = ServiceStatus(
+            name: "Codex", iconName: "codex",
+            sessionResetAt: now, weeklyResetAt: now, sessionRemainingPercent: 70, weeklyRemainingPercent: 40,
+            models: [ModelStatus(name: "Luna Reserve", remainingPercent: 10, resetAt: now, window: .session,
+                                 groupLabel: LiveUsageDataSource.codexExtraLimitGroup)],
+            isAvailable: true, statusNote: nil)
+        XCTAssertEqual(codex.sessionWindows.map(\.label), ["Codex"])
+        XCTAssertEqual(codex.sessionWindows.first?.sessionPercent, 70)
     }
 }

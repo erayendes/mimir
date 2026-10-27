@@ -903,7 +903,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         case .fiveHour:
             fireRefillIfDue(
                 key: key, bucket: bucket, requireDepleted: true,
-                title: String(format: String(localized: "🔋 %@ ready for a new sprint."), service.name),
+                title: String(format: String(localized: "🔋 %@ ready for a new sprint."), service.titleWithAccount),
                 body: String(localized: "Your 5-hour session is back to 100%. Pick up where you left off.")
             )
         case .weekly:
@@ -911,7 +911,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
                 key: key, bucket: bucket, requireDepleted: true,
                 title: String(format: isMonthly
                               ? String(localized: "🚀 %@ monthly quota refilled.")
-                              : String(localized: "🚀 %@ weekly quota refilled."), service.name),
+                              : String(localized: "🚀 %@ weekly quota refilled."), service.titleWithAccount),
                 body: isMonthly
                     ? String(localized: "Your monthly quota is back to 100%. Pick up where you left off.")
                     : String(localized: "Your weekly quota is back to 100%. Pick up where you left off.")
@@ -945,7 +945,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
             sendNotification(
                 identifier: key,
                 window: bucket,
-                title: String(format: String(localized: "🪫 %@ 5-hour quota running out — %d%%"), service.name, percent),
+                title: String(format: String(localized: "🪫 %@ 5-hour quota running out — %d%%"), service.titleWithAccount, percent),
                 body: body
             )
         case .weekly:
@@ -958,7 +958,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
                 window: bucket,
                 title: String(format: isMonthly
                               ? String(localized: "🚨 %@ monthly quota running out — %d%%")
-                              : String(localized: "🚨 %@ weekly quota running out — %d%%"), service.name, percent),
+                              : String(localized: "🚨 %@ weekly quota running out — %d%%"), service.titleWithAccount, percent),
                 body: body
             )
         }

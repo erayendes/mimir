@@ -30,7 +30,18 @@ enum DemoShot {
                   "iguana_necktie": ["limit_dollars": 250, "used_dollars": 60,
                                      "resets_at": iso(now.addingTimeInterval(40 * 86_400))],
               ]),
-            isAvailable: true, statusNote: "demo")
+            isAvailable: true, statusNote: "demo",
+            account: AccountInfo(plan: "Max", email: "you@example.com"))
+
+        // A second login of the same provider: same name, told apart by plan and e-mail.
+        let claudeWork = ServiceStatus(
+            name: "Claude Work", iconName: "claude",
+            sessionResetAt: now.addingTimeInterval(2 * 3600 + 5 * 60),
+            weeklyResetAt: nil,
+            // A Team seat without a weekly limit: session only.
+            sessionRemainingPercent: tight ? 22 : 64,
+            models: [], isAvailable: true, statusNote: "demo",
+            account: AccountInfo(plan: "Team", email: "name.surname@acme.com.tr"))
 
         let credits = LiveUsageDataSource().codexResetCreditRows(fromRoot: [
             "credits": [
@@ -47,7 +58,8 @@ enum DemoShot {
             weeklyWindowSeconds: 2_592_000,
             models: [ModelStatus(name: String(localized: "Credit balance"), remainingPercent: 0,
                                  resetAt: nil, valueText: "42 kredi", symbol: "dollarsign.circle")] + credits,
-            isAvailable: true, statusNote: "demo")
+            isAvailable: true, statusNote: "demo",
+            account: AccountInfo(plan: "Plus", email: "you@example.com"))
 
         // Antigravity carries per-family rows instead of account windows — and it's where the amber
         // and red bands show up in this render.
@@ -59,17 +71,21 @@ enum DemoShot {
                             resetAt: now.addingTimeInterval(2 * 3600 + 40 * 60), window: .session),
                 ModelStatus(name: "Gemini", remainingPercent: 44,
                             resetAt: now.addingTimeInterval(4 * 86_400), window: .weekly),
-                ModelStatus(name: "Claude/GPT", remainingPercent: 6,
+                ModelStatus(name: "Claude", remainingPercent: 6,
                             resetAt: now.addingTimeInterval(51 * 60), window: .session),
-                ModelStatus(name: "Claude/GPT", remainingPercent: 9,
+                ModelStatus(name: "Claude", remainingPercent: 9,
                             resetAt: now.addingTimeInterval(4 * 86_400), window: .weekly),
+                ModelStatus(name: "Gemini 4 Argon", remainingPercent: 0,
+                            resetAt: now.addingTimeInterval(4 * 86_400 + 18 * 3600), window: .weekly),
                 ModelStatus(name: String(localized: "AI credit"), remainingPercent: 0, resetAt: nil,
                             valueText: "1250", symbol: "dollarsign.circle"),
             ],
-            isAvailable: true, statusNote: "demo")
+            isAvailable: true, statusNote: "demo",
+            account: AccountInfo(plan: "Pro", email: "you@example.com"))
 
         let view = VStack(spacing: 11) {
             ServiceCard(service: claude, now: now)
+            ServiceCard(service: claudeWork, now: now)
             ServiceCard(service: codex, now: now)
             ServiceCard(service: antigravity, now: now)
         }

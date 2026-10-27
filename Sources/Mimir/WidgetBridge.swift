@@ -65,20 +65,23 @@ enum WidgetBridge {
     }
 
     private static func structuralSignature(_ providers: [ProviderPayload]?) -> [String] {
-        (providers ?? []).map { "\($0.name)|\($0.isAvailable)|\($0.unavailable)|\($0.isStale)" }
+        (providers ?? []).map { "\($0.name)|\($0.isAvailable)|\($0.unavailable)|\($0.isStale)|\($0.plan ?? "")|\($0.email ?? "")" }
     }
 
-    /// Built in `serviceDisplayOrder` so the widget rows match the popover and menu bar.
+    /// Built in display order so the widget rows match the popover and menu bar. A second login
+    /// ("Claude Work") rides along, so the widget's model picker offers it like any other.
     static func makePayload(_ services: [ServiceStatus], generatedAt: Date) -> WidgetPayload {
-        let providers = serviceDisplayOrder.compactMap { name -> ProviderPayload? in
-            guard let svc = services.first(where: { $0.name == name }) else { return nil }
-            return ProviderPayload(
+        let providers = services.sortedByDisplayOrder().map { svc in
+            ProviderPayload(
                 name: svc.name,
                 iconName: svc.iconName,
                 isAvailable: svc.isAvailable || svc.isStale,
                 fiveHour: fiveHourMetrics(svc),
                 unavailable: svc.dataUnavailable,
-                isStale: svc.isStale
+                isStale: svc.isStale,
+                title: svc.providerTitle,
+                plan: svc.account?.plan,
+                email: svc.account?.email
             )
         }
         return WidgetPayload(generatedAt: generatedAt, providers: providers)
