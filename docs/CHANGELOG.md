@@ -9,6 +9,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [3.1] - 2026-10-27
+
+If you have more than one account for the same model, you now see each one on its own card and widget. That's why every card also shows the model's plan. Click the plan and you'll see which account it belongs to.
+
+Some plans turned out to have no weekly quota. Mimir showed them as full; that's fixed now.
+
+If a card couldn't get its data, it turns grey. When the popover opens, it refreshes the data right away. [Technologiaaaa](https://www.youtube.com/shorts/ZrgFhEojipE)
+
+Claude's Fable and Antigravity's Argon only have a weekly quota, so they show up as a coloured row under the card.
+
 ### [3.1-beta.5] - 2026-10-24
 
 When choosing a widget's model, Antigravity's Claude now says Antigravity under it, so it's not confused with Claude Code.
@@ -656,6 +666,16 @@ Bu projedeki tüm önemli değişiklikler bu dosyada belgelenecektir.
 
 Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
+
+### [3.1] - 2026-10-27
+
+Aynı modele ait birden fazla hesabınız varsa, artık onları da ayrı kartlarda ve widget'larda görebilirsiniz. Bu yüzden her kartta modelin planı da yazıyor. Hatta plana tıklarsanız hangi hesaba ait olduğunu da görebilirsiniz.
+
+Bazı planlarda haftalık kota yokmuş. Mimir bunları dolu gösteriyordu ama artık düzeldi.
+
+Eğer bir kart veri alamadıysa gri görünüyor. Popover açıldığında hemen bilgileri tazeliyor. [Technologiaaaa](https://www.youtube.com/shorts/ZrgFhEojipE)
+
+Claude'un Fable'ı ve Antigravity'nin Argon'u sadece haftalık kotaları olduğu için kartın altında renkli bir satır olarak görünüyor.
 
 ### [3.1-beta.5] - 2026-10-24
 
