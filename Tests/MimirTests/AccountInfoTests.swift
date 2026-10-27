@@ -44,6 +44,10 @@ final class AccountInfoTests: XCTestCase {
     func testAnAnswerWithEveryWindowNullIsNoQuota() {
         XCTAssertFalse(LiveUsageDataSource.claudeHasQuota(["five_hour": NSNull(), "seven_day": NSNull(), "limits": []]))
         XCTAssertTrue(LiveUsageDataSource.claudeHasQuota(["five_hour": ["utilization": 12.0], "seven_day": NSNull()]))
+        // Spending alone is still something to show; a disabled one isn't.
+        XCTAssertTrue(LiveUsageDataSource.claudeHasQuota(["five_hour": NSNull(), "spend": ["enabled": true]]))
+        XCTAssertTrue(LiveUsageDataSource.claudeHasQuota(["seven_day": NSNull(), "extra_usage": ["is_enabled": true]]))
+        XCTAssertFalse(LiveUsageDataSource.claudeHasQuota(["five_hour": NSNull(), "extra_usage": ["is_enabled": false]]))
     }
 
     func testAWindowThePlanLacksShowsNoBar() {

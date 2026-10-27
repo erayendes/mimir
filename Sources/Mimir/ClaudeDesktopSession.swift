@@ -191,11 +191,14 @@ extension LiveUsageDataSource {
         return nil
     }
 
-    /// Whether a usage answer carries a five-hour or weekly window at all. An organization without
-    /// a plan answers with every window null; read as "nothing used" that is a full card for an
-    /// account that has no quota, so such an answer counts as no answer.
+    /// Whether a usage answer carries a five-hour or weekly window, or a spending limit, at all. An
+    /// organization without a plan answers with every window null; read as "nothing used" that is a
+    /// full card for an account that has no quota, so such an answer counts as no answer. One that
+    /// bills by spending alone still has a card to show: its spending row, as it did in 3.0.
     static func claudeHasQuota(_ root: [String: Any]) -> Bool {
         claudeHasWindow(root, "five_hour") || claudeHasWindow(root, "seven_day")
+            || (root["spend"] as? [String: Any])?["enabled"] as? Bool == true
+            || (root["extra_usage"] as? [String: Any])?["is_enabled"] as? Bool == true
     }
 
     /// Whether the answer carries a window under `baseKey` (`five_hour`, `seven_day` or a per-model
