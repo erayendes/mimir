@@ -492,6 +492,13 @@ final class UsageParsingTests: XCTestCase {
         XCTAssertEqual(rolled.timeIntervalSince(past), 60 * 86_400, accuracy: 60)
     }
 
+    /// A command past its time limit is stopped, so a stuck `doctor` can't hold the refresh forever.
+    func testRunShellStopsAtTimeLimit() {
+        let start = Date()
+        _ = ds.runShell("exec sleep 30", timeout: 0.5)
+        XCTAssertLessThan(Date().timeIntervalSince(start), 5)
+    }
+
     /// A fresh login's profile file can lack the plan; the profile endpoint's answer fills it.
     func testClaudeProfilePlanFromProfileAnswer() {
         let root: [String: Any] = ["account": ["email": "a@b.c"],

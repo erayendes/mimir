@@ -594,17 +594,20 @@ struct LiveUsageDataSource {
     func renewLogin(provider: String, dir: URL?) {
         let (tool, variable) = provider == "Codex" ? ("codex", "CODEX_HOME") : ("claude", "CLAUDE_CONFIG_DIR")
         let env = dir.map { "\(variable)='\($0.path.replacingOccurrences(of: "'", with: "'\\''"))' " } ?? ""
-        _ = runShell("\(env)\(tool) doctor </dev/null >/dev/null 2>&1")
+        // `exec`, so the time limit stops doctor itself rather than only its shell. Without a limit
+        // a doctor stuck on the network held `isRefreshing`, and no card refreshed until a relaunch.
+        _ = runShell("\(env)exec \(tool) doctor </dev/null >/dev/null 2>&1", timeout: 20)
     }
 
-    func runShell(_ script: String) -> String {
-        runCommand("/bin/zsh", ["-lc", script])
+    func runShell(_ script: String, timeout: TimeInterval? = nil) -> String {
+        runCommand("/bin/zsh", ["-lc", script], timeout: timeout)
     }
 
     /// `stdin`, when set, is written to the process's standard input. Used to feed
     /// secrets (e.g. a curl `--config -` block) without exposing them in `arguments`,
     /// which are world-readable via the process table (`ps aux`).
-    func runCommand(_ launchPath: String, _ args: [String], stdin: String? = nil) -> String {
+    func runCommand(_ launchPath: String, _ args: [String], stdin: String? = nil,
+                    timeout: TimeInterval? = nil) -> String {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: launchPath)
         p.arguments = args
@@ -618,6 +621,11 @@ struct LiveUsageDataSource {
             if let input, let stdin {
                 input.fileHandleForWriting.write(Data(stdin.utf8))
                 input.fileHandleForWriting.closeFile()
+            }
+            if let timeout {
+                let deadline = Date().addingTimeInterval(timeout)
+                while p.isRunning && Date() < deadline { Thread.sleep(forTimeInterval: 0.1) }
+                if p.isRunning { p.terminate() }
             }
             p.waitUntilExit()
             let data = out.fileHandleForReading.readDataToEndOfFile()
