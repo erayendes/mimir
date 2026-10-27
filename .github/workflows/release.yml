@@ -104,8 +104,15 @@ jobs:
             --key-id "$NOTARIZATION_API_KEY_ID" \
             --issuer "$NOTARIZATION_API_ISSUER" \
             --wait
-          xcrun stapler staple dist/Mimir.app
           rm -f /tmp/mimir_notarize.zip /tmp/AuthKey.p8
+          # Stapling fetches the ticket from Apple's CloudKit, and v3.1 died twice on a dropped
+          # connection there after notarization had already been accepted. Retry before failing.
+          for attempt in 1 2 3 4 5; do
+            xcrun stapler staple dist/Mimir.app && break
+            [ "$attempt" -lt 5 ] || { echo "::error::stapling failed after 5 attempts"; exit 1; }
+            echo "staple failed (attempt $attempt); retrying in $((attempt * 15))s"
+            sleep $((attempt * 15))
+          done
 
       # Fetch the sentry-cli binary at a pinned version and verify its digest before running it.
       # The old `curl https://sentry.io/get-cli/ | bash` piped a live remote script straight into a
