@@ -395,6 +395,17 @@ final class UsageParsingTests: XCTestCase {
     /// The low-quota threshold scales with the window: a flat 10% warns on day three of a 30-day
     /// ChatGPT Go quota. Anything at or under a week keeps the base, and the floor stops the scaling
     /// from tightening past a usable warning.
+    func testTurkishClockTakesTheEndingOfItsLastNumber() {
+        XCTAssertEqual(turkishLocativeSuffix(hour: 22, minute: 40), "ta")  // kırk
+        XCTAssertEqual(turkishLocativeSuffix(hour: 13, minute: 0), "te")   // on üç
+        XCTAssertEqual(turkishLocativeSuffix(hour: 9, minute: 30), "da")   // otuz
+        XCTAssertEqual(turkishLocativeSuffix(hour: 20, minute: 0), "de")   // yirmi
+        XCTAssertEqual(turkishLocativeSuffix(hour: 10, minute: 0), "da")   // on
+        XCTAssertEqual(turkishLocativeSuffix(hour: 0, minute: 0), "da")    // sıfır
+        XCTAssertEqual(turkishLocativeSuffix(hour: 18, minute: 52), "de")  // iki
+        XCTAssertEqual(turkishLocativeSuffix(hour: 16, minute: 6), "da")   // altı
+    }
+
     func testLowQuotaThresholdScalesWithWindowLength() {
         XCTAssertEqual(lowQuotaThreshold(windowSeconds: nil), 10)             // unknown → base
         XCTAssertEqual(lowQuotaThreshold(windowSeconds: 7 * 86_400), 10)      // the week itself

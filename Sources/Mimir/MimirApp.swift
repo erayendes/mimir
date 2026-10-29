@@ -726,7 +726,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     private enum QuotaWindow {
         case fiveHour, weekly
         var suffix: String { self == .fiveHour ? "5h" : "weekly" }
-        var lowThreshold: Int { 10 }
+        var lowThreshold: Int { self == .fiveHour ? 15 : 10 }
     }
 
     private func checkNotifications() {
@@ -741,15 +741,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
             if service.name == "Antigravity" {
                 for row in service.models where row.valueText == nil {
                     guard let window = row.window else { continue }
-                    let name = "Antigravity \(row.name)"
-                    evaluateWindow(name: name, title: name, window: window == .session ? .fiveHour : .weekly,
+                    // Short titles: "Gemini", "Argon", and "Claude (AGY)" so it isn't read as Claude Code.
+                    let title = row.name == "Claude" ? "Claude (AGY)"
+                        : row.name.contains("Argon") ? "Argon" : row.name
+                    evaluateWindow(name: "Antigravity \(row.name)", title: title, account: service.account?.email,
+                                   window: window == .session ? .fiveHour : .weekly,
                                    percent: row.remainingPercent, resetAt: row.resetAt)
                 }
                 continue
             }
-            evaluateWindow(name: service.name, title: service.titleWithAccount, window: .fiveHour,
+            evaluateWindow(name: service.name, title: service.providerTitle, account: service.account?.email,
+                           window: .fiveHour,
                            percent: service.sessionRemainingPercent, resetAt: service.sessionResetAt)
-            evaluateWindow(name: service.name, title: service.titleWithAccount, window: .weekly,
+            evaluateWindow(name: service.name, title: service.providerTitle, account: service.account?.email,
+                           window: .weekly,
                            percent: service.weeklyRemainingPercent, resetAt: service.weeklyResetAt,
                            windowSeconds: service.weeklyWindowSeconds)
         }
@@ -758,35 +763,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
 
     /// A reset credit lapses unused if it isn't spent, and it's worth most on a window that's spent
     /// but not about to reset on its own — so warn while there's still time to use one: 1 day, 5 hours
-    /// and 1 hour before the FIRST credit expires. The last-fired stamp pins the expiry it belongs to,
-    /// so a newly granted credit starts a fresh set of three and a relaunch doesn't re-fire the same one.
+    /// and 1 hour before a card's FIRST credit expires. Per card, so the notice names whose credit it
+    /// is. The last-fired stamp pins the expiry it belongs to, so a newly granted credit starts a fresh
+    /// set of three and a relaunch doesn't re-fire the same one.
     private func checkResetCreditExpiry() {
-        let rows = store.services
-            .filter { $0.isAvailable && !$0.isStale }
-            .flatMap(\.models)
-            .filter { $0.valueText != nil && $0.resetAt != nil }
-        guard let expiresAt = rows.compactMap(\.resetAt).min() else { return }
+        for service in store.services where service.isAvailable && !service.isStale {
+            let rows = service.models.filter { $0.valueText != nil && $0.resetAt != nil }
+            guard let expiresAt = rows.compactMap(\.resetAt).min() else { continue }
 
-        let remaining = expiresAt.timeIntervalSinceNow
-        guard remaining > 0,
-              let threshold = Self.resetCreditThresholds.first(where: { remaining <= $0 }) else { return }
+            let remaining = expiresAt.timeIntervalSinceNow
+            guard remaining > 0,
+                  let threshold = Self.resetCreditThresholds.first(where: { remaining <= $0 }) else { continue }
 
-        let stamp = "\(Int(expiresAt.timeIntervalSince1970))-\(Int(threshold))"
-        guard UserDefaults.standard.string(forKey: Self.resetCreditNotifiedKey) != stamp else { return }
-        UserDefaults.standard.set(stamp, forKey: Self.resetCreditNotifiedKey)
+            let key = "\(Self.resetCreditNotifiedKey).\(service.name)"
+            let stamp = "\(Int(expiresAt.timeIntervalSince1970))-\(Int(threshold))"
+            guard UserDefaults.standard.string(forKey: key) != stamp else { continue }
+            UserDefaults.standard.set(stamp, forKey: key)
 
-        sendNotification(
-            identifier: "Codex-resetcredit-\(Int(threshold))",
-            title: String(format: String(localized: "⏳ Reset credit expires in %@"),
-                          TimeFormatter.duration(from: remaining)),
-            body: String(format: String(localized: "You have %@ waiting. Spend one now and it clears a used-up window — unused, it just lapses."),
-                         String(rows.count))
-        )
+            sendNotification(
+                identifier: "\(service.name)-resetcredit-\(Int(threshold))",
+                emoji: "⏳",
+                title: String(format: String(localized: "%@ reset credit expires in %@"),
+                              service.providerTitle, TimeFormatter.duration(from: remaining)),
+                body: Self.withAccount(String(localized: "Spend it now and the window resets; unused, it lapses."),
+                                       service.account?.email)
+            )
+        }
     }
 
     /// Ascending, so `first(where:)` picks the tightest bracket the countdown has entered.
     private static let resetCreditThresholds: [TimeInterval] = [3_600, 5 * 3_600, 86_400]
-    private static let resetCreditNotifiedKey = "codexResetCreditNotified"
+    private static let resetCreditNotifiedKey = "resetCreditNotified"
 
     /// HH:mm for the 5-hour low notification's reset clock.
     private static let clockFormatter: DateFormatter = {
@@ -846,7 +853,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         // "back to 100%" then contradicts the live reading the user is looking at. Past the grace
         // period, clear the arming silently so the next reset still arms.
         if now - armed <= Self.refillGrace, notifState(key, "depleted") == 1 {
-            sendNotification(identifier: "\(key)-refilled", window: bucket, title: title, body: body)
+            sendNotification(identifier: "\(key)-refilled", window: bucket, emoji: "🔋", title: title, body: body)
         }
         setNotifState(key, "announced", armed)
         setNotifState(key, "depleted", 0)
@@ -864,7 +871,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         setNotifState(key, "armed", stamp)
     }
 
-    private func evaluateWindow(name: String, title: String, window: QuotaWindow, percent: Int?, resetAt: Date?,
+    /// The title names the model only; the login goes at the end of the text, to keep both short.
+    private static func withAccount(_ body: String, _ email: String?) -> String {
+        email.map { "\(body) (\($0))" } ?? body
+    }
+
+    private func evaluateWindow(name: String, title: String, account: String?, window: QuotaWindow, percent: Int?, resetAt: Date?,
                                 windowSeconds: TimeInterval? = nil) {
         guard let percent else { return }
         let key = "\(name)-\(window.suffix)"
@@ -872,11 +884,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         // report it as its own telemetry bucket rather than folding it into "weekly".
         let isMonthly = window == .weekly && (windowSeconds ?? 0) > 8 * 86_400
         let bucket = isMonthly ? "monthly" : window.suffix
-        // The 5h window keeps its flat 20%; a longer one scales its threshold by length (see
+        // The 5h window keeps its flat 15%; a longer one scales its threshold by length (see
         // `lowQuotaThreshold`) so a 30-day quota doesn't warn on day three.
         let lowThreshold = window == .fiveHour
             ? window.lowThreshold
             : lowQuotaThreshold(windowSeconds: windowSeconds, base: window.lowThreshold)
+        let label = window == .fiveHour ? String(localized: "5s")
+            : isMonthly ? String(localized: "30g") : String(localized: "7g")
 
         // A refill notice is only meaningful on a window that was actually run down first: spent for
         // the 5h one, below its low threshold for the longer one.
@@ -886,24 +900,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
 
         // Refill: the window's reset came round. Fires once per reset, on the clock rather than on the
         // percent — a reading flickering back to 100 is not a reset.
-        switch window {
-        case .fiveHour:
-            fireRefillIfDue(
-                key: key, bucket: bucket,
-                title: String(format: String(localized: "🔋 %@ ready for a new sprint."), title),
-                body: String(localized: "Your 5-hour session is back to 100%. Pick up where you left off.")
-            )
-        case .weekly:
-            fireRefillIfDue(
-                key: key, bucket: bucket,
-                title: String(format: isMonthly
-                              ? String(localized: "🚀 %@ monthly quota refilled.")
-                              : String(localized: "🚀 %@ weekly quota refilled."), title),
-                body: isMonthly
-                    ? String(localized: "Your monthly quota is back to 100%. Pick up where you left off.")
-                    : String(localized: "Your weekly quota is back to 100%. Pick up where you left off.")
-            )
-        }
+        fireRefillIfDue(
+            key: key, bucket: bucket,
+            title: "\(title) \(label)",
+            body: Self.withAccount(window == .fiveHour ? String(localized: "Your 5-hour quota is back to 100%. Pick up where you left off.")
+                : isMonthly ? String(localized: "Your monthly quota is back to 100%. Pick up where you left off.")
+                : String(localized: "Your weekly quota is back to 100%. Pick up where you left off."), account)
+        )
         armNextReset(key: key, resetAt: resetAt)
 
         // Low: crossed below the threshold. Warn once per window — the stored stamp is the reset the
@@ -913,49 +916,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         let resetStamp = resetAt?.timeIntervalSince1970 ?? 0
         // Inclusive: a 30-day window's threshold is 5, and an account sitting at exactly 5% is the
         // case the warning exists for — a strict `<` waited for 4% before saying anything.
+        // A window refilling within 15 minutes needs no warning: it would only be noise.
         guard percent <= lowThreshold,
+              resetAt.map({ $0.timeIntervalSinceNow > 15 * 60 }) ?? true,
               lowAlertIsDue(lastWarnedReset: UserDefaults.standard.object(forKey: lowKey) as? Double,
                             resetStamp: resetStamp, now: Date().timeIntervalSince1970) else { return }
         UserDefaults.standard.set(resetStamp, forKey: lowKey)
 
         let duration = resetAt.map { TimeFormatter.duration(from: $0.timeIntervalSinceNow) }
-        switch window {
-        case .fiveHour:
-            // 5h includes the reset clock (it's today) plus the countdown.
-            let body: String
-            if let resetAt, let duration {
-                body = String(format: String(localized: "Resets at %@. ~%@ to go."),
-                              Self.clockFormatter.string(from: resetAt), duration)
-            } else {
-                body = String(localized: "Your 5-hour limit is running out.")
-            }
-            sendNotification(
-                identifier: key,
-                window: bucket,
-                title: String(format: String(localized: "🪫 %@ 5-hour quota running out — %d%%"), title, percent),
-                body: body
-            )
-        case .weekly:
-            // Weekly/monthly is days out, so just the countdown (no clock).
-            let body = duration.map { String(format: String(localized: "Renews in ~%@."), $0) }
-                ?? (isMonthly ? String(localized: "Your monthly limit is running out.")
-                              : String(localized: "Your weekly limit is running out."))
-            sendNotification(
-                identifier: key,
-                window: bucket,
-                title: String(format: isMonthly
-                              ? String(localized: "🚨 %@ monthly quota running out — %d%%")
-                              : String(localized: "🚨 %@ weekly quota running out — %d%%"), title, percent),
-                body: body
-            )
+        let body: String
+        if let resetAt, let duration {
+            // 5h adds the reset clock (it's today); weekly/monthly is days out, so just the countdown.
+            body = window == .fiveHour
+                ? String(format: String(localized: "Renews in ~%@, at %@."), duration, Self.renewalClock(resetAt))
+                : String(format: String(localized: "Renews in ~%@."), duration)
+        } else {
+            body = String(format: String(localized: "Your %@ quota is running out."), label)
         }
+        sendNotification(
+            identifier: key,
+            window: bucket,
+            emoji: "🪫",
+            title: String(format: String(localized: "%@ %@ quota: %d%%"), title, label, percent),
+            body: Self.withAccount(body, account)
+        )
+    }
+
+    /// "22:40", or in Turkish "22:40'ta": the case ending follows how the time is read aloud.
+    private static func renewalClock(_ date: Date) -> String {
+        let clock = clockFormatter.string(from: date)
+        guard Bundle.main.preferredLocalizations.first == "tr" else { return clock }
+        let parts = Calendar.current.dateComponents([.hour, .minute], from: date)
+        return "\(clock)'\(turkishLocativeSuffix(hour: parts.hour ?? 0, minute: parts.minute ?? 0))"
     }
 
     private static let notificationClock: DateFormatter = {
         let f = DateFormatter(); f.dateFormat = "HH:mm"; return f
     }()
 
-    private func sendNotification(identifier: String, window: String? = nil, title: String, body: String) {
+    private func sendNotification(identifier: String, window: String? = nil, emoji: String, title: String, body: String) {
         // Derive a categorical type from the identifier: "Claude-5h", "Codex-weekly-refilled", etc.
         let parts = identifier.split(separator: "-")
         let service = parts.first.map(String.init) ?? "unknown"
@@ -967,10 +966,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         ])
 
         let content = UNMutableNotificationContent()
-        content.title = title
-        // Stamp the send time: the stacked banner shows no age, so "back to 100%" read the same
+        // Stamp the send time: the stacked banner shows no age, so "quota ready" read the same
         // whether it arrived a minute or four hours ago.
-        content.body = "\(body) · \(Self.notificationClock.string(from: Date()))"
+        content.title = "\(emoji) \(Self.notificationClock.string(from: Date())): \(title)"
+        content.body = body
         content.sound = .default
         let req = UNNotificationRequest(identifier: identifier, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(req)

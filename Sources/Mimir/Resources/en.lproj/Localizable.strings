@@ -39,20 +39,16 @@
 "Not Now" = "Not Now";
 
 /* Notifications */
-"🚀 %@ weekly quota refilled." = "🚀 %@ weekly quota refilled.";
+"30g" = "30d";
+"%@ %@ quota: %d%%" = "%@ %@ quota: %d%%";
+"Your 5-hour quota is back to 100%. Pick up where you left off." = "Your 5-hour quota is back to 100%. Pick up where you left off.";
 "Your weekly quota is back to 100%. Pick up where you left off." = "Your weekly quota is back to 100%. Pick up where you left off.";
-"🚀 %@ monthly quota refilled." = "🚀 %@ monthly quota refilled.";
 "Your monthly quota is back to 100%. Pick up where you left off." = "Your monthly quota is back to 100%. Pick up where you left off.";
-"🔋 %@ ready for a new sprint." = "🔋 %@ ready for a new sprint.";
-"Your 5-hour session is back to 100%. Pick up where you left off." = "Your 5-hour session is back to 100%. Pick up where you left off.";
-"🪫 %@ 5-hour quota running out — %d%%" = "🪫 %@ 5-hour quota running out — %d%%";
-"Resets at %@. ~%@ to go." = "Resets at %@. ~%@ to go.";
-"Your 5-hour limit is running out." = "Your 5-hour limit is running out.";
-"🚨 %@ weekly quota running out — %d%%" = "🚨 %@ weekly quota running out — %d%%";
+"Spend it now and the window resets; unused, it lapses." = "Spend it now and the window resets; unused, it lapses.";
+"Renews in ~%@, at %@." = "Renews in ~%@, at %@.";
+"Your %@ quota is running out." = "Your %@ quota is running out.";
+"%@ reset credit expires in %@" = "%@ reset credit expires in %@";
 "Renews in ~%@." = "Renews in ~%@.";
-"Your weekly limit is running out." = "Your weekly limit is running out.";
-"🚨 %@ monthly quota running out — %d%%" = "🚨 %@ monthly quota running out — %d%%";
-"Your monthly limit is running out." = "Your monthly limit is running out.";
 
 /* Status notes */
 "out of date" = "out of date";
@@ -97,8 +93,6 @@
 "%@ session" = "%@ session";
 "Renewal credit" = "Renewal credit";
 "Weekly limit for this model" = "Weekly limit for this model";
-"⏳ Reset credit expires in %@" = "⏳ Reset credit expires in %@";
-"You have %@ waiting. Spend one now and it clears a used-up window — unused, it just lapses." = "You have %@ waiting. Spend one now and it clears a used-up window — unused, it just lapses.";
 "Cloud session credits" = "Cloud session credits";
 "expires %@" = "expires %@";
 "token expired — run codex login" = "token expired — run codex login";

@@ -359,6 +359,15 @@ func nextArmedReset(armed: Double, announced: Double, resetAt: Date?, now: Date)
 /// quota is three days' worth of budget still in hand, announced as if the month were over. Scaling
 /// by length puts the warning at a comparable time-to-empty instead, with a 5% floor so it can never
 /// tighten to the point of arriving too late to act on. Windows at or under the base keep the base.
+/// The Turkish locative ending a clock time takes ("22:40'ta", "13:00'te", "09:30'da"). It follows
+/// the last number read aloud: the minutes, or the hour on the hour.
+func turkishLocativeSuffix(hour: Int, minute: Int) -> String {
+    let n = minute == 0 ? hour : minute
+    let ones = ["da", "de", "de", "te", "te", "te", "da", "de", "de", "da"]   // sıfır, bir … dokuz
+    let tens = ["da", "da", "de", "da", "ta", "de"]                         // –, on, yirmi, otuz, kırk, elli
+    return n % 10 != 0 || n == 0 ? ones[n % 10] : tens[n / 10]
+}
+
 func lowQuotaThreshold(windowSeconds: TimeInterval?,
                        base: Int = 10,
                        baseWindow: TimeInterval = 7 * 86_400,
