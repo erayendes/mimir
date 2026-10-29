@@ -62,7 +62,8 @@ extension LiveUsageDataSource {
         // browser on the user's login screen. Right after boot the network isn't up yet, so only run
         // it once Google's token endpoint answers. Every run would otherwise also start agy's
         // self-updater (~2 GB a month at this cadence); it honours only a lowercase `true`.
-        let out = runShell("command -v agy >/dev/null 2>&1 && curl -s -o /dev/null -m 5 https://oauth2.googleapis.com && AGY_CLI_DISABLE_AUTO_UPDATE=true agy -p /usage --output-format json --print-timeout 30s")
+        let noBrowser = Self.agyNoBrowserDir.map { "PATH='\($0)':\"$PATH\" " } ?? ""
+        let out = runShell("command -v agy >/dev/null 2>&1 && curl -s -o /dev/null -m 5 https://oauth2.googleapis.com && \(noBrowser)AGY_CLI_DISABLE_AUTO_UPDATE=true agy -p /usage --output-format json --print-timeout 30s")
         guard let data = out.data(using: .utf8),
               let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               root["status"] as? String == "SUCCESS",
@@ -88,6 +89,24 @@ extension LiveUsageDataSource {
 
     /// Written and read only from the Antigravity fetch, which the store runs one at a time.
     nonisolated(unsafe) private static var antigravityCLILastRun = Date.distantPast
+
+    /// A directory whose `open` and `xdg-open` only fail. Whenever its silent login hiccups (no
+    /// network yet, a keychain timeout after wake) `agy -p` falls back to browser sign-in, started
+    /// through `open` on PATH; first on agy's PATH, this keeps the browser shut. agy has no switch for it.
+    private static let agyNoBrowserDir: String? = {
+        let dir = supportDirectory.appendingPathComponent("agy-no-browser")
+        do {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            for name in ["open", "xdg-open"] {
+                let stub = dir.appendingPathComponent(name)
+                try "#!/bin/sh\nexit 1\n".write(to: stub, atomically: true, encoding: .utf8)
+                try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: stub.path)
+            }
+            return dir.path
+        } catch {
+            return nil
+        }
+    }()
 
     private func fetchAntigravityAuthorized(models defaults: [String]) async -> ServiceStatus? {
         guard let account = readAntigravityCockpitAccount(),
