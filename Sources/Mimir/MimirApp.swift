@@ -735,15 +735,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         // `!isStale` guard is load-bearing: a card served from a snapshot / a refilled estimate is
         // `isStale`, so a low alert is never raised off an inferred number. Refills fire off the
         // window's reset clock (see `fireRefillIfDue`), so a reading flickering back to 100 can't
-        // announce one. Antigravity is excluded by name (no service-level windows; per-group rows).
-        for service in store.services where service.isAvailable && !service.isStale && service.name != "Antigravity" {
-            evaluateWindow(service: service, window: .fiveHour,
+        // announce one. Antigravity has no service-level windows: each group row (Gemini, Claude,
+        // Argon) is its own window, read live from the app or `agy`.
+        for service in store.services where service.isAvailable && !service.isStale {
+            if service.name == "Antigravity" {
+                for row in service.models where row.valueText == nil {
+                    guard let window = row.window else { continue }
+                    let name = "Antigravity \(row.name)"
+                    evaluateWindow(name: name, title: name, window: window == .session ? .fiveHour : .weekly,
+                                   percent: row.remainingPercent, resetAt: row.resetAt)
+                }
+                continue
+            }
+            evaluateWindow(name: service.name, title: service.titleWithAccount, window: .fiveHour,
                            percent: service.sessionRemainingPercent, resetAt: service.sessionResetAt)
-            evaluateWindow(service: service, window: .weekly,
+            evaluateWindow(name: service.name, title: service.titleWithAccount, window: .weekly,
                            percent: service.weeklyRemainingPercent, resetAt: service.weeklyResetAt,
                            windowSeconds: service.weeklyWindowSeconds)
         }
-        checkAntigravityWeeklyRefill()
         checkResetCreditExpiry()
     }
 
@@ -801,9 +810,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         UserDefaults.standard.set(value, forKey: "notif.\(key).\(field)")
     }
 
-    /// Announce a refill when the armed reset has passed, then disarm so the next one can arm cleanly.
-    /// `requireDepleted` is false only for Antigravity, whose usage can't be observed while its IDE is
-    /// closed — there the reset clock is all we have.
+    /// Announce a refill when the armed reset has passed — only for a window that was run down first —
+    /// then disarm so the next one can arm cleanly.
     /// After an in-place update (Sparkle, or a manual replace) two things go stale: the widget
     /// extension process WidgetKit launched at login keeps running the *old* binary against a bundle
     /// that no longer exists on disk (every render blank — no crash, no log), and PlugInKit keeps the
@@ -828,7 +836,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         WidgetCenter.shared.reloadAllTimelines()
     }
 
-    private func fireRefillIfDue(key: String, bucket: String, requireDepleted: Bool,
+    private func fireRefillIfDue(key: String, bucket: String,
                                  title: String, body: String) {
         let armed = notifState(key, "armed")
         let now = Date().timeIntervalSince1970
@@ -837,7 +845,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         // can be hours stale, and the window has been running (and spending) ever since — announcing
         // "back to 100%" then contradicts the live reading the user is looking at. Past the grace
         // period, clear the arming silently so the next reset still arms.
-        if now - armed <= Self.refillGrace, !requireDepleted || notifState(key, "depleted") == 1 {
+        if now - armed <= Self.refillGrace, notifState(key, "depleted") == 1 {
             sendNotification(identifier: "\(key)-refilled", window: bucket, title: title, body: body)
         }
         setNotifState(key, "announced", armed)
@@ -856,31 +864,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         setNotifState(key, "armed", stamp)
     }
 
-    /// Antigravity's one reliable notification: the weekly quota refill. Its weekly reset time is
-    /// deterministic and known in advance, and the quota can't be spent while the IDE is closed —
-    /// so once we've seen the reset time, we can fire "refilled" exactly when it passes, with no
-    /// live data. (Low / 5h alerts stay off: those depend on usage we can't observe reliably.)
-    private func checkAntigravityWeeklyRefill() {
-        let key = "Antigravity-weekly"
-        fireRefillIfDue(
-            key: key, bucket: "weekly", requireDepleted: false,
-            title: String(format: String(localized: "🚀 %@ weekly quota refilled."), "Antigravity"),
-            body: String(localized: "Your weekly quota is back to 100%. Pick up where you left off.")
-        )
-
-        guard let antigravity = store.services.first(where: { $0.name == "Antigravity" }) else { return }
-        // Both weekly buckets share one reset time → take the earliest still ahead of us.
-        armNextReset(key: key, resetAt: antigravity.models
-            .filter { $0.window == .weekly }
-            .compactMap(\.resetAt)
-            .filter { $0 > Date() }
-            .min())
-    }
-
-    private func evaluateWindow(service: ServiceStatus, window: QuotaWindow, percent: Int?, resetAt: Date?,
+    private func evaluateWindow(name: String, title: String, window: QuotaWindow, percent: Int?, resetAt: Date?,
                                 windowSeconds: TimeInterval? = nil) {
         guard let percent else { return }
-        let key = "\(service.name)-\(window.suffix)"
+        let key = "\(name)-\(window.suffix)"
         // A window longer than a week is the ChatGPT Go monthly quota, not a weekly one — say so, and
         // report it as its own telemetry bucket rather than folding it into "weekly".
         let isMonthly = window == .weekly && (windowSeconds ?? 0) > 8 * 86_400
@@ -902,16 +889,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         switch window {
         case .fiveHour:
             fireRefillIfDue(
-                key: key, bucket: bucket, requireDepleted: true,
-                title: String(format: String(localized: "🔋 %@ ready for a new sprint."), service.titleWithAccount),
+                key: key, bucket: bucket,
+                title: String(format: String(localized: "🔋 %@ ready for a new sprint."), title),
                 body: String(localized: "Your 5-hour session is back to 100%. Pick up where you left off.")
             )
         case .weekly:
             fireRefillIfDue(
-                key: key, bucket: bucket, requireDepleted: true,
+                key: key, bucket: bucket,
                 title: String(format: isMonthly
                               ? String(localized: "🚀 %@ monthly quota refilled.")
-                              : String(localized: "🚀 %@ weekly quota refilled."), service.titleWithAccount),
+                              : String(localized: "🚀 %@ weekly quota refilled."), title),
                 body: isMonthly
                     ? String(localized: "Your monthly quota is back to 100%. Pick up where you left off.")
                     : String(localized: "Your weekly quota is back to 100%. Pick up where you left off.")
@@ -945,7 +932,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
             sendNotification(
                 identifier: key,
                 window: bucket,
-                title: String(format: String(localized: "🪫 %@ 5-hour quota running out — %d%%"), service.titleWithAccount, percent),
+                title: String(format: String(localized: "🪫 %@ 5-hour quota running out — %d%%"), title, percent),
                 body: body
             )
         case .weekly:
@@ -958,7 +945,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
                 window: bucket,
                 title: String(format: isMonthly
                               ? String(localized: "🚨 %@ monthly quota running out — %d%%")
-                              : String(localized: "🚨 %@ weekly quota running out — %d%%"), service.titleWithAccount, percent),
+                              : String(localized: "🚨 %@ weekly quota running out — %d%%"), title, percent),
                 body: body
             )
         }
