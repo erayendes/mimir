@@ -9,6 +9,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [3.2-beta.1] - 2026-10-29
+
+Notification texts have been streamlined.
+
+Fixes to how Antigravity is shown.
+
+Codex plan names now show the package: Pro → Pro 100, Pro 200 and so on.
+
 ### [3.1] - 2026-10-27
 
 If you have more than one account for the same model, you now see each one on its own card and widget. That's why every card also shows the model's plan. Click the plan and you'll see which account it belongs to.
@@ -666,6 +674,14 @@ Bu projedeki tüm önemli değişiklikler bu dosyada belgelenecektir.
 
 Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
+
+### [3.2-beta.1] - 2026-10-29
+
+Bildirim metinleri optimize edildi.
+
+Antigravity gösterimlerinde düzeltmeler yapıldı.
+
+Codex plan isimlerinde paket gösterimi eklendi. Pro → Pro 100, Pro 200 gibi.
 
 ### [3.1] - 2026-10-27
 
