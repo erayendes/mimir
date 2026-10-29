@@ -145,6 +145,21 @@ final class UsageParsingTests: XCTestCase {
         XCTAssertEqual(quotaWindowDays(ds.codexStatus(fromUsageRoot: root).weeklyWindowSeconds), 7)
     }
 
+    /// Antigravity's fallback: a family the answer carries no quota for gets no row — not a made-up
+    /// 0% — and Argon's own weekly never stands in for Gemini.
+    func testAntigravityFallbackDropsFamiliesWithoutQuota() {
+        let root: [String: Any] = ["models": [
+            "gemini-3.8-flash": ["displayName": "Gemini 3.8 Flash"],
+            "gemini-4-argon": ["displayName": "Gemini 4 Argon",
+                               "quotaInfo": ["remainingFraction": 0, "resetTime": "2099-01-01T00:00:00Z"]],
+            "claude-sonnet-5-5": ["displayName": "Claude Sonnet 5.5",
+                                  "quotaInfo": ["remainingFraction": 0.4, "resetTime": "2099-01-01T00:00:00Z"]],
+        ]]
+        let rows = ds.normalizeAntigravityModels(root)
+        XCTAssertEqual(rows.map(\.name), ["Claude"])
+        XCTAssertEqual(rows.first?.remainingPercent, 40)
+    }
+
     func testCodexStatusWithoutWindowLengthLeavesItNil() {
         let root: [String: Any] = [
             "rate_limit": ["secondary_window": ["used_percent": 5.0, "reset_at": 1_785_822_607.0]],

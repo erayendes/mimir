@@ -354,7 +354,7 @@ extension LiveUsageDataSource {
         )
     }
 
-    private func normalizeAntigravityModels(_ root: [String: Any]) -> [ModelStatus] {
+    func normalizeAntigravityModels(_ root: [String: Any]) -> [ModelStatus] {
         let configs = antigravityModelConfigs(from: root)
         guard !configs.isEmpty else {
             return [
@@ -385,17 +385,20 @@ extension LiveUsageDataSource {
             let reset = (quota["resetTime"] as? String).flatMap { parseISO8601($0) }.map { projectAntigravityReset($0) }
             let status = ModelStatus(name: "", remainingPercent: max(0, min(100, remainingPercent)), resetAt: reset)
 
-            if rawName.contains("gemini") {
+            // Argon has a weekly of its own; letting it into the family would show its 0% as Gemini's.
+            if rawName.contains("gemini") && !rawName.contains("argon") {
                 gemini.append(status)
             } else if rawName.contains("claude") || rawName.contains("gpt-oss") || rawName.contains("model_openai_gpt_oss") {
                 claude.append(status)
             }
         }
 
+        // A family with no quota in the answer gets no row: Google stopped sending Gemini's here, and
+        // some plans lose every Claude model on 2 November — a made-up 0% would read as "used up".
         return [
             pickModel("Gemini", from: gemini),
             pickModel("Claude", from: claude)
-        ]
+        ].compactMap { $0 }
     }
 
 
@@ -425,7 +428,7 @@ extension LiveUsageDataSource {
         return date.addingTimeInterval(ceil(elapsed / period) * period)
     }
 
-    private func pickModel(_ name: String, from candidates: [ModelStatus]) -> ModelStatus {
+    private func pickModel(_ name: String, from candidates: [ModelStatus]) -> ModelStatus? {
         guard let best = candidates.sorted(by: { lhs, rhs in
             if lhs.remainingPercent != rhs.remainingPercent {
                 return lhs.remainingPercent < rhs.remainingPercent
@@ -441,7 +444,7 @@ extension LiveUsageDataSource {
                 return false
             }
         }).first else {
-            return ModelStatus(name: name, remainingPercent: 0, resetAt: nil)
+            return nil
         }
         return ModelStatus(name: name, remainingPercent: best.remainingPercent, resetAt: best.resetAt, window: .session)
     }
