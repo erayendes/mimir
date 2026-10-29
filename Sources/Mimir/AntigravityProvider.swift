@@ -60,8 +60,9 @@ extension LiveUsageDataSource {
 
         // An expired token that `agy` can't refresh sends it into interactive OAuth, which opens the
         // browser on the user's login screen. Right after boot the network isn't up yet, so only run
-        // it once Google's token endpoint answers.
-        let out = runShell("command -v agy >/dev/null 2>&1 && curl -s -o /dev/null -m 5 https://oauth2.googleapis.com && agy -p /usage --output-format json --print-timeout 30s")
+        // it once Google's token endpoint answers. Every run would otherwise also start agy's
+        // self-updater (~2 GB a month at this cadence); it honours only a lowercase `true`.
+        let out = runShell("command -v agy >/dev/null 2>&1 && curl -s -o /dev/null -m 5 https://oauth2.googleapis.com && AGY_CLI_DISABLE_AUTO_UPDATE=true agy -p /usage --output-format json --print-timeout 30s")
         guard let data = out.data(using: .utf8),
               let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               root["status"] as? String == "SUCCESS",
