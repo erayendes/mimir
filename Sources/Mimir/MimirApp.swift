@@ -829,7 +829,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     /// right away). Gated on the version so a routine launch doesn't flicker the widgets.
     private func relaunchWidgetExtensionIfUpdated() {
         let key = "widget.lastLaunchedVersion"
-        let current = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+        // The build number too: every local build shares the release's version, and a rebuild
+        // installed over the last one left the widget running the replaced binary, blank.
+        let info = Bundle.main.infoDictionary
+        let current = "\(info?["CFBundleShortVersionString"] as? String ?? "") (\(info?["CFBundleVersion"] as? String ?? ""))"
         guard UserDefaults.standard.string(forKey: key) != current else { return }
         UserDefaults.standard.set(current, forKey: key)
         let appex = Bundle.main.bundleURL.appendingPathComponent("Contents/PlugIns/MimirWidgetExtension.appex").path
