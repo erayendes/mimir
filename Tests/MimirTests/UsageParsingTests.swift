@@ -118,6 +118,33 @@ final class UsageParsingTests: XCTestCase {
     }
 
     /// No length reported → nil, so the UI keeps its plain weekly badge instead of printing a guess.
+    /// A workspace member capped only by a monthly credit limit: no rate-limit windows, just
+    /// `spend_control.individual_limit`. It becomes the 30-day window instead of an empty card.
+    func testCodexStatusReadsTheMonthlyIndividualLimit() {
+        let root: [String: Any] = [
+            "rate_limit": NSNull(),
+            "spend_control": ["reached": false,
+                              "individual_limit": ["limit": 200, "used": 50, "reset_at": 1_785_822_607]],
+        ]
+        XCTAssertNotNil(ds.codexIndividualLimit(root))
+        let status = ds.codexStatus(fromUsageRoot: root)
+        XCTAssertNil(status.sessionRemainingPercent)
+        XCTAssertEqual(status.weeklyRemainingPercent, 75)
+        XCTAssertEqual(status.weeklyResetAt, Date(timeIntervalSince1970: 1_785_822_607))
+        XCTAssertEqual(quotaWindowDays(status.weeklyWindowSeconds), 30)
+    }
+
+    /// The rate-limit windows win; a `null` cap (what most accounts send) changes nothing.
+    func testCodexStatusPrefersRateLimitOverIndividualLimit() {
+        let root: [String: Any] = [
+            "rate_limit": ["primary_window": ["used_percent": 10.0, "limit_window_seconds": 604800, "reset_at": 1_785_822_607.0]],
+            "spend_control": ["individual_limit": NSNull()],
+        ]
+        XCTAssertNil(ds.codexIndividualLimit(root))
+        XCTAssertEqual(ds.codexStatus(fromUsageRoot: root).weeklyRemainingPercent, 90)
+        XCTAssertEqual(quotaWindowDays(ds.codexStatus(fromUsageRoot: root).weeklyWindowSeconds), 7)
+    }
+
     func testCodexStatusWithoutWindowLengthLeavesItNil() {
         let root: [String: Any] = [
             "rate_limit": ["secondary_window": ["used_percent": 5.0, "reset_at": 1_785_822_607.0]],

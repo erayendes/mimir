@@ -139,7 +139,7 @@ extension LiveUsageDataSource {
             let (data, response) = try await URLSession.shared.data(for: req)
             guard (response as? HTTPURLResponse).map({ 200 ... 299 ~= $0.statusCode }) == true,
                   let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  root["rate_limit"] is [String: Any] else {
+                  root["rate_limit"] is [String: Any] || codexIndividualLimit(root) != nil else {
                 return nil
             }
             Self.recordCodexShape(root)
@@ -199,7 +199,12 @@ extension LiveUsageDataSource {
     /// window stays nil (no misleading "100%"). If the 5h window returns later, it's the session again.
     func codexStatus(fromUsageRoot root: [String: Any], now: Date = Date(), extraRows: [ModelStatus] = [],
                      name: String = "Codex") -> ServiceStatus {
-        let (session, weekly, weeklyWindow) = codexWindows(root["rate_limit"] as? [String: Any] ?? [:], now: now)
+        var (session, weekly, weeklyWindow) = codexWindows(root["rate_limit"] as? [String: Any] ?? [:], now: now)
+        // A workspace member capped only by a monthly credit limit gets no rate-limit windows at all.
+        if session == nil, weekly == nil, let cap = codexIndividualLimit(root) {
+            weekly = cap
+            weeklyWindow = 30 * 86_400
+        }
 
         return ServiceStatus(
             name: name,
@@ -270,6 +275,24 @@ extension LiveUsageDataSource {
             }
         }
         return (session, weekly, weeklyWindow)
+    }
+
+    /// The monthly credit cap a workspace sets per member: `individual_limit: { limit, used,
+    /// remaining_percent, reset_at }`, at the root, under `rate_limit` or under `spend_control`
+    /// depending on the account (CodexBar reads the same three places, in this order).
+    func codexIndividualLimit(_ root: [String: Any]) -> (percent: Int?, resetAt: Date?)? {
+        let rateLimit = root["rate_limit"] as? [String: Any]
+        let spendControl = root["spend_control"] as? [String: Any]
+        // `as?` per candidate: an account without a cap sends `"individual_limit": null`.
+        guard let cap = [root["individual_limit"], rateLimit?["individual_limit"], spendControl?["individual_limit"]]
+            .lazy.compactMap({ $0 as? [String: Any] }).first else { return nil }
+        let limit = doubleValue(cap["limit"])
+        let used = doubleValue(cap["remaining_percent"]).map { 100 - $0 }
+            ?? limit.flatMap { limit in limit > 0 ? doubleValue(cap["used"]).map { $0 / limit * 100 } : nil }
+        let resetEpoch = doubleValue(cap["reset_at"]) ?? doubleValue(cap["resets_at"])
+        guard used != nil || resetEpoch != nil else { return nil }
+        return (used.map(remainingPercent(fromUsed:)),
+                resetEpoch.flatMap { $0 > 0 ? Date(timeIntervalSince1970: $0) : nil })
     }
 
     /// Codex premium credit balance from `wham/usage` `credits: { has_credits, unlimited, balance }`.
