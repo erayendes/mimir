@@ -154,8 +154,16 @@ struct AccountInfo: Equatable {
         planWord(organizationType.map { $0.hasPrefix("claude_") ? String($0.dropFirst(7)) : $0 })
     }
 
-    /// Codex's `chatgpt_plan_type`: `plus` → "Plus", `team` → "Team".
-    static func codexPlan(_ planType: String?) -> String? { planWord(planType) }
+    /// Codex's `chatgpt_plan_type`: `plus` → "Plus", `team` → "Team". The Pro tiers take the names
+    /// Codex's own `/status` gives them, since `prolite`/`promax` don't read as words.
+    static func codexPlan(_ planType: String?) -> String? {
+        switch planType {
+        case "pro": "Pro 200"
+        case "prolite": "Pro 100"
+        case "promax": "Pro 500"
+        default: planWord(planType)
+        }
+    }
 
     /// Antigravity's `userTier.name`: "Google AI Pro" → "Pro", the same short word Claude's and
     /// Codex's plans read as — a family name ("Gemini") has to fit beside it.
