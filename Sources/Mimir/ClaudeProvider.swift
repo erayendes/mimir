@@ -205,7 +205,7 @@ extension LiveUsageDataSource {
     }
 
     /// Parse an HTTP `Retry-After` header (delta-seconds or HTTP-date) into a backoff interval.
-    private func retryAfterSeconds(_ http: HTTPURLResponse) -> TimeInterval? {
+    func retryAfterSeconds(_ http: HTTPURLResponse) -> TimeInterval? {
         guard let raw = http.value(forHTTPHeaderField: "Retry-After")?
             .trimmingCharacters(in: .whitespaces), !raw.isEmpty else { return nil }
         if let secs = TimeInterval(raw) { return max(0, secs) }

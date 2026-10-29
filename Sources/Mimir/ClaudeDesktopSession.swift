@@ -14,6 +14,7 @@ import os
 /// "Always Allow" for it sticks — after which every read is silent.
 extension LiveUsageDataSource {
     private static let desktopLog = Logger(subsystem: "com.erayendes.mimir.desktop", category: "claude")
+    nonisolated(unsafe) private static var desktopUsageBackoffUntil = Date.distantPast
 
     /// The card name for Claude.app's session when it is signed in to a different account than
     /// Claude Code — its own card beside the CLI's.
@@ -26,6 +27,8 @@ extension LiveUsageDataSource {
     /// (`cliOrg` nil) the app's session is simply the Claude card. nil when the app isn't installed
     /// or signed in, the session can't be read, the request fails, or the answer carries no quota.
     func fetchClaudeDesktopWebUsage(userInitiated: Bool, cliOrg: String?) async -> (status: ServiceStatus, sameAccount: Bool)? {
+        // After a 429 the OAuth path answers instead, rather than asking claude.ai again every minute.
+        guard Date() >= Self.desktopUsageBackoffUntil else { return nil }
         guard let sessionKey = readClaudeDesktopSessionKey(userInitiated: userInitiated) else {
             Self.desktopLog.log("no desktop sessionKey (silent read failed / not granted / not logged in)")
             return nil
@@ -59,6 +62,9 @@ extension LiveUsageDataSource {
             // which Mimir will not impersonate — so this is the one path that can carry it.
             let (usageData, usageResp) = try await URLSession.shared.data(for: request("https://claude.ai/api/organizations/\(uuid)/usage?cedar_ember=1"))
             let usageCode = (usageResp as? HTTPURLResponse)?.statusCode ?? -1
+            if usageCode == 429 {
+                Self.desktopUsageBackoffUntil = Date() + ((usageResp as? HTTPURLResponse).flatMap(retryAfterSeconds) ?? 15 * 60)
+            }
             guard usageCode == 200,
                   let root = try? JSONSerialization.jsonObject(with: usageData) as? [String: Any],
                   Self.claudeHasQuota(root) else {
