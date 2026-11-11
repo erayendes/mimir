@@ -563,7 +563,7 @@ struct ServiceCard: View {
                     // The rest of the passes, each a pill like the chip, counting down to 1.
                     ForEach(Array(passes.dropFirst().enumerated()), id: \.offset) { i, row in
                         renewalPill(count: passes.count - 1 - i, expiry: row.resetAt,
-                                    fallback: row.valueText)
+                                    fallback: row.valueText, kind: passKind(row))
                     }
                 }
             }
@@ -601,7 +601,9 @@ struct ServiceCard: View {
         Button {
             withAnimation(.easeOut(duration: 0.16)) { passesOpen.toggle() }
         } label: {
+            // Closed over several passes it is their total, so it names none of them.
             renewalPill(count: passes.count, expiry: soonestPass, fallback: passes.first?.valueText,
+                        kind: passes.count == 1 || passesOpen ? passes.first.flatMap(passKind) : nil,
                         chevron: passes.count > 1)
         }
         .buttonStyle(.plain)
@@ -613,13 +615,14 @@ struct ServiceCard: View {
     /// One pill: the count badge, the label, how long until it lapses. Its text takes the urgency
     /// colour of that expiry — a pass you lose tomorrow should not read the same as one with a
     /// month on it.
-    private func renewalPill(count: Int, expiry: Date?, fallback: String?, chevron: Bool = false) -> some View {
+    private func renewalPill(count: Int, expiry: Date?, fallback: String?, kind: String? = nil,
+                             chevron: Bool = false) -> some View {
         HStack(spacing: 6) {
             Text("\(count)")
                 .monospacedDigit()
                 .padding(.horizontal, 5).padding(.vertical, 1)
                 .background(Capsule().fill(Color.primary.opacity(0.10)))
-            Text(String(localized: "Renewal credit"))
+            Text(kind.map { "\(String(localized: "Renewal credit")) · \($0)" } ?? String(localized: "Renewal credit"))
             Text("|").foregroundStyle(Color.primary.opacity(0.18))
             Text(relDuration(expiry, now) ?? fallback ?? "—").monospacedDigit()
             if chevron {
@@ -733,6 +736,13 @@ struct ServiceCard: View {
     /// The renewal passes, soonest to lapse first.
     private var renewalRows: [ModelStatus] {
         service.models.filter { $0.groupLabel == String(localized: "Renewal credit") }
+    }
+
+    /// What a pass gives back ("Fable"), from a Claude row named "Fable · 09.03.27". Codex's rows
+    /// carry only the date, so they have none.
+    private func passKind(_ row: ModelStatus) -> String? {
+        let parts = row.name.components(separatedBy: " · ")
+        return parts.count > 1 ? parts[0] : nil
     }
 
     private var soonestPass: Date? {
