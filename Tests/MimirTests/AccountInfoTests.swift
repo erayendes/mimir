@@ -8,6 +8,12 @@ final class AccountInfoTests: XCTestCase {
     func testPlanNames() {
         XCTAssertEqual(AccountInfo.claudePlan("claude_team"), "Team")
         XCTAssertEqual(AccountInfo.claudePlan("claude_max"), "Max")
+        XCTAssertEqual(AccountInfo.claudePlan("claude_max", rateLimitTier: "default_claude_max_5x"), "Max")
+        XCTAssertEqual(AccountInfo.claudePlan("claude_max", rateLimitTier: "default_claude_max_20x"), "Ultra")
+        // A Team seat on the 20x user tier is still Team.
+        XCTAssertEqual(AccountInfo.claudePlan("claude_team", rateLimitTier: "default_claude_max_20x"), "Team")
+        XCTAssertEqual(LiveUsageDataSource.claudeOrgPlan(["capabilities": ["chat", "claude_max"],
+                                                          "rate_limit_tier": "default_claude_max_20x"]), "Ultra")
         XCTAssertEqual(AccountInfo.claudePlan("claude_enterprise"), "Enterprise")
         XCTAssertNil(AccountInfo.claudePlan(nil))
         XCTAssertEqual(AccountInfo.codexPlan("plus"), "Plus")
@@ -27,6 +33,12 @@ final class AccountInfoTests: XCTestCase {
         ])
         XCTAssertEqual(info, AccountInfo(plan: "Team", email: "me@example.com", id: "u1|o1", org: "o1"))
         XCTAssertNil(LiveUsageDataSource.claudeAccount(oauthAccount: ["emailAddress": "x"]))
+        // An Ultra login as Claude Code writes it, 2026-11-11.
+        let ultra: [String: Any] = ["accountUuid": "u1", "organizationType": "claude_max",
+                                    "organizationRateLimitTier": "default_claude_max_20x"]
+        XCTAssertEqual(LiveUsageDataSource.claudeAccount(oauthAccount: ultra)?.plan, "Ultra")
+        XCTAssertEqual(LiveUsageDataSource.claudeAccount(
+            oauthAccount: ultra.merging(["planDisplayName": "Ultra"]) { $1 })?.plan, "Ultra")
     }
 
     func testDesktopReadsTheCLIOrganizationElseAPaidOne() {

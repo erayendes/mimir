@@ -186,13 +186,15 @@ extension LiveUsageDataSource {
         selectClaudeOrg(orgs, preferring: wanted)?["uuid"] as? String
     }
 
-    /// The plan an organization's capabilities name: `claude_max` → Max, `claude_pro` → Pro,
+    /// The plan an organization's capabilities name: `claude_max` → Max (Ultra on the 20x tier), `claude_pro` → Pro,
     /// `raven` (claude.ai's Team) → Team, `enterprise` → Enterprise. nil for a free one.
     static func claudeOrgPlan(_ org: [String: Any]) -> String? {
         let caps = org["capabilities"] as? [String] ?? []
         if caps.contains(where: { $0.contains("enterprise") }) { return "Enterprise" }
         if caps.contains(where: { $0.contains("raven") }) { return "Team" }
-        if caps.contains(where: { $0.contains("claude_max") }) { return "Max" }
+        if caps.contains(where: { $0.contains("claude_max") }) {
+            return AccountInfo.claudePlan("claude_max", rateLimitTier: org["rate_limit_tier"] as? String)
+        }
         if caps.contains(where: { $0.contains("claude_pro") }) { return "Pro" }
         return nil
     }

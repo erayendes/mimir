@@ -149,9 +149,11 @@ struct AccountInfo: Equatable {
     var org: String? = nil
 
     /// `claude_team` → "Team", `claude_max` → "Max". Unknown values keep their own word, so a new
-    /// plan shows up as itself instead of vanishing.
-    static func claudePlan(_ organizationType: String?) -> String? {
-        planWord(organizationType.map { $0.hasPrefix("claude_") ? String($0.dropFirst(7)) : $0 })
+    /// plan shows up as itself instead of vanishing. Max 20x ($200) is sold as "Ultra" now, but its
+    /// organization type still says `claude_max`; only the rate-limit tier tells the two apart.
+    static func claudePlan(_ organizationType: String?, rateLimitTier: String? = nil) -> String? {
+        if organizationType == "claude_max", rateLimitTier?.hasSuffix("max_20x") == true { return "Ultra" }
+        return planWord(organizationType.map { $0.hasPrefix("claude_") ? String($0.dropFirst(7)) : $0 })
     }
 
     /// Codex's `chatgpt_plan_type`: `plus` → "Plus", `team` → "Team". The Pro tiers take the names

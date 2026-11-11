@@ -921,6 +921,24 @@ final class ClaudeResetGrantTests: XCTestCase {
         XCTAssertEqual(rows.map(\.name), ["22.10.26", "01.12.26"])
     }
 
+    /// Two grants from a live answer, 2026-11-11: both say `type: "full"`, yet one resets the week
+    /// and the other gives back only Fable's usage.
+    func testEachLineSaysWhatItGivesBack() {
+        let grants: [[String: Any]] = [
+            ["label": "One full limit reset (November 2026)", "resets_left": 1, "usable_now": true,
+             "type": "full", "clears": ["five_hour", "seven_day", "seven_day_overage_included"],
+             "ends_at": "2026-12-10T12:00:00+00:00"],
+            ["label": "New model launch: one Fable reset for Max, Team Premium and Enterprise Premium",
+             "resets_left": 1, "usable_now": true, "type": "full", "gives_back_weekly": true,
+             "clears": ["five_hour", "seven_day_overage_included"], "ends_at": "2027-03-09T07:59:00+00:00"],
+        ]
+        var r = root(grants)
+        r["limits"] = [["kind": "weekly_scoped", "group": "weekly", "percent": 0,
+                        "scope": ["model": ["display_name": "Fable"]]]]
+        let names = ds.claudeResetGrantRows(r, now: now).map(\.name)
+        XCTAssertEqual(names, ["\(String(localized: "Weekly")) · 10.12.26", "Fable · 09.03.27"])
+    }
+
     func testTheCLIPathHasNoSuchFieldAndGetsNoRows() {
         XCTAssertTrue(ds.claudeResetGrantRows(["five_hour": ["utilization": 11]], now: now).isEmpty)
         XCTAssertTrue(ds.claudeResetGrantRows(["cedar_ember": ["eligible": false, "grants": []]], now: now).isEmpty)

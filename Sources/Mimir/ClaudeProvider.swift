@@ -44,7 +44,10 @@ extension LiveUsageDataSource {
     static func claudeAccount(oauthAccount o: [String: Any]) -> AccountInfo? {
         let user = o["accountUuid"] as? String, org = o["organizationUuid"] as? String
         guard user != nil || org != nil else { return nil }
-        return AccountInfo(plan: AccountInfo.claudePlan(o["organizationType"] as? String)
+        // Claude Code writes the plan's own name ("Ultra") when it knows it; that beats deriving one.
+        return AccountInfo(plan: (o["planDisplayName"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+                               ?? AccountInfo.claudePlan(o["organizationType"] as? String,
+                                                         rateLimitTier: o["organizationRateLimitTier"] as? String)
                                ?? org.flatMap { UserDefaults.standard.string(forKey: claudePlanKey($0)) },
                            email: o["emailAddress"] as? String,
                            id: "\(user ?? "-")|\(org ?? "-")", org: org)
@@ -296,6 +299,11 @@ extension LiveUsageDataSource {
     func claudeResetGrantRows(_ root: [String: Any], now: Date = Date()) -> [ModelStatus] {
         guard let cedar = root["cedar_ember"] as? [String: Any],
               let grants = cedar["grants"] as? [[String: Any]] else { return [] }
+        // Models with their own weekly row ("Fable"): a grant that names one in its label gives
+        // back that model's usage only.
+        let scopedModels = (root["limits"] as? [[String: Any]] ?? []).compactMap {
+            (($0["scope"] as? [String: Any])?["model"] as? [String: Any])?["display_name"] as? String
+        }
 
         return grants.compactMap { grant -> (date: Date, rows: [ModelStatus])? in
             let left = (doubleValue(grant["resets_left"])).map(Int.init) ?? 0
@@ -309,9 +317,16 @@ extension LiveUsageDataSource {
             // still spend, and a count tucked into one line reads as a quantity, not as two things
             // you could use on two different days.
             // One line per pass. The chip above them carries the count; these carry the dates.
+            // Each line also says what it gives back: a grant that clears the weekly window resets
+            // the week, otherwise it is the model its label names. `type` is "full" for both.
             let date = Self.shortDateFormatter.string(from: endsAt)
+            let label = grant["label"] as? String ?? ""
+            let kind = (grant["clears"] as? [String])?.contains("seven_day") == true
+                ? String(localized: "Weekly")
+                : scopedModels.first { label.contains($0) }
+            let name = kind.map { "\($0) · \(date)" } ?? date
             return (endsAt, (0 ..< left).map { _ in
-                ModelStatus(name: date, remainingPercent: 0, resetAt: endsAt,
+                ModelStatus(name: name, remainingPercent: 0, resetAt: endsAt,
                             valueText: TimeFormatter.duration(from: endsAt.timeIntervalSince(now)),
                             symbol: "plus.circle",
                             groupLabel: String(localized: "Renewal credit"))
@@ -625,7 +640,8 @@ extension LiveUsageDataSource {
     /// The organization and plan in an `/api/oauth/profile` answer. Pure → unit-testable.
     static func claudeProfilePlan(_ root: [String: Any]) -> (org: String, plan: String)? {
         guard let org = root["organization"] as? [String: Any], let uuid = org["uuid"] as? String,
-              let plan = AccountInfo.claudePlan(org["organization_type"] as? String) else { return nil }
+              let plan = AccountInfo.claudePlan(org["organization_type"] as? String,
+                                                rateLimitTier: org["rate_limit_tier"] as? String) else { return nil }
         return (uuid, plan)
     }
 
