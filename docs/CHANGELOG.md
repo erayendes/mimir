@@ -9,13 +9,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-### [3.2-beta.1] - 2026-10-29
+### [3.2-beta.1] - 2026-11-11
 
 Notification texts have been streamlined.
 
 Fixes to how Antigravity is shown.
 
 Codex plan names now show the package: Pro → Pro 100, Pro 200 and so on.
+
+Claude's $200 plan now shows as Ultra.
+
+Claude's renewal credits say what they renew: Weekly or Fable.
 
 ### [3.1] - 2026-10-27
 
@@ -675,13 +679,17 @@ Bu projedeki tüm önemli değişiklikler bu dosyada belgelenecektir.
 Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
 
-### [3.2-beta.1] - 2026-10-29
+### [3.2-beta.1] - 2026-11-11
 
 Bildirim metinleri optimize edildi.
 
 Antigravity gösterimlerinde düzeltmeler yapıldı.
 
 Codex plan isimlerinde paket gösterimi eklendi. Pro → Pro 100, Pro 200 gibi.
+
+Claude'un 200 dolarlık planı artık Ultra adıyla görünüyor.
+
+Claude yenileme haklarında hakkın türü yazıyor: Haftalık ya da Fable.
 
 ### [3.1] - 2026-10-27
 
