@@ -21,6 +21,9 @@ final class QuotaPaceTests: XCTestCase {
         XCTAssertEqual(halfway(52).tone, .amber)
         XCTAssertEqual(halfway(55).tone, .amber)   // 15.3h, under 10% (16.8h)
         XCTAssertEqual(halfway(56).tone, .red)     // 18h
+        // Only red says it in words; amber is the colour alone.
+        XCTAssertNil(halfway(55).note)
+        XCTAssertNotNil(halfway(56).note)
         XCTAssertEqual(halfway(60).emptyFor!, 3.5 * 86_400 / 3, accuracy: 1)
     }
 
@@ -49,12 +52,11 @@ final class QuotaPaceTests: XCTestCase {
         let pace = halfway(30)
         XCTAssertEqual(pace.tone, .green)
         XCTAssertEqual(pace.leftAtReset, 40)
-        XCTAssertNotNil(pace.note)
+        // What's left over is the tooltip's, not the capsule's.
+        XCTAssertNil(pace.note)
         XCTAssertEqual(pace.dailyBudget, 20, accuracy: 0.01)
         XCTAssertEqual(pace.idealPercent, 50, accuracy: 0.01)
-        // Under 20 left over isn't worth a line.
         XCTAssertEqual(halfway(45).leftAtReset, 10)
-        XCTAssertNil(halfway(45).note)
     }
 
     func testNothingSpentKeepsItAll() {

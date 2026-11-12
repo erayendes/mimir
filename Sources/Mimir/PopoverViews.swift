@@ -939,17 +939,12 @@ struct ProviderPanel: View {
         if panel.paceOnFace, !panel.stale, let pace = panel.pace {
             Text(pace.note ?? "")
                 .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
-                .foregroundStyle(noteTone(pace))
+                .foregroundStyle(quotaStatusColor(0))
                 .padding(.trailing, 9)
                 .frame(maxWidth: .infinity, minHeight: 18, maxHeight: 18, alignment: .trailing)
                 .contentShape(Rectangle())
                 .help(pace.tooltip)
         }
-    }
-
-    /// Short of the reset the line takes the status colour; time to spare is only a quiet aside.
-    private func noteTone(_ pace: QuotaPace) -> Color {
-        pace.tone == .amber || pace.tone == .red ? paceColor(pace, 0) : Color.primary.opacity(0.42)
     }
 
     /// The name with its plan beside it in a quieter tone — "Claude Team", as Claude's own usage page
@@ -1045,7 +1040,7 @@ struct ProviderPanel: View {
 
     /// The long window: a capsule with its percent riding the fill, and the countdown and reset
     /// clock underneath. The fill takes the window's pace; a thin line marks where even use would
-    /// have it now, and the pace's own line (short by how long, or how much to spare) sits right.
+    /// have it now, and when the pace runs it dry, how long it stays empty sits on the right.
     private func capsule(percent: Int, resetAt: Date?) -> some View {
         let locked = panel.gated || panel.stale
         let pace = locked ? nil : panel.pace
@@ -1054,34 +1049,37 @@ struct ProviderPanel: View {
             GeometryReader { geo in
                 let width = geo.size.width
                 let fill = max(18, width * CGFloat(clampPct(percent)) / 100)
-                let number = Text("\(clampPct(percent))%")
-                    .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
+                let font = Font.system(size: 10.5, weight: .semibold).monospacedDigit()
+                let numberWidth = Self.textWidth("\(clampPct(percent))%")
+                // The number rides the fill while it's wide enough to hold it; past the end otherwise.
+                let numberX = fill >= 46 ? 9 : fill + 6
+                // The note sits right on the empty track; where that would reach the fill (a narrow card,
+                // a long line) it moves inside the fill, white, so it is never split across the two.
+                let note = pace?.note
+                let noteWidth = note.map { Self.textWidth($0) } ?? 0
+                let noteOnTrack = width - 9 - noteWidth >= fill + 6
+                let noteX = noteOnTrack ? width - 9 - noteWidth : fill - 9 - noteWidth
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color.primary.opacity(0.09))
                     Capsule().fill(color).frame(width: fill)
                     if let pace {
-                        // Behind the text, so a line under a word never cuts it.
-                        Rectangle().fill(Color.primary.opacity(0.45))
-                            .frame(width: 1.5)
-                            .offset(x: min(width - 1.5, max(0, width * pace.idealPercent / 100 - 0.75)))
+                        // Behind the words: hidden where it would cross the number or the note.
+                        let lineX = min(width - 1.5, max(0, width * pace.idealPercent / 100 - 0.75))
+                        let crosses = { (x: CGFloat, w: CGFloat) in w > 0 && lineX + 1.5 >= x - 3 && lineX <= x + w + 3 }
+                        if !crosses(numberX, numberWidth) && !crosses(noteX, noteWidth) {
+                            Rectangle().fill(Color.primary.opacity(0.45))
+                                .frame(width: 1.5)
+                                .offset(x: lineX)
+                        }
                     }
-                    // White on the fill while it's wide enough to hold the number; past the end
-                    // otherwise, where the fill can't carry it.
-                    if fill >= 46 {
-                        number.foregroundStyle(.white.opacity(0.92)).padding(.leading, 9)
-                    } else {
-                        number.foregroundStyle(Color.primary.opacity(0.9)).padding(.leading, fill + 6)
-                    }
-                    if let pace, let note = pace.note {
-                        // Its own tone on the track, white wherever the fill runs under it.
-                        let label = Text(note)
-                            .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
-                            .padding(.trailing, 9)
-                            .frame(width: width, alignment: .trailing)
-                        label.foregroundStyle(noteTone(pace))
-                            .mask(alignment: .trailing) { Rectangle().frame(width: max(0, width - fill)) }
-                        label.foregroundStyle(.white.opacity(0.92))
-                            .mask(alignment: .leading) { Rectangle().frame(width: fill) }
+                    Text("\(clampPct(percent))%").font(font)
+                        .foregroundStyle(fill >= 46 ? Color.white.opacity(0.92) : Color.primary.opacity(0.9))
+                        .padding(.leading, numberX)
+                    if let note {
+                        Text(note).font(font)
+                            .foregroundStyle(noteOnTrack ? quotaStatusColor(0) : Color.white.opacity(0.92))
+                            .lineLimit(1).fixedSize()
+                            .offset(x: noteX)
                     }
                 }
                 .clipShape(Capsule())
@@ -1100,6 +1098,12 @@ struct ProviderPanel: View {
             .font(.system(size: 10.5, weight: .medium).monospacedDigit())
             .foregroundStyle(Color.primary.opacity(0.42))
         }
+    }
+
+    /// How wide a capsule label draws, so the ideal line and the note can keep clear of it.
+    private static func textWidth(_ text: String) -> CGFloat {
+        let font = NSFont.monospacedDigitSystemFont(ofSize: 10.5, weight: .semibold)
+        return ceil((text as NSString).size(withAttributes: [.font: font]).width)
     }
 
     private func clockText(_ at: Date?) -> String? {

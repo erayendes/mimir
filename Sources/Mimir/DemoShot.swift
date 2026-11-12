@@ -55,11 +55,19 @@ enum DemoShot {
             sessionResetAt: now.addingTimeInterval(13 * 60),
             weeklyResetAt: now.addingTimeInterval(6 * 86_400 + 13 * 3600),
             sessionRemainingPercent: tight ? 31 : 91, weeklyRemainingPercent: tight ? 12 : 91,
-            weeklyWindowSeconds: 2_592_000,
+            weeklyWindowSeconds: 7 * 86_400,
             models: [ModelStatus(name: String(localized: "Credit balance"), remainingPercent: 0,
                                  resetAt: nil, valueText: "42 kredi", symbol: "dollarsign.circle")] + credits,
             isAvailable: true, statusNote: "demo",
             account: AccountInfo(plan: "Plus", email: "you@example.com"))
+
+        // Go: one 30-day window and no session, so the window takes the face.
+        let codexGo = ServiceStatus(
+            name: "Codex Go", iconName: "codex",
+            sessionResetAt: nil, weeklyResetAt: now.addingTimeInterval(18 * 86_400),
+            weeklyRemainingPercent: tight ? 20 : 72, weeklyWindowSeconds: 30 * 86_400,
+            models: [], isAvailable: true, statusNote: "demo",
+            account: AccountInfo(plan: "Go", email: "you@example.com"))
 
         // Antigravity carries per-family rows instead of account windows — and it's where the amber
         // and red bands show up in this render.
@@ -87,14 +95,19 @@ enum DemoShot {
             ServiceCard(service: claude, now: now)
             ServiceCard(service: claudeWork, now: now)
             ServiceCard(service: codex, now: now)
+            ServiceCard(service: codexGo, now: now)
             ServiceCard(service: antigravity, now: now)
         }
+        // `MIMIR_DEMO_LIGHT=1` renders the light appearance; the status colours follow NSApp's.
+        let light = ProcessInfo.processInfo.environment["MIMIR_DEMO_LIGHT"] != nil
+        NSApp.appearance = NSAppearance(named: light ? .aqua : .darkAqua)
+        let page = view
         .padding(11)
         .frame(width: PopoverMetrics.width)
-        .background(Color(hex: 0x2C2C30))
-        .environment(\.colorScheme, .dark)
+        .background(Color(hex: light ? 0xECECEE : 0x2C2C30))
+        .environment(\.colorScheme, light ? .light : .dark)
 
-        let renderer = ImageRenderer(content: view)
+        let renderer = ImageRenderer(content: page)
         renderer.scale = 2
         guard let image = renderer.nsImage,
               let tiff = image.tiffRepresentation,

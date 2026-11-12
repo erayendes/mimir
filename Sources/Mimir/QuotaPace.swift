@@ -63,20 +63,12 @@ struct QuotaPace: Equatable {
                          leftAtReset: Int((remaining - rate * left).rounded()), dailyBudget: budget)
     }
 
-    /// The line on the capsule: how long it sits empty (amber, red), or how much is left over at the
-    /// reset when that is worth saying. nil on pace.
+    /// The line on the capsule, red only: how long the window sits empty. Amber says enough by its
+    /// colour, and what is left over at the reset lives in the tooltip.
     var note: String? {
-        switch tone {
-        case .amber, .red:
-            return emptyFor.map { empty in
-                let (count, days) = Self.span(empty)
-                return String(format: days ? String(localized: "pace.short.days") : String(localized: "pace.short.hours"), count)
-            }
-        case .green:
-            return leftAtReset.flatMap { $0 >= 20 ? String(format: String(localized: "pace.spare"), $0) : nil }
-        case .early:
-            return nil
-        }
+        guard tone == .red, let emptyFor else { return nil }
+        let (count, days) = Self.span(emptyFor)
+        return String(format: days ? String(localized: "pace.short.days") : String(localized: "pace.short.hours"), count)
     }
 
     /// Hover text: when it runs out (or what is left at the reset), then the safe daily budget.
