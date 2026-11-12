@@ -97,7 +97,8 @@ enum WidgetBridge {
         svc.sessionWindows.compactMap { w in
             let window = w.label == svc.name ? "weekly" : w.label
             let pace: QuotaPace? = {
-                guard !svc.isStale, let percent = w.weeklyPercent, let resetAt = w.weeklyResetAt else { return nil }
+                guard !svc.isStale, !QuotaPace.gated(weekly: w.weeklyPercent, session: w.sessionPercent),
+                      let percent = w.weeklyPercent, let resetAt = w.weeklyResetAt else { return nil }
                 return QuotaPace.compute(remaining: percent, resetAt: resetAt,
                                          window: w.weeklyWindowSeconds ?? 7 * 86_400, now: now,
                                          history: QuotaHistory.shared.readings(QuotaHistory.key(svc.name, window),

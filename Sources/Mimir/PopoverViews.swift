@@ -722,7 +722,8 @@ struct ServiceCard: View {
                           weeklyLabel: longWindowLabel ?? "7\(TimeFormatter.dayUnit)",
                           sessionFallback: 5 * 3600,
                           weeklyWindow: service.weeklyWindowSeconds ?? 7 * 86_400,
-                          gated: service.weeklyRemainingPercent == 0 && service.sessionRemainingPercent != nil,
+                          gated: QuotaPace.gated(weekly: service.weeklyRemainingPercent,
+                                                 session: service.sessionRemainingPercent),
                           pace: pace("weekly", service.weeklyRemainingPercent, service.weeklyResetAt,
                                      service.weeklyWindowSeconds ?? 7 * 86_400))]
             // A quota beside the plan's own (Codex's Luna Reserve) is a quota in its own right, so it

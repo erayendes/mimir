@@ -63,6 +63,10 @@ struct QuotaPace: Equatable {
                          leftAtReset: Int((remaining - rate * left).rounded()))
     }
 
+    /// A long window spent to 0% gates the session beside it: the popover greys that panel and shows
+    /// no pace, and the widget follows. A lone long window (no session) isn't gated; it is the face.
+    static func gated(weekly: Int?, session: Int?) -> Bool { weekly == 0 && session != nil }
+
     /// How long a window runs before its pace is judged: 5% of it, but never under a day.
     static func earlyStretch(_ window: TimeInterval) -> TimeInterval { max(0.05 * window, 86_400) }
 

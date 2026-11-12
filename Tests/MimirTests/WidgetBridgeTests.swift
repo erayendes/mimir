@@ -43,6 +43,26 @@ final class WidgetBridgeTests: XCTestCase {
         XCTAssertEqual(p.fiveHour.map(\.weeklyPercent), [88, nil])
     }
 
+    /// A weekly cap at 0% gates its session: like the popover, the widget shows no pace for it
+    /// (no tone, no ideal arrow, no note), even mid-window where a red pace would otherwise show.
+    func testExhaustedWeeklyGatesSessionWithoutPace() {
+        let ag = ServiceStatus(
+            name: "Antigravity", iconName: "antigravity",
+            sessionResetAt: nil, weeklyResetAt: nil,
+            sessionRemainingPercent: nil, weeklyRemainingPercent: nil,
+            models: [ModelStatus(name: "Gemini", remainingPercent: 100, resetAt: now.addingTimeInterval(3600),
+                                 window: .session),
+                     ModelStatus(name: "Gemini", remainingPercent: 0, resetAt: now.addingTimeInterval(3.5 * 86_400),
+                                 window: .weekly)],
+            isAvailable: true, statusNote: nil)
+
+        let m = WidgetBridge.makePayload([ag], generatedAt: now).providers[0].fiveHour[0]
+        XCTAssertEqual(m.weeklyPercent, 0)
+        XCTAssertNil(m.tone)
+        XCTAssertNil(m.idealPercent)
+        XCTAssertNil(m.note)
+    }
+
     /// Codex since OpenAI's July 2026 5-hour removal: no session reading, only a weekly one. The widget
     /// falls back to the weekly quota as the headline metric (tagged `isWeekly`) instead of dropping the
     /// row, so the "7g" pill and real binding limit still render.
