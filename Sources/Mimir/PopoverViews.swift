@@ -954,10 +954,8 @@ struct ProviderPanel: View {
         }
     }
 
-    /// What the pace bubble says; nothing early in the window, when there's no estimate to give.
-    static func paceInfo(_ pace: QuotaPace?) -> String? {
-        pace.flatMap { $0.tone == .early ? nil : $0.tooltip }
-    }
+    /// What the pace bubble says (see `QuotaPace.info`).
+    static func paceInfo(_ pace: QuotaPace?) -> String? { pace?.info }
 
     /// The name with its plan beside it in a quieter tone — "Claude Team", as Claude's own usage page
     /// writes it — then the reset clock over the countdown and the number. The plan is the way to the
@@ -1231,8 +1229,8 @@ struct BrandIconView: View {
 
 extension View {
     /// A click raises the pace in a bubble just under this view, in the e-mail bubble's style; a
-    /// click on either closes it. Without `info` (early in the window, a last-known card) a click
-    /// does nothing and the cursor stays an arrow.
+    /// click on either closes it. Without `info` (a last-known card) a click does nothing and the
+    /// cursor stays an arrow.
     func paceBubble(_ info: String?, shown: Bool, toggle: @escaping () -> Void,
                     close: @escaping () -> Void) -> some View {
         contentShape(Rectangle())

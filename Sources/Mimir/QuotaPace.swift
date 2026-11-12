@@ -22,8 +22,8 @@ struct QuotaPace: Equatable {
     let emptyFor: TimeInterval?
     /// What is still left at the reset at this pace, when it lasts.
     let leftAtReset: Int?
-    /// Percent points a day that would last exactly to the reset.
-    let dailyBudget: Double
+    /// Early in the window: how long until a pace is given.
+    var estimateIn: TimeInterval? = nil
 
     /// `history` is this window's earlier readings (see `QuotaHistory`); only the last day counts.
     static func compute(remaining: Int, resetAt: Date, window: TimeInterval, now: Date,
@@ -33,11 +33,10 @@ struct QuotaPace: Equatable {
         let elapsed = max(0, window - left)
         let remaining = Double(max(0, min(100, remaining)))
         let ideal = max(0, 100 * (1 - elapsed / window))
-        let budget = remaining / left * 86_400
         // Too early to call until the window has seen a day and a night, and 5% of a long one.
         guard elapsed >= Self.earlyStretch(window) else {
             return QuotaPace(tone: .early, idealPercent: nil, runsOutAt: nil, emptyFor: nil,
-                             leftAtReset: nil, dailyBudget: budget)
+                             leftAtReset: nil, estimateIn: Self.earlyStretch(window) - elapsed)
         }
         let average = (100 - remaining) / elapsed
         // The last day's pace, from the oldest reading in it, once that spans at least three hours.
@@ -51,40 +50,54 @@ struct QuotaPace: Equatable {
         let rate = max(average, recent)
         guard rate > 0 else {
             return QuotaPace(tone: .green, idealPercent: ideal, runsOutAt: nil, emptyFor: nil,
-                             leftAtReset: Int(remaining), dailyBudget: budget)
+                             leftAtReset: Int(remaining))
         }
         let runsOut = now.addingTimeInterval(remaining / rate)
         if runsOut < resetAt {
             let empty = resetAt.timeIntervalSince(runsOut)
             let tone: Tone = empty < 0.02 * window ? .green : empty <= 0.10 * window ? .amber : .red
             return QuotaPace(tone: tone, idealPercent: ideal, runsOutAt: runsOut, emptyFor: empty,
-                             leftAtReset: nil, dailyBudget: budget)
+                             leftAtReset: nil)
         }
         return QuotaPace(tone: .green, idealPercent: ideal, runsOutAt: nil, emptyFor: nil,
-                         leftAtReset: Int((remaining - rate * left).rounded()), dailyBudget: budget)
+                         leftAtReset: Int((remaining - rate * left).rounded()))
     }
 
     /// How long a window runs before its pace is judged: 5% of it, but never under a day.
     static func earlyStretch(_ window: TimeInterval) -> TimeInterval { max(0.05 * window, 86_400) }
 
     /// The line on the capsule, red only: how long the window sits empty. Amber says enough by its
-    /// colour, and what is left over at the reset lives in the tooltip.
+    /// colour, and what is left over at the reset lives in the bubble.
     var note: String? {
         guard tone == .red, let emptyFor else { return nil }
         let (count, days) = Self.span(emptyFor)
         return String(format: days ? String(localized: "pace.short.days") : String(localized: "pace.short.hours"), count)
     }
 
-    /// Hover text: when it runs out (or what is left at the reset), then the safe daily budget.
-    var tooltip: String {
-        var lines: [String] = []
-        if let runsOutAt {
-            lines.append(String(format: String(localized: "pace.runsOut"), Self.dayClock.string(from: runsOutAt)))
-        } else if let leftAtReset {
-            lines.append(String(format: String(localized: "pace.leftAtReset"), leftAtReset))
+    /// The bubble's one line: when it runs out, or what is left at the reset — or, early in the
+    /// window, how long until there is a forecast at all.
+    var info: String? {
+        if let estimateIn {
+            let (count, unit) = Self.startsIn(estimateIn)
+            let key: String = switch unit {
+            case .minute: String(localized: "pace.early.minutes")
+            case .hour: String(localized: "pace.early.hours")
+            default: String(localized: "pace.early.days")
+            }
+            return String(format: key, count)
         }
-        lines.append(String(format: String(localized: "pace.budget"), Int(dailyBudget.rounded())))
-        return lines.joined(separator: "\n")
+        if let runsOutAt {
+            return String(format: String(localized: "pace.runsOut"), Self.dayClock.string(from: runsOutAt))
+        }
+        return leftAtReset.map { String(format: String(localized: "pace.leftAtReset"), $0) }
+    }
+
+    /// A wait in whole minutes under an hour, hours under a day, days past that; never zero. A
+    /// duration, not a clock time: Turkish suffixes change with the hour.
+    static func startsIn(_ interval: TimeInterval) -> (count: Int, unit: Calendar.Component) {
+        if interval < 3600 { return (max(1, Int((interval / 60).rounded())), .minute) }
+        if interval < 86_400 { return (max(1, Int((interval / 3600).rounded())), .hour) }
+        return (Int((interval / 86_400).rounded()), .day)
     }
 
     /// Under a day in whole hours (at least one), from there in whole days.

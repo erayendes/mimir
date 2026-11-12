@@ -118,4 +118,6 @@
 "pace.short.days" = "≈%lld gün kotasız";
 "pace.runsOut" = "Bu tempoyla %@ biter";
 "pace.leftAtReset" = "Bu tempoyla sıfırlanınca ≈%%%lld kalır";
-"pace.budget" = "Günlük güvenli bütçe: %%%lld";
+"pace.early.minutes" = "Tahmin %lld dakika sonra başlar";
+"pace.early.hours" = "Tahmin %lld saat sonra başlar";
+"pace.early.days" = "Tahmin %lld gün sonra başlar";

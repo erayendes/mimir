@@ -118,4 +118,6 @@
 "pace.short.days" = "≈%lldd short";
 "pace.runsOut" = "Runs out %@ at this pace";
 "pace.leftAtReset" = "≈%lld%% left at reset at this pace";
-"pace.budget" = "Safe daily budget: %lld%%";
+"pace.early.minutes" = "Forecast starts in %lldm";
+"pace.early.hours" = "Forecast starts in %lldh";
+"pace.early.days" = "Forecast starts in %lldd";

@@ -46,6 +46,20 @@ final class QuotaPaceTests: XCTestCase {
         XCTAssertNil(pace.runsOutAt)
         // No ideal line yet: it would only sit on the capsule's end.
         XCTAssertNil(pace.idealPercent)
+        // But the bubble says when the forecast starts: 17h after 7h of a week.
+        XCTAssertEqual(pace.estimateIn!, 17 * 3600, accuracy: 1)
+        XCTAssertNotNil(pace.info)
+    }
+
+    func testForecastStartsInMinutesHoursOrDays() {
+        XCTAssertTrue(QuotaPace.startsIn(40 * 60) == (40, .minute))
+        XCTAssertTrue(QuotaPace.startsIn(10) == (1, .minute))
+        XCTAssertTrue(QuotaPace.startsIn(14.3 * 3600) == (14, .hour))
+        XCTAssertTrue(QuotaPace.startsIn(2.2 * 86_400) == (2, .day))
+        // Past the early stretch there's a forecast instead, and one line of it.
+        XCTAssertNil(halfway(30).estimateIn)
+        XCTAssertFalse(halfway(30).info!.contains("\n"))
+        XCTAssertNotNil(halfway(56).info)
     }
 
     /// The early stretch is the longer of a day and 5% of the window.
@@ -86,9 +100,8 @@ final class QuotaPaceTests: XCTestCase {
         let pace = halfway(30)
         XCTAssertEqual(pace.tone, .green)
         XCTAssertEqual(pace.leftAtReset, 40)
-        // What's left over is the tooltip's, not the capsule's.
+        // What's left over is the bubble's, not the capsule's.
         XCTAssertNil(pace.note)
-        XCTAssertEqual(pace.dailyBudget, 20, accuracy: 0.01)
         XCTAssertEqual(pace.idealPercent ?? -1, 50, accuracy: 0.01)
         XCTAssertEqual(halfway(45).leftAtReset, 10)
     }
