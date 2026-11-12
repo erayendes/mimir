@@ -1116,7 +1116,7 @@ struct ProviderPanel: View {
     /// Where the capsule's two labels go. The number rides the fill while it's wide enough to hold it,
     /// else sits just past it; the note sits right on the empty track, or inside the fill in white when
     /// it can't fit there, so it never splits across the two.
-    static func capsuleLabels(width: CGFloat, fill: CGFloat, noteWidth: CGFloat?)
+    nonisolated static func capsuleLabels(width: CGFloat, fill: CGFloat, noteWidth: CGFloat?)
         -> (numberX: CGFloat, numberOnFill: Bool, noteX: CGFloat, noteOnFill: Bool) {
         var noteX: CGFloat = 0
         if let noteWidth {
