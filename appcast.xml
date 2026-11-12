@@ -8,7 +8,38 @@
     <description>Mimir update feed</description>
     <language>en</language>
 
-                                                                        <item>
+                                                                            <item>
+      <title>Mimir 3.2-beta.3</title>
+      <sparkle:channel>beta</sparkle:channel>
+      <sparkle:version>300199003</sparkle:version>
+      <sparkle:shortVersionString>3.2-beta.3</sparkle:shortVersionString>
+      <pubDate>Thu, 12 Nov 2026 17:17:35 +0000</pubDate>
+      <description><![CDATA[
+<p>Weekly and 30-day quota bars are now colored by whether your current pace will last until the reset, not by the percentage left. (Quotas that would run out only slightly early get leeway of about 2% of the window.)</p>
+<p>The arrow inside the bar shows where the quota should be with even use.</p>
+<p>Only red bars say how long you'll be without quota, for example, “≈2d short”.</p>
+<p>Click the bar to open a bubble with when the quota is expected to run out or how much will be left at the reset. (During the first 24 hours, 36 hours for a 30-day window, it says when the forecast starts instead.)</p>
+<p>The widget now shows the same colors and the same arrow.</p>
+<p>Five-hour quotas and notifications are unchanged.</p>
+<p>Both the idea of forecasting when the quota runs out and the method behind it come from the forecast script <a href="https://github.com/ilkerutlu">@ilkerutlu</a> shared, thank you for both.</p>
+<hr>
+<p>Haftalık ve 30 günlük kota çubukları artık kalan yüzdeye göre değil, mevcut kullanım hızıyla kotanın sıfırlanmaya yetip yetmeyeceğine göre renkleniyor. (Az farkla erken bitecek kotalar için pencere süresinin yaklaşık %2'si kadar pay var.)</p>
+<p>Çubuğun içindeki ok, dengeli kullanımda kotanın nerede olması gerektiğini gösteriyor.</p>
+<p>Yalnızca kırmızı çubuklarda kotasız kalınacak süre yazıyor; örneğin “≈2 gün kotasız”.</p>
+<p>Çubuğa tıkladığınızda açılan baloncuk, kotanın tahmini bitiş zamanını veya sıfırlandığında kalacak oranı gösteriyor. (İlk 24 saatte, 30 günlük kotada ilk 36 saatte, bunun yerine tahminin ne zaman başlayacağı yazıyor.)</p>
+<p>Widget de artık aynı renkleri ve aynı oku gösteriyor.</p>
+<p>Beş saatlik kotalar ve bildirimler değişmedi.</p>
+<p>Kotanın ne zaman biteceğini tahmin etme fikri de bunu hesaplama yöntemi de <a href="https://github.com/ilkerutlu">@ilkerutlu</a>'nun paylaştığı tahmin betiğinden geliyor, ikisi için de teşekkürler.</p>
+      ]]></description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v3.2-beta.3/Mimir.zip"
+        sparkle:edSignature="ybKPQPuwfWheezTT2Vt2sNAMD495KZNSIlebx1YUdAta8hpOBOIZ7zORetQyNCC96Wmy0+KH3faqWL8Utx/iCg=="
+        length="7120458"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 3.2-beta.2</title>
       <sparkle:channel>beta</sparkle:channel>
       <sparkle:version>300199002</sparkle:version>
