@@ -1065,10 +1065,8 @@ struct ProviderPanel: View {
                 let fill = max(18, width * CGFloat(clampPct(percent)) / 100)
                 let font = Font.system(size: 10.5, weight: .semibold).monospacedDigit()
                 let note = pace?.note
-                let line = pace?.idealPercent.map { min(width - 1.5, max(0, width * CGFloat($0) / 100 - 0.75)) }
                 let labels = Self.capsuleLabels(width: width, fill: fill,
-                                                numberWidth: Self.textWidth("\(clampPct(percent))%"),
-                                                noteWidth: note.map { Self.textWidth($0) }, line: line)
+                                                noteWidth: note.map { Self.textWidth($0) })
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color.primary.opacity(0.09))
                     Capsule().fill(color).frame(width: fill)
@@ -1083,12 +1081,13 @@ struct ProviderPanel: View {
                     }
                 }
                 .clipShape(Capsule())
-                // Outside the clip, so it stands a little proud of the capsule at both ends.
-                .overlay(alignment: .leading) {
-                    if let line, labels.lineShown {
-                        Capsule().fill(Color.white)
-                            .frame(width: 1.5, height: 25)
-                            .offset(x: line)
+                // Where even use would have the bar now: a small arrow just above the capsule, in the gap
+                // under the header, so it never meets the words inside. Kept whole at either end.
+                .overlay(alignment: .topLeading) {
+                    if let ideal = pace?.idealPercent {
+                        DownTriangle().fill(Color.primary.opacity(0.5))
+                            .frame(width: 8, height: 5)
+                            .offset(x: min(width - 4, max(4, width * CGFloat(ideal) / 100)) - 4, y: -6.5)
                     }
                 }
             }
@@ -1114,22 +1113,17 @@ struct ProviderPanel: View {
         }
     }
 
-    /// Where the capsule's two labels go, and whether the ideal line can show. The number rides the
-    /// fill while it's wide enough to hold it, else sits just past it; the note sits right on the empty
-    /// track, or inside the fill in white when it can't fit there, so it never splits across the two.
-    /// The labels stay put: where the line would cross one, the line is the one left out.
-    static func capsuleLabels(width: CGFloat, fill: CGFloat, numberWidth: CGFloat, noteWidth: CGFloat?,
-                              line: CGFloat?) -> (numberX: CGFloat, numberOnFill: Bool, noteX: CGFloat,
-                                                  noteOnFill: Bool, lineShown: Bool) {
-        let numberX: CGFloat = fill >= 46 ? 9 : fill + 6
+    /// Where the capsule's two labels go. The number rides the fill while it's wide enough to hold it,
+    /// else sits just past it; the note sits right on the empty track, or inside the fill in white when
+    /// it can't fit there, so it never splits across the two.
+    static func capsuleLabels(width: CGFloat, fill: CGFloat, noteWidth: CGFloat?)
+        -> (numberX: CGFloat, numberOnFill: Bool, noteX: CGFloat, noteOnFill: Bool) {
         var noteX: CGFloat = 0
         if let noteWidth {
             noteX = width - 9 - noteWidth
             if noteX < fill + 6 { noteX = fill - 9 - noteWidth }
         }
-        let crosses = { (x: CGFloat, w: CGFloat) in line.map { $0 + 1.5 >= x - 3 && $0 <= x + w + 3 } ?? false }
-        let lineShown = line != nil && !crosses(numberX, numberWidth) && !crosses(noteX, noteWidth ?? 0)
-        return (numberX, fill >= 46, noteX, noteWidth.map { noteX + $0 <= fill } ?? false, lineShown)
+        return (fill >= 46 ? 9 : fill + 6, fill >= 46, noteX, noteWidth.map { noteX + $0 <= fill } ?? false)
     }
 
     /// How wide a capsule label draws, so the ideal line and the note can keep clear of it.
@@ -1259,5 +1253,17 @@ extension View {
                         .transition(.opacity)
                 }
             }
+    }
+}
+
+/// The ideal-point marker: a small triangle pointing down at the capsule.
+struct DownTriangle: Shape {
+    func path(in rect: CGRect) -> Path {
+        Path { p in
+            p.move(to: CGPoint(x: rect.minX, y: rect.minY))
+            p.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+            p.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
+            p.closeSubpath()
+        }
     }
 }

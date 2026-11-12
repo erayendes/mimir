@@ -65,28 +65,20 @@ final class QuotaPaceTests: XCTestCase {
                                           window: week, now: now)!.idealPercent)
     }
 
-    /// The labels keep their places; the ideal line steps out where it would cross one.
-    func testTheLineGivesWayToTheLabels() {
-        // Through the number: no line, the number where it always was.
-        var l = ProviderPanel.capsuleLabels(width: 300, fill: 200, numberWidth: 24, noteWidth: nil, line: 15)
-        XCTAssertFalse(l.lineShown)
+    /// The number rides a wide fill, else sits past it; the red note sits on the track, or wholly
+    /// inside the fill in white when the track can't hold it.
+    func testCapsuleLabels() {
+        var l = ProviderPanel.capsuleLabels(width: 300, fill: 200, noteWidth: nil)
         XCTAssertEqual(l.numberX, 9)
         XCTAssertTrue(l.numberOnFill)
-        // Clear of both: drawn.
-        l = ProviderPanel.capsuleLabels(width: 300, fill: 30, numberWidth: 24, noteWidth: 80, line: 150)
-        XCTAssertTrue(l.lineShown)
+        l = ProviderPanel.capsuleLabels(width: 300, fill: 30, noteWidth: 80)
         XCTAssertEqual(l.numberX, 36)
         XCTAssertFalse(l.numberOnFill)
-        // Through the red note: no line, the note still right-aligned on the track.
-        l = ProviderPanel.capsuleLabels(width: 300, fill: 30, numberWidth: 24, noteWidth: 80, line: 250)
-        XCTAssertFalse(l.lineShown)
         XCTAssertEqual(l.noteX, 300 - 9 - 80)
         XCTAssertFalse(l.noteOnFill)
-        // Too long for the track: wholly inside the fill, white.
-        l = ProviderPanel.capsuleLabels(width: 300, fill: 250, numberWidth: 24, noteWidth: 80, line: nil)
+        l = ProviderPanel.capsuleLabels(width: 300, fill: 250, noteWidth: 80)
         XCTAssertEqual(l.noteX, 250 - 9 - 80)
         XCTAssertTrue(l.noteOnFill)
-        XCTAssertFalse(l.lineShown)
     }
 
     func testLeftOverAtReset() {
