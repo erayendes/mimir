@@ -11,11 +11,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### [3.2-beta.3] - 2026-11-12
 
-Weekly and 30-day quota bars now turn green, amber or red based on whether your current pace will last until the reset, with about 2% of the window as leeway. An arrow inside the bar shows where even use would put you. Only red bars say how long you'll be without quota, for example, “≈2d short”.
+Weekly and 30-day quota bars are now colored by whether your current pace will last until the reset, not by the percentage left. (Quotas that would run out only slightly early get leeway of about 2% of the window.)
 
-Click the bar to see when the quota is expected to run out or how much will be left at the reset. During the first 24 hours (36 hours for a 30-day window), the bubble says when the forecast starts instead. The widget now shows the same colors and the same arrow. Five-hour quotas and notifications are unchanged.
+The arrow inside the bar shows where the quota should be with even use.
 
-Both the idea of forecasting when the quota runs out and the method behind it come from the forecast script [@ilkerutlu](https://github.com/ilkerutlu) shared. Thank you, İlker, for both.
+Only red bars say how long you'll be without quota, for example, “≈2d short”.
+
+Click the bar to open a bubble with when the quota is expected to run out or how much will be left at the reset. (During the first 24 hours, 36 hours for a 30-day window, it says when the forecast starts instead.)
+
+The widget now shows the same colors and the same arrow.
+
+Five-hour quotas and notifications are unchanged.
+
+Both the idea of forecasting when the quota runs out and the method behind it come from the forecast script [@ilkerutlu](https://github.com/ilkerutlu) shared, thank you for both.
 
 ### [3.2-beta.2] - 2026-11-11
 
@@ -693,11 +701,19 @@ sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) k
 
 ### [3.2-beta.3] - 2026-11-12
 
-Haftalık ve 30 günlük kota çubukları artık kalan yüzdeye göre değil, mevcut kullanım hızıyla kotanın sıfırlanmaya yetip yetmeyeceğine göre yeşil, sarı veya kırmızı görünüyor. Az farkla erken bitecek kotalar için pencere süresinin yaklaşık %2'si kadar pay var. Çubuğun içindeki ok, dengeli kullanımda kotanın nerede olması gerektiğini gösteriyor. Yalnızca kırmızı çubuklarda kotasız kalınacak süre yazıyor; örneğin “≈2 gün kotasız”.
+Haftalık ve 30 günlük kota çubukları artık kalan yüzdeye göre değil, mevcut kullanım hızıyla kotanın sıfırlanmaya yetip yetmeyeceğine göre renkleniyor. (Az farkla erken bitecek kotalar için pencere süresinin yaklaşık %2'si kadar pay var.)
 
-Çubuğa tıkladığınızda açılan baloncuk, kotanın tahmini bitiş zamanını veya sıfırlandığında kalacak oranı gösteriyor. İlk 24 saatte (30 günlük kotada ilk 36 saatte) bunun yerine tahminin ne zaman başlayacağı yazıyor. Widget de artık aynı renkleri ve aynı oku gösteriyor. Beş saatlik kotalar ve bildirimler değişmedi.
+Çubuğun içindeki ok, dengeli kullanımda kotanın nerede olması gerektiğini gösteriyor.
 
-Kotanın ne zaman biteceğini tahmin etme fikri de bunu hesaplama yöntemi de [@ilkerutlu](https://github.com/ilkerutlu)'nun paylaştığı tahmin betiğinden geliyor. İkisi için de teşekkürler İlker.
+Yalnızca kırmızı çubuklarda kotasız kalınacak süre yazıyor; örneğin “≈2 gün kotasız”.
+
+Çubuğa tıkladığınızda açılan baloncuk, kotanın tahmini bitiş zamanını veya sıfırlandığında kalacak oranı gösteriyor. (İlk 24 saatte, 30 günlük kotada ilk 36 saatte, bunun yerine tahminin ne zaman başlayacağı yazıyor.)
+
+Widget de artık aynı renkleri ve aynı oku gösteriyor.
+
+Beş saatlik kotalar ve bildirimler değişmedi.
+
+Kotanın ne zaman biteceğini tahmin etme fikri de bunu hesaplama yöntemi de [@ilkerutlu](https://github.com/ilkerutlu)'nun paylaştığı tahmin betiğinden geliyor, ikisi için de teşekkürler.
 
 ### [3.2-beta.2] - 2026-11-11
 
