@@ -102,6 +102,8 @@ public func quotaWindowDays(_ windowSeconds: TimeInterval?) -> Int? {
     return max(1, Int((windowSeconds / 86_400).rounded()))
 }
 
+public enum QuotaTone: String, Codable { case green, amber, red }
+
 public struct WindowMetric: Codable, Equatable {
     public var label: String         // row label: "Claude" / "Gemini" / "Sonnet" …
     public var percent: Int          // remaining %, drives bar width + status colour
@@ -117,10 +119,16 @@ public struct WindowMetric: Codable, Equatable {
     // Real length of the window `percent`/`resetAt` describe, when the provider reports one. Lets the
     // widget label it by its actual size (7d vs 30d) instead of assuming weekly. nil = unknown.
     public var windowSeconds: TimeInterval?
+    /// App-computed pace for the long window (weekly, or the headline when `isWeekly`).
+    /// Nil during the early stretch, for stale readings, and in older payloads.
+    public var tone: QuotaTone?
+    public var idealPercent: Double?
+    public var note: String?
 
     public init(label: String, percent: Int, resetAt: Date?,
                 weeklyPercent: Int? = nil, weeklyResetAt: Date? = nil, isWeekly: Bool = false,
-                windowSeconds: TimeInterval? = nil) {
+                windowSeconds: TimeInterval? = nil, tone: QuotaTone? = nil,
+                idealPercent: Double? = nil, note: String? = nil) {
         self.label = label
         self.percent = percent
         self.resetAt = resetAt
@@ -128,10 +136,14 @@ public struct WindowMetric: Codable, Equatable {
         self.weeklyResetAt = weeklyResetAt
         self.isWeekly = isWeekly
         self.windowSeconds = windowSeconds
+        self.tone = tone
+        self.idealPercent = idealPercent
+        self.note = note
     }
 
     private enum CodingKeys: String, CodingKey {
         case label, percent, resetAt, weeklyPercent, weeklyResetAt, isWeekly, windowSeconds
+        case tone, idealPercent, note
     }
 
     // Custom decode so a payload written by an older app version (no `isWeekly`/`windowSeconds` key)
@@ -145,6 +157,9 @@ public struct WindowMetric: Codable, Equatable {
         weeklyResetAt = try c.decodeIfPresent(Date.self, forKey: .weeklyResetAt)
         isWeekly = try c.decodeIfPresent(Bool.self, forKey: .isWeekly) ?? false
         windowSeconds = try c.decodeIfPresent(TimeInterval.self, forKey: .windowSeconds)
+        tone = try c.decodeIfPresent(QuotaTone.self, forKey: .tone)
+        idealPercent = try c.decodeIfPresent(Double.self, forKey: .idealPercent)
+        note = try c.decodeIfPresent(String.self, forKey: .note)
     }
 }
 

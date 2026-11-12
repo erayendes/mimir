@@ -25,6 +25,17 @@ public func statusColor(_ percent: Int) -> Color {
     }
 }
 
+/// A long window uses the app's pace tone when available; older payloads and 5h windows retain
+/// the remaining-percent rule.
+public func statusColor(_ percent: Int, tone: QuotaTone?) -> Color {
+    switch tone {
+    case .green: statusColor(100)
+    case .amber: statusColor(20)
+    case .red: statusColor(0)
+    case nil: statusColor(percent)
+    }
+}
+
 /// Compact "kalan süre" string (e.g. `18d`, `4s 23d`, `5g 21s`) for an interval, with the unit
 /// suffixes injected so the caller controls localisation. Mirrors the app's `TimeFormatter`
 /// breakdown; lives here so the widget (which can't see the Mimir target) can format too.

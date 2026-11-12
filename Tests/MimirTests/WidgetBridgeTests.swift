@@ -88,6 +88,69 @@ final class WidgetBridgeTests: XCTestCase {
         XCTAssertEqual(m.percent, 72)
         XCTAssertTrue(m.isWeekly)
         XCTAssertNil(m.windowSeconds)
+        XCTAssertNil(m.tone)
+        XCTAssertNil(m.idealPercent)
+        XCTAssertNil(m.note)
+    }
+
+    func testPaceFieldsRoundTripAndLegacyPayload() throws {
+        let metric = WindowMetric(label: "Codex", percent: 30, resetAt: now,
+                                  isWeekly: true, tone: .red, idealPercent: 50,
+                                  note: "≈2 days without quota")
+        let payload = WidgetPayload(generatedAt: now, providers: [
+            ProviderPayload(name: "Codex", iconName: "codex", isAvailable: true, fiveHour: [metric])
+        ])
+        let decoded = try JSONDecoder().decode(WidgetPayload.self, from: JSONEncoder().encode(payload))
+        XCTAssertEqual(decoded.providers[0].fiveHour[0], metric)
+
+        let legacyJSON = #"{"generatedAt":0,"providers":[{"name":"Codex","iconName":"codex","isAvailable":true,"fiveHour":[{"label":"Codex","percent":30}]}]}"#
+        let legacy = try JSONDecoder().decode(WidgetPayload.self, from: Data(legacyJSON.utf8))
+            .providers[0].fiveHour[0]
+        XCTAssertNil(legacy.tone)
+        XCTAssertNil(legacy.idealPercent)
+        XCTAssertNil(legacy.note)
+    }
+
+    func testLongWindowPaceToneMappingAndExclusions() {
+        let week: TimeInterval = 7 * 86_400
+        func metric(_ remaining: Int, elapsed: TimeInterval = 3.5 * 86_400,
+                    stale: Bool = false, session: Int? = nil) -> WindowMetric {
+            let svc = ServiceStatus(name: "Codex", iconName: "codex",
+                                    sessionResetAt: session == nil ? nil : now.addingTimeInterval(3600),
+                                    weeklyResetAt: now.addingTimeInterval(week - elapsed),
+                                    sessionRemainingPercent: session, weeklyRemainingPercent: remaining,
+                                    models: [], isAvailable: true, statusNote: nil, isStale: stale)
+            return WidgetBridge.makePayload([svc], generatedAt: now).providers[0].fiveHour[0]
+        }
+
+        let green = metric(80)
+        XCTAssertEqual(green.tone, .green)
+        XCTAssertEqual(green.idealPercent, 50)
+        XCTAssertNil(green.note)
+
+        let amber = metric(45)
+        XCTAssertEqual(amber.tone, .amber)
+        XCTAssertNil(amber.note)
+
+        let red = metric(30)
+        XCTAssertEqual(red.tone, .red)
+        XCTAssertNotNil(red.note)
+        XCTAssertEqual(red.idealPercent, 50)
+
+        let paired = metric(30, session: 90)
+        XCTAssertFalse(paired.isWeekly)
+        XCTAssertEqual(paired.percent, 90) // 5h remains a static-threshold face
+        XCTAssertEqual(paired.tone, .red)  // its paired long bar carries the pace
+
+        let early = metric(30, elapsed: 12 * 3600)
+        XCTAssertNil(early.tone)
+        XCTAssertNil(early.idealPercent)
+        XCTAssertNil(early.note)
+
+        let stale = metric(30, stale: true)
+        XCTAssertNil(stale.tone)
+        XCTAssertNil(stale.idealPercent)
+        XCTAssertNil(stale.note)
     }
 
     /// A service with neither a session nor a weekly reading produces no metric (dropped, not a zero row).

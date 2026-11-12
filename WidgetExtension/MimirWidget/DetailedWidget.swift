@@ -1,5 +1,6 @@
 import WidgetKit
 import SwiftUI
+import AppKit
 
 /// The 5-hour session window length — the reset fallback shown when a provider reports no `resetAt`
 /// (Claude does this while its 5h window is inactive/full), so the row reads "5h" instead of blank.
@@ -48,8 +49,14 @@ private extension WindowMetric {
     /// reset (the countdown falls back to the window length) instead of a spent number beside "1m".
     func live(at now: Date) -> WindowMetric {
         var m = self
-        if let r = resetAt, r <= now { m.percent = 100; m.resetAt = nil }
-        if let r = weeklyResetAt, r <= now { m.weeklyPercent = 100; m.weeklyResetAt = nil }
+        if let r = resetAt, r <= now {
+            m.percent = 100; m.resetAt = nil
+            if isWeekly { m.tone = nil; m.idealPercent = nil; m.note = nil }
+        }
+        if let r = weeklyResetAt, r <= now {
+            m.weeklyPercent = 100; m.weeklyResetAt = nil
+            m.tone = nil; m.idealPercent = nil; m.note = nil
+        }
         return m
     }
 }
@@ -166,7 +173,9 @@ private struct SmallView: View {
     }
     // A spent weekly quota locks the model, and a last-known reading isn't live: grey the face
     // either way, so neither can read as usable.
-    private var faceColor: Color { metric.isStale || weekly?.percent == 0 ? Tok.passive : statusColor(m.percent) }
+    private var faceColor: Color {
+        metric.isStale || weekly?.percent == 0 ? Tok.passive : statusColor(m.percent, tone: m.isWeekly ? m.tone : nil)
+    }
 
     var body: some View {
         GeometryReader { geo in
@@ -196,7 +205,13 @@ private struct SmallView: View {
                             }
                             Spacer(minLength: 0)
                             if let weekly {
-                                WeeklyBar(percent: weekly.percent, resetAt: weekly.resetAt, now: now, height: 18, compact: true, passive: metric.isStale)
+                                WeeklyBar(percent: weekly.percent, resetAt: weekly.resetAt, now: now,
+                                          tone: m.tone, idealPercent: m.idealPercent, note: m.note,
+                                          height: 18, compact: true, passive: metric.isStale)
+                            } else if m.isWeekly, m.tone == .red, !metric.isStale, let note = m.note,
+                                      WeeklyBar.textWidth(note) <= geo.size.width - 32 {
+                                Text(note).font(.system(size: 10.5, weight: .semibold))
+                                    .foregroundStyle(faceColor).lineLimit(1)
                             }
                         }
                         .opacity(metric.isStale ? 0.55 : 1)
@@ -276,9 +291,13 @@ private struct ResetColumn: View {
 /// Too little fill to hold the label → just past the fill, in label colour.
 private struct WeeklyBar: View {
     @Environment(\.widgetRenderingMode) private var renderingMode
+    @Environment(\.colorScheme) private var scheme
     let percent: Int
     let resetAt: Date?
     let now: Date
+    var tone: QuotaTone? = nil
+    var idealPercent: Double? = nil
+    var note: String? = nil
     var height: CGFloat = 22
     var compact = false
     /// Grey instead of the status colour: the reading is last-known, not live.
@@ -288,10 +307,18 @@ private struct WeeklyBar: View {
             GeometryReader { geo in
                 let barW = max(height, geo.size.width * CGFloat(clampPct(percent)) / 100)
                 let label = Text("\(min(99, percent))%").font(.system(size: 12, weight: .semibold)).monospacedDigit()
+                let numberEnd = (barW >= 48 ? 10 : barW + 6) + Self.textWidth("\(min(99, percent))%", size: 12)
+                let noteWidth = note.map { Self.textWidth($0) }
+                let trackX = noteWidth.map { geo.size.width - 8 - $0 } ?? 0
+                let fillX = noteWidth.map { barW - 8 - $0 } ?? 0
+                let noteOnTrack = tone == .red && !passive && noteWidth != nil
+                    && trackX >= max(barW + 6, numberEnd + 6)
+                let noteOnFill = tone == .red && !passive && !noteOnTrack && noteWidth != nil
+                    && fillX >= numberEnd + 6
                 ZStack(alignment: .leading) {
                     Capsule().fill(Tok.track)
                     ZStack(alignment: .leading) {
-                        Capsule().fill(passive ? Tok.passive : statusColor(percent))
+                        Capsule().fill(passive ? Tok.passive : statusColor(percent, tone: tone))
                         if barW >= 48 {
                             // Full colour: painted white, which reads on every status colour. The
                             // vibrant/accented modes flatten colours to white, so there the label is
@@ -307,6 +334,20 @@ private struct WeeklyBar: View {
                     .compositingGroup()
                     .frame(width: barW)
                     if barW < 48 { label.foregroundStyle(Tok.primary).padding(.leading, barW + 6) }
+                    if let note, noteOnTrack || noteOnFill {
+                        Text(note).font(.system(size: 10.5, weight: .semibold)).monospacedDigit()
+                            .foregroundStyle(noteOnFill ? Color.white.opacity(0.92) : statusColor(0))
+                            .lineLimit(1).fixedSize().offset(x: noteOnFill ? fillX : trackX)
+                    }
+                }
+                .overlay(alignment: .topLeading) {
+                    if !passive, tone != nil, let idealPercent {
+                        WidgetDownTriangle().fill(Color.primary.opacity(scheme == .dark ? 0.8 : 0.5))
+                            .frame(width: 8, height: 5)
+                            // Kept off the rounded ends (radius height/2), as the popover's 18pt capsule does with 13.
+                            .offset(x: min(geo.size.width - height / 2 - 4,
+                                           max(height / 2 + 4, geo.size.width * CGFloat(idealPercent) / 100)) - 4)
+                    }
                 }
             }
             .frame(height: height)
@@ -317,6 +358,22 @@ private struct WeeklyBar: View {
             }
             .foregroundStyle(Tok.tertiary)
             .padding(.horizontal, compact ? 2 : 6)
+        }
+    }
+
+    static func textWidth(_ text: String, size: CGFloat = 10.5) -> CGFloat {
+        let font = NSFont.monospacedDigitSystemFont(ofSize: size, weight: .semibold)
+        return ceil((text as NSString).size(withAttributes: [.font: font]).width)
+    }
+}
+
+private struct WidgetDownTriangle: Shape {
+    func path(in rect: CGRect) -> Path {
+        Path { p in
+            p.move(to: CGPoint(x: rect.minX, y: rect.minY))
+            p.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+            p.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
+            p.closeSubpath()
         }
     }
 }
@@ -338,7 +395,9 @@ private struct MediumView: View {
     }
     // A spent weekly quota locks the model, and a last-known reading isn't live: grey the face
     // either way, so neither can read as usable.
-    private var faceColor: Color { metric.isStale || weekly?.percent == 0 ? Tok.passive : statusColor(m.percent) }
+    private var faceColor: Color {
+        metric.isStale || weekly?.percent == 0 ? Tok.passive : statusColor(m.percent, tone: m.isWeekly ? m.tone : nil)
+    }
 
     var body: some View {
         GeometryReader { geo in
@@ -373,11 +432,19 @@ private struct MediumView: View {
                     }
                     .padding(16).padding(.top, 34)
                 } else if let weekly {
-                    WeeklyBar(percent: weekly.percent, resetAt: weekly.resetAt, now: now, height: 22, passive: metric.isStale)
+                    WeeklyBar(percent: weekly.percent, resetAt: weekly.resetAt, now: now,
+                              tone: m.tone, idealPercent: m.idealPercent, note: m.note,
+                              height: 22, passive: metric.isStale)
                         .padding(.horizontal, 16)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                         .padding(.bottom, 12)
                         .opacity(metric.isStale ? 0.55 : 1)
+                } else if m.isWeekly, m.tone == .red, !metric.isStale, let note = m.note,
+                          WeeklyBar.textWidth(note) <= geo.size.width - 32 {
+                    Text(note).font(.system(size: 10.5, weight: .semibold))
+                        .foregroundStyle(faceColor).lineLimit(1)
+                        .padding(.horizontal, 16).padding(.bottom, 16)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                 }
             }
         }
