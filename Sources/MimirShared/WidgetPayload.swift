@@ -57,6 +57,16 @@ public struct ProviderPayload: Codable, Equatable {
         metric.label == name ? (title ?? name) : metric.label
     }
 
+    /// The line under a window in the widget's model picker: the app a family belongs to, then the
+    /// login — plan and e-mail. A card with no e-mail (Claude.app's own session) is named instead,
+    /// so two logins of one provider on one plan never read as the same choice.
+    public func optionSubtitle(_ metric: WindowMetric) -> String? {
+        let display = title ?? name
+        let login = email ?? (name == display ? nil : name)
+        let parts = [metric.label == name ? nil : display, plan, login].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
     /// The widget picker's id for one window: provider and label, since a label alone isn't unique —
     /// Antigravity's "Claude" family and Claude Code's own card are both "Claude".
     public static func optionID(provider: String, label: String) -> String { "\(provider)|\(label)" }

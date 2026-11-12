@@ -258,4 +258,52 @@ final class WidgetBridgeTests: XCTestCase {
         XCTAssertEqual(codex.sessionWindows.map(\.label), ["Codex"])
         XCTAssertEqual(codex.sessionWindows.first?.sessionPercent, 70)
     }
+
+    /// Claude.app's last-known card comes back only while it provably names another organization.
+    /// A snapshot saved without one, or of the CLI's own, was the picker's second "Claude · Team"
+    /// with no e-mail, showing the first one's numbers.
+    func testClaudeDesktopSnapshotOnlyForAnotherOrganization() {
+        func desktop(org: String?) -> ServiceStatus {
+            ServiceStatus(name: LiveUsageDataSource.claudeDesktopCardName, iconName: "claude",
+                          sessionResetAt: now, weeklyResetAt: now,
+                          sessionRemainingPercent: 40, weeklyRemainingPercent: 60,
+                          models: [], isAvailable: true, statusNote: nil,
+                          account: AccountInfo(plan: "Team", org: org))
+        }
+        XCTAssertNil(LiveUsageDataSource.otherAccountCard(desktop(org: nil), cliOrg: "org-a"))
+        XCTAssertNil(LiveUsageDataSource.otherAccountCard(desktop(org: "org-a"), cliOrg: "org-a"))
+        XCTAssertNil(LiveUsageDataSource.otherAccountCard(desktop(org: "org-b"), cliOrg: nil))
+        XCTAssertNil(LiveUsageDataSource.otherAccountCard(nil, cliOrg: "org-a"))
+        XCTAssertEqual(LiveUsageDataSource.otherAccountCard(desktop(org: "org-b"), cliOrg: "org-a")?.account?.org, "org-b")
+    }
+
+    /// Every picker option names its login: the e-mail when there is one, else the card's own name,
+    /// so two Claude logins on one plan are never the same-looking choice.
+    func testPickerSubtitleNamesTheLogin() {
+        let metric = { (label: String) in WindowMetric(label: label, percent: 50, resetAt: nil) }
+        let cli = ProviderPayload(name: "Claude", iconName: "claude", isAvailable: true, fiveHour: [metric("Claude")],
+                                  title: "Claude", plan: "Team", email: "a@b.c")
+        let desktop = ProviderPayload(name: "Claude Desktop", iconName: "claude", isAvailable: true,
+                                      fiveHour: [metric("Claude Desktop")], title: "Claude", plan: "Team")
+        let ag = ProviderPayload(name: "Antigravity", iconName: "antigravity", isAvailable: true,
+                                 fiveHour: [metric("Claude")], title: "Antigravity", plan: "Pro", email: "x@y.z")
+        let bare = ProviderPayload(name: "Codex", iconName: "codex", isAvailable: true, fiveHour: [metric("Codex")])
+        XCTAssertEqual(cli.optionSubtitle(cli.fiveHour[0]), "Team · a@b.c")
+        XCTAssertEqual(desktop.optionSubtitle(desktop.fiveHour[0]), "Team · Claude Desktop")
+        XCTAssertEqual(ag.optionSubtitle(ag.fiveHour[0]), "Antigravity · Pro · x@y.z")
+        XCTAssertNil(bare.optionSubtitle(bare.fiveHour[0]))
+    }
+
+    /// A real Claude.app card on another account reaches the picker under its own name.
+    func testDesktopCardPayloadKeepsItsName() {
+        let desktop = ServiceStatus(name: LiveUsageDataSource.claudeDesktopCardName, iconName: "claude",
+                                    sessionResetAt: now, weeklyResetAt: now,
+                                    sessionRemainingPercent: 40, weeklyRemainingPercent: 60,
+                                    models: [], isAvailable: true, statusNote: nil,
+                                    account: AccountInfo(plan: "Team", org: "org-b"))
+        let p = WidgetBridge.makePayload([desktop], generatedAt: now).providers[0]
+        XCTAssertEqual(p.title, "Claude")
+        XCTAssertNil(p.email)
+        XCTAssertEqual(p.optionSubtitle(p.fiveHour[0]), "Team · Claude Desktop")
+    }
 }

@@ -88,10 +88,14 @@ struct DetailedWidgetView: View {
         // 5h metric yet (e.g. right at launch before the first quota read). Empty → EmptyState,
         // never an out-of-range crash.
         if let payload = entry.payload, case let flat = payload.fiveHourFlat(at: entry.date), !flat.isEmpty {
-            if family == .systemMedium {
-                MediumView(metric: smallMetric(flat), now: entry.date)
+            if let metric = smallMetric(flat) {
+                if family == .systemMedium {
+                    MediumView(metric: metric, now: entry.date)
+                } else {
+                    SmallView(metric: metric, now: entry.date)
+                }
             } else {
-                SmallView(metric: smallMetric(flat), now: entry.date)
+                EmptyStateView(message: String(localized: "widget.choose"))
             }
         } else {
             EmptyStateView()
@@ -99,13 +103,13 @@ struct DetailedWidgetView: View {
     }
 
     /// Small and Medium show a single model: the one chosen in the widget config, else the most
-    /// critical (lowest remaining) one. Caller guarantees `flat` is non-empty.
-    private func smallMetric(_ flat: [FlatMetric]) -> FlatMetric {
-        if let id = entry.selectedLabel,
-           let chosen = flat.first(where: { ProviderPayload.option(id, matches: $0.providerName, label: $0.metric.label) }) {
-            return chosen
+    /// critical (lowest remaining) one. A choice the snapshot no longer carries (a login that is
+    /// gone) is nil — never another account's numbers under the chosen one's name.
+    private func smallMetric(_ flat: [FlatMetric]) -> FlatMetric? {
+        if let id = entry.selectedLabel {
+            return flat.first { ProviderPayload.option(id, matches: $0.providerName, label: $0.metric.label) }
         }
-        return flat.min { $0.metric.percent < $1.metric.percent } ?? flat[0]
+        return flat.min { $0.metric.percent < $1.metric.percent } ?? flat.first
     }
 }
 
@@ -453,10 +457,11 @@ private struct MediumView: View {
 }
 
 private struct EmptyStateView: View {
+    var message = String(localized: "widget.empty")
     var body: some View {
         VStack(spacing: 6) {
             Text("mimir").font(.system(size: 12, weight: .medium)).foregroundStyle(Tok.brand)
-            Text(String(localized: "widget.empty")).font(.system(size: 11)).foregroundStyle(Tok.tertiary)
+            Text(message).font(.system(size: 11)).foregroundStyle(Tok.tertiary)
                 .multilineTextAlignment(.center)
         }
         .padding()

@@ -13,7 +13,16 @@ extension LiveUsageDataSource {
         let cli = Self.claudeAccount(configFile: MimirStatusLineHook.claudeConfigFile)
         // A switched CLI login drops the previous account's cache before anything reads it.
         if let org = cli?.org { noteClaudeAccount(org) }
-        let desktopSnapshot = { cli == nil ? nil : self.loadSnapshot(for: Self.claudeDesktopCardName, iconName: "claude") }
+        let desktopSnapshot = { () -> ServiceStatus? in
+            guard let cli else { return nil }
+            let snapshot = self.loadSnapshot(for: Self.claudeDesktopCardName, iconName: "claude")
+            guard let card = Self.otherAccountCard(snapshot, cliOrg: cli.org) else {
+                // Not provably another account: a ghost of the CLI's own login, so it goes for good.
+                if snapshot != nil { try? FileManager.default.removeItem(at: self.snapshotURL(for: Self.claudeDesktopCardName)) }
+                return nil
+            }
+            return card
+        }
 
         if let cached = readClaudeUsageCache(maxAge: 5 * 60, writtenThisSession: true) {
             let main = buildClaudeStatus(from: cached, note: "oauth usage cache").withCooldownHint(0)
@@ -30,6 +39,16 @@ extension LiveUsageDataSource {
         }
         let main = await fetchClaude(userInitiated: userInitiated, cliOrg: cli?.org)
         return [main] + [desktop?.status ?? desktopSnapshot()].compactMap { $0 }
+    }
+
+    /// Claude.app's last-known separate card, kept only while it names an organization other than
+    /// the CLI's. Shown while claude.ai can't be asked (Cloudflare, a 429, an unread cookie), a
+    /// snapshot without one (every one saved before the organization was kept) or of the CLI's own organization was the
+    /// same login twice: a second "Claude · Team" option in the widget, with no e-mail, showing
+    /// the first one's numbers. Pure → unit-testable.
+    static func otherAccountCard(_ card: ServiceStatus?, cliOrg: String?) -> ServiceStatus? {
+        guard let cliOrg, let org = card?.account?.org, org != cliOrg else { return nil }
+        return card
     }
 
     /// The login a Claude Code config holds, from its `.claude.json` profile — no keychain, no

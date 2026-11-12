@@ -75,6 +75,7 @@
 "popover.unavailable" = "%@ data unavailable — tap to open";
 "popover.unavailable.dismiss" = "Dismiss";
 "widget.empty" = "Open Mimir to load quota.";
+"widget.choose" = "The chosen account isn't available. Edit the widget to pick another.";
 "widget.config.model" = "Model";
 "widget.config.description" = "Choose which model the widget shows.";
 

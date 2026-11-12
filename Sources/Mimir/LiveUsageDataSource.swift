@@ -260,6 +260,9 @@ struct LiveUsageDataSource {
         // Which login the numbers belong to, so a card shown from its snapshot still names it.
         if let plan = status.account?.plan { payload["plan"] = plan }
         if let email = status.account?.email { payload["email"] = email }
+        // Claude.app's separate card has no e-mail: its organization is what proves, on the way
+        // back, that the snapshot is still another account's.
+        if let org = status.account?.org { payload["org"] = org }
         if !status.models.isEmpty {
             payload["models"] = status.models.map { m -> [String: Any] in
                 var dict: [String: Any] = ["name": m.name, "remainingPercent": m.remainingPercent]
@@ -358,8 +361,8 @@ struct LiveUsageDataSource {
         let weeklyWindow = (root["weeklyWindowSeconds"] as? NSNumber)
             .map(\.doubleValue)
             .flatMap { $0.isFinite && $0 > 6 * 3600 && $0 <= 366 * 86_400 ? $0 : nil }
-        let plan = root["plan"] as? String, email = root["email"] as? String
-        let account = plan == nil && email == nil ? nil : AccountInfo(plan: plan, email: email)
+        let plan = root["plan"] as? String, email = root["email"] as? String, org = root["org"] as? String
+        let account = plan == nil && email == nil && org == nil ? nil : AccountInfo(plan: plan, email: email, org: org)
 
         // Live source unreachable long enough (>4.5 h — just under the 5-hour session window, beyond
         // which the last-known session reading is from a window that has already rotated, so it's
