@@ -1079,13 +1079,13 @@ struct ProviderPanel: View {
                     }
                 }
                 .clipShape(Capsule())
-                // Where even use would have the bar now: a small arrow just above the capsule, in the gap
-                // under the header, so it never meets the words inside. Kept whole at either end.
+                // Where even use would have the bar now: a small arrow sitting on the capsule's top edge,
+                // its tip just into it, so it reads as part of the bar and not of the countdown above.
                 .overlay(alignment: .topLeading) {
                     if let ideal = pace?.idealPercent {
                         DownTriangle().fill(Color.primary.opacity(0.5))
                             .frame(width: 8, height: 5)
-                            .offset(x: min(width - 4, max(4, width * CGFloat(ideal) / 100)) - 4, y: -6.5)
+                            .offset(x: min(width - 4, max(4, width * CGFloat(ideal) / 100)) - 4, y: -4.5)
                     }
                 }
             }
