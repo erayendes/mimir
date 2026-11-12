@@ -874,6 +874,7 @@ struct PanelData {
 struct ProviderPanel: View {
     let panel: PanelData
     let now: Date
+    @Environment(\.colorScheme) private var scheme
 
     private static let clockFormatter: DateFormatter = {
         let f = DateFormatter(); f.dateFormat = "HH:mm"; return f
@@ -1083,7 +1084,7 @@ struct ProviderPanel: View {
                 // wholly inside it. Kept off the rounded ends (radius 9), where its corners would stick out.
                 .overlay(alignment: .topLeading) {
                     if let ideal = pace?.idealPercent {
-                        DownTriangle().fill(Color.primary.opacity(0.5))
+                        DownTriangle().fill(Color.primary.opacity(scheme == .dark ? 0.65 : 0.5))
                             .frame(width: 8, height: 5)
                             .offset(x: min(width - 13, max(13, width * CGFloat(ideal) / 100)) - 4)
                     }
