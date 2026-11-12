@@ -44,7 +44,48 @@ final class QuotaPaceTests: XCTestCase {
                                      window: week, now: now)!
         XCTAssertEqual(pace.tone, .early)
         XCTAssertNil(pace.runsOutAt)
-        XCTAssertEqual(pace.idealPercent, 100 * (1 - 7.0 / 168), accuracy: 0.01)
+        // No ideal line yet: it would only sit on the capsule's end.
+        XCTAssertNil(pace.idealPercent)
+    }
+
+    /// The early stretch is the longer of a day and 5% of the window.
+    func testEarlyStretchIsADayOrFivePercent() {
+        func tone(elapsed hours: Double, window: TimeInterval) -> QuotaPace.Tone {
+            QuotaPace.compute(remaining: 50, resetAt: now.addingTimeInterval(window - hours * 3600),
+                              window: window, now: now)!.tone
+        }
+        let month: TimeInterval = 30 * 86_400
+        XCTAssertEqual(QuotaPace.earlyStretch(week), 86_400)
+        XCTAssertEqual(QuotaPace.earlyStretch(month), 36 * 3600)
+        XCTAssertEqual(tone(elapsed: 23, window: week), .early)
+        XCTAssertNotEqual(tone(elapsed: 25, window: week), .early)
+        XCTAssertEqual(tone(elapsed: 35, window: month), .early)
+        XCTAssertNotEqual(tone(elapsed: 37, window: month), .early)
+        XCTAssertNotNil(QuotaPace.compute(remaining: 50, resetAt: now.addingTimeInterval(week - 25 * 3600),
+                                          window: week, now: now)!.idealPercent)
+    }
+
+    /// The ideal line is never hidden: a label it would cross moves clear of it.
+    func testLabelsMoveClearOfTheLine() {
+        // The number on a wide fill, the line through it: it moves 4 pt past the line, still white.
+        var l = ProviderPanel.capsuleLabels(width: 300, fill: 200, numberWidth: 24, noteWidth: nil, line: 15)
+        XCTAssertEqual(l.numberX, 20.5)
+        XCTAssertTrue(l.numberOnFill)
+        // Past the line it no longer fits the fill: it sits just right of it.
+        l = ProviderPanel.capsuleLabels(width: 300, fill: 50, numberWidth: 24, noteWidth: nil, line: 30)
+        XCTAssertFalse(l.numberOnFill)
+        XCTAssertEqual(l.numberX, 56)
+        // Nothing to dodge: where it always was.
+        l = ProviderPanel.capsuleLabels(width: 300, fill: 200, numberWidth: 24, noteWidth: nil, line: 150)
+        XCTAssertEqual(l.numberX, 9)
+        // The red note, right-aligned, moves left of a line that runs through it.
+        l = ProviderPanel.capsuleLabels(width: 300, fill: 30, numberWidth: 24, noteWidth: 80, line: 250)
+        XCTAssertEqual(l.noteX, 250 - 4 - 80)
+        XCTAssertFalse(l.noteOnFill)
+        // Too long for the track: wholly inside the fill, white.
+        l = ProviderPanel.capsuleLabels(width: 300, fill: 250, numberWidth: 24, noteWidth: 80, line: nil)
+        XCTAssertEqual(l.noteX, 250 - 9 - 80)
+        XCTAssertTrue(l.noteOnFill)
     }
 
     func testLeftOverAtReset() {
@@ -55,7 +96,7 @@ final class QuotaPaceTests: XCTestCase {
         // What's left over is the tooltip's, not the capsule's.
         XCTAssertNil(pace.note)
         XCTAssertEqual(pace.dailyBudget, 20, accuracy: 0.01)
-        XCTAssertEqual(pace.idealPercent, 50, accuracy: 0.01)
+        XCTAssertEqual(pace.idealPercent ?? -1, 50, accuracy: 0.01)
         XCTAssertEqual(halfway(45).leftAtReset, 10)
     }
 

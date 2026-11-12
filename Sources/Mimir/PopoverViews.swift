@@ -1050,36 +1050,27 @@ struct ProviderPanel: View {
                 let width = geo.size.width
                 let fill = max(18, width * CGFloat(clampPct(percent)) / 100)
                 let font = Font.system(size: 10.5, weight: .semibold).monospacedDigit()
-                let numberWidth = Self.textWidth("\(clampPct(percent))%")
-                // The number rides the fill while it's wide enough to hold it; past the end otherwise.
-                let numberX = fill >= 46 ? 9 : fill + 6
-                // The note sits right on the empty track; where that would reach the fill (a narrow card,
-                // a long line) it moves inside the fill, white, so it is never split across the two.
                 let note = pace?.note
-                let noteWidth = note.map { Self.textWidth($0) } ?? 0
-                let noteOnTrack = width - 9 - noteWidth >= fill + 6
-                let noteX = noteOnTrack ? width - 9 - noteWidth : fill - 9 - noteWidth
+                let line = pace?.idealPercent.map { min(width - 1.5, max(0, width * CGFloat($0) / 100 - 0.75)) }
+                let labels = Self.capsuleLabels(width: width, fill: fill,
+                                                numberWidth: Self.textWidth("\(clampPct(percent))%"),
+                                                noteWidth: note.map { Self.textWidth($0) }, line: line)
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color.primary.opacity(0.09))
                     Capsule().fill(color).frame(width: fill)
-                    if let pace {
-                        // Behind the words: hidden where it would cross the number or the note.
-                        let lineX = min(width - 1.5, max(0, width * pace.idealPercent / 100 - 0.75))
-                        let crosses = { (x: CGFloat, w: CGFloat) in w > 0 && lineX + 1.5 >= x - 3 && lineX <= x + w + 3 }
-                        if !crosses(numberX, numberWidth) && !crosses(noteX, noteWidth) {
-                            Rectangle().fill(Color.primary.opacity(0.45))
-                                .frame(width: 1.5)
-                                .offset(x: lineX)
-                        }
+                    if let line {
+                        Rectangle().fill(Color.primary.opacity(0.45))
+                            .frame(width: 1.5)
+                            .offset(x: line)
                     }
                     Text("\(clampPct(percent))%").font(font)
-                        .foregroundStyle(fill >= 46 ? Color.white.opacity(0.92) : Color.primary.opacity(0.9))
-                        .padding(.leading, numberX)
+                        .foregroundStyle(labels.numberOnFill ? Color.white.opacity(0.92) : Color.primary.opacity(0.9))
+                        .padding(.leading, labels.numberX)
                     if let note {
                         Text(note).font(font)
-                            .foregroundStyle(noteOnTrack ? quotaStatusColor(0) : Color.white.opacity(0.92))
+                            .foregroundStyle(labels.noteOnFill ? Color.white.opacity(0.92) : quotaStatusColor(0))
                             .lineLimit(1).fixedSize()
-                            .offset(x: noteX)
+                            .offset(x: labels.noteX)
                     }
                 }
                 .clipShape(Capsule())
@@ -1098,6 +1089,31 @@ struct ProviderPanel: View {
             .font(.system(size: 10.5, weight: .medium).monospacedDigit())
             .foregroundStyle(Color.primary.opacity(0.42))
         }
+    }
+
+    /// Where the capsule's two labels go. The number rides the fill while it's wide enough to hold
+    /// it, else sits just past it; the note sits right on the empty track, or inside the fill in white
+    /// when it can't fit there, so it never splits across the two. The ideal line is never hidden: a
+    /// label it would cross moves 4 pt clear of it — the number to its right, the note to its right
+    /// when there's room, else to its left.
+    static func capsuleLabels(width: CGFloat, fill: CGFloat, numberWidth: CGFloat, noteWidth: CGFloat?,
+                              line: CGFloat?) -> (numberX: CGFloat, numberOnFill: Bool, noteX: CGFloat, noteOnFill: Bool) {
+        let crosses = { (x: CGFloat, w: CGFloat) in line.map { $0 + 1.5 >= x - 2 && $0 <= x + w + 2 } ?? false }
+        var numberX: CGFloat = fill >= 46 ? 9 : fill + 6
+        var numberOnFill = fill >= 46
+        if let line, crosses(numberX, numberWidth) {
+            let past = line + 1.5 + 4
+            numberOnFill = past + numberWidth + 4 <= fill
+            numberX = numberOnFill ? past : max(past, fill + 6)
+        }
+        guard let noteWidth else { return (numberX, numberOnFill, 0, false) }
+        var noteX = width - 9 - noteWidth
+        if noteX < fill + 6 { noteX = fill - 9 - noteWidth }
+        if let line, crosses(noteX, noteWidth) {
+            let right = line + 1.5 + 4
+            noteX = right + noteWidth <= width - 9 ? right : line - 4 - noteWidth
+        }
+        return (numberX, numberOnFill, noteX, noteX + noteWidth <= fill)
     }
 
     /// How wide a capsule label draws, so the ideal line and the note can keep clear of it.

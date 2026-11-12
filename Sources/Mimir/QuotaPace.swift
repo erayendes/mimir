@@ -14,7 +14,8 @@ struct QuotaPace: Equatable {
 
     let tone: Tone
     /// What should be left now had the window been spent evenly: 100 at its start, 0 at the reset.
-    let idealPercent: Double
+    /// nil early in the window, where it would only sit on the capsule's end.
+    let idealPercent: Double?
     /// When the quota runs out at this pace, if that comes before the reset.
     let runsOutAt: Date?
     /// How long the window then sits empty before it resets.
@@ -33,9 +34,9 @@ struct QuotaPace: Equatable {
         let remaining = Double(max(0, min(100, remaining)))
         let ideal = max(0, 100 * (1 - elapsed / window))
         let budget = remaining / left * 86_400
-        // Too early to call: a few hours of use say little about a week.
-        guard elapsed >= 0.05 * window else {
-            return QuotaPace(tone: .early, idealPercent: ideal, runsOutAt: nil, emptyFor: nil,
+        // Too early to call until the window has seen a day and a night, and 5% of a long one.
+        guard elapsed >= Self.earlyStretch(window) else {
+            return QuotaPace(tone: .early, idealPercent: nil, runsOutAt: nil, emptyFor: nil,
                              leftAtReset: nil, dailyBudget: budget)
         }
         let average = (100 - remaining) / elapsed
@@ -62,6 +63,9 @@ struct QuotaPace: Equatable {
         return QuotaPace(tone: .green, idealPercent: ideal, runsOutAt: nil, emptyFor: nil,
                          leftAtReset: Int((remaining - rate * left).rounded()), dailyBudget: budget)
     }
+
+    /// How long a window runs before its pace is judged: 5% of it, but never under a day.
+    static func earlyStretch(_ window: TimeInterval) -> TimeInterval { max(0.05 * window, 86_400) }
 
     /// The line on the capsule, red only: how long the window sits empty. Amber says enough by its
     /// colour, and what is left over at the reset lives in the tooltip.
