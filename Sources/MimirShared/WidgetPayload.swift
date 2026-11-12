@@ -111,7 +111,7 @@ public struct WindowMetric: Codable, Equatable {
     public var weeklyPercent: Int?
     public var weeklyResetAt: Date?
     // True when `percent`/`resetAt` describe the weekly (7g) window rather than the 5-hour (5s) one —
-    // i.e. this service has no active 5h window (Codex since OpenAI's July 2026 removal), so the widget
+    // i.e. this service has no active 5h window (Codex Go, or Codex while OpenAI had it removed in July 2026), so the widget
     // shows its weekly reading as the headline and labels the pill "7g" instead of "5s".
     public var isWeekly: Bool
     // Real length of the window `percent`/`resetAt` describe, when the provider reports one. Lets the

@@ -238,12 +238,14 @@ struct LiveUsageDataSource {
     /// when the live source later fails, instead of the card silently vanishing. Never persists
     /// an unavailable reading. Captures the two account-level windows (Claude/Codex) and/or the
     /// per-model rows (Antigravity); every key is optional, so each service writes only what it has.
-    func saveSnapshot(_ status: ServiceStatus) {
+    /// `live` false for a cache read back as a fallback: it is kept, but not counted toward the pace.
+    func saveSnapshot(_ status: ServiceStatus, live: Bool = true) {
         guard status.isAvailable else { return }
         let hasData = status.sessionRemainingPercent != nil
             || status.weeklyRemainingPercent != nil
             || !status.models.isEmpty
         guard hasData else { return }
+        if live { QuotaHistory.shared.record(status) }
 
         let iso = ISO8601DateFormatter()
         var payload: [String: Any] = ["version": 1, "savedAt": iso.string(from: Date())]

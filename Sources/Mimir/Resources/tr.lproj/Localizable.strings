@@ -112,3 +112,11 @@
 "Version" = "Sürüm";
 "Support Mimir" = "Mimir'e destek ol";
 "Join the beta" = "Beta'ya katıl";
+
+/* Pace of a long window */
+"pace.short.hours" = "≈%lld saat kotasız";
+"pace.short.days" = "≈%lld gün kotasız";
+"pace.spare" = "≈%%%lld artar";
+"pace.runsOut" = "Bu tempoyla %@ biter";
+"pace.leftAtReset" = "Bu tempoyla sıfırlanınca ≈%%%lld kalır";
+"pace.budget" = "Günlük güvenli bütçe: %%%lld";

@@ -638,8 +638,8 @@ struct ServiceCard: View {
         .contentShape(Capsule())
     }
 
-    /// A model's own weekly as a full-width row: what's left, the model, when it resets — in the
-    /// quota's own green / amber / red, the same colours its panel number would take.
+    /// A model's own weekly as a full-width row: what's left, the model, when it resets — green / amber /
+    /// red by its pace, the same as a panel's capsule, but without the line.
     private func modelLimitPill(_ row: (name: String, percent: Int, resetAt: Date?)) -> some View {
         HStack(spacing: 6) {
             Text("\(row.percent)%")
@@ -651,7 +651,7 @@ struct ServiceCard: View {
             Text(relDuration(row.resetAt, now) ?? "—").monospacedDigit()
         }
         .font(.system(size: 10.5, weight: .medium))
-        .foregroundStyle(quotaStatusColor(row.percent))
+        .foregroundStyle(paceColor(pace(row.name, row.percent, row.resetAt, 7 * 86_400), row.percent))
         .padding(.horizontal, Self.chipInset).padding(.vertical, 4)
         .frame(maxWidth: .infinity)
         .background(Capsule().fill(Color.primary.opacity(0.06)))
@@ -710,7 +710,8 @@ struct ServiceCard: View {
                           weekly: family.weekly.map { ($0.percent, $0.resetAt) },
                           weeklyLabel: "7\(TimeFormatter.dayUnit)",
                           sessionFallback: 5 * 3600, weeklyWindow: 7 * 86_400,
-                          gated: family.weekly?.percent == 0)
+                          gated: family.weekly?.percent == 0,
+                          pace: pace(family.name, family.weekly?.percent, family.weekly?.resetAt, 7 * 86_400))
             }
         }
         return [PanelData(title: service.providerTitle, iconName: service.iconName,
@@ -719,7 +720,9 @@ struct ServiceCard: View {
                           weeklyLabel: longWindowLabel ?? "7\(TimeFormatter.dayUnit)",
                           sessionFallback: 5 * 3600,
                           weeklyWindow: service.weeklyWindowSeconds ?? 7 * 86_400,
-                          gated: service.weeklyRemainingPercent == 0 && service.sessionRemainingPercent != nil)]
+                          gated: service.weeklyRemainingPercent == 0 && service.sessionRemainingPercent != nil,
+                          pace: pace("weekly", service.weeklyRemainingPercent, service.weeklyResetAt,
+                                     service.weeklyWindowSeconds ?? 7 * 86_400))]
             // A quota beside the plan's own (Codex's Luna Reserve) is a quota in its own right, so it
             // gets its own panel under its own name — the same treatment as an Antigravity family.
             + families(in: service.models.filter { $0.groupLabel == LiveUsageDataSource.codexExtraLimitGroup })
@@ -731,6 +734,15 @@ struct ServiceCard: View {
                               sessionFallback: 5 * 3600, weeklyWindow: 7 * 86_400,
                               gated: family.weekly?.percent == 0)
                 }
+    }
+
+    /// A long window's pace from this card's live readings (see `QuotaPace`). None on a last-known card:
+    /// its numbers aren't live, so neither is a pace drawn from them.
+    private func pace(_ window: String, _ percent: Int?, _ resetAt: Date?, _ length: TimeInterval) -> QuotaPace? {
+        guard !service.isStale, let percent, let resetAt else { return nil }
+        return QuotaPace.compute(remaining: percent, resetAt: resetAt, window: length, now: now,
+                                 history: QuotaHistory.shared.readings(QuotaHistory.key(service.name, window),
+                                                                       resetAt: resetAt))
     }
 
     /// The renewal passes, soonest to lapse first.
@@ -834,6 +846,10 @@ struct PanelData {
     /// The login, on the card's first panel only: plan beside the title, e-mail under it.
     var plan: String? = nil
     var email: String? = nil
+    /// The long window's pace; nil where it isn't judged (a plan's extra quota, a last-known card).
+    var pace: QuotaPace? = nil
+    /// The long window was promoted to the face, so the face and the big number take its pace.
+    var paceOnFace = false
 
     /// A plan with one long window and no session (Codex Go's 30 days) shows it where the session
     /// sits — the big number, the clock and the face — instead of an empty corner above a capsule.
@@ -841,7 +857,8 @@ struct PanelData {
         guard session == nil, let weekly else { return self }
         return PanelData(title: title, iconName: iconName, session: weekly, weekly: nil,
                          weeklyLabel: weeklyLabel, sessionFallback: weeklyWindow,
-                         weeklyWindow: weeklyWindow, gated: false, stale: stale, plan: plan, email: email)
+                         weeklyWindow: weeklyWindow, gated: false, stale: stale, plan: plan, email: email,
+                         pace: pace, paceOnFace: true)
     }
 }
 
@@ -873,6 +890,7 @@ struct ProviderPanel: View {
                 // A plan without a long window (a Team seat with no weekly limit) keeps the room
                 // the capsule takes, so every panel stands the same height.
                 capsule(percent: 0, resetAt: nil).hidden()
+                    .overlay(alignment: .topTrailing) { lonePaceNote }
             }
         }
         .padding(9)
@@ -908,7 +926,30 @@ struct ProviderPanel: View {
     }
 
     private var faceColor: Color {
-        panel.gated || panel.stale ? lockedQuotaColor : quotaStatusColor(panel.session?.percent ?? 0)
+        panel.gated || panel.stale ? lockedQuotaColor : sessionColor(panel.session?.percent ?? 0)
+    }
+
+    /// The face's colour: a five-hour window by what's left, a promoted long window by its pace.
+    private func sessionColor(_ percent: Int) -> Color {
+        panel.paceOnFace ? paceColor(panel.pace, percent) : quotaStatusColor(percent)
+    }
+
+    /// A lone long window's pace line, plain text in the empty capsule slot under the face.
+    @ViewBuilder private var lonePaceNote: some View {
+        if panel.paceOnFace, !panel.stale, let pace = panel.pace {
+            Text(pace.note ?? "")
+                .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
+                .foregroundStyle(noteTone(pace))
+                .padding(.trailing, 9)
+                .frame(maxWidth: .infinity, minHeight: 18, maxHeight: 18, alignment: .trailing)
+                .contentShape(Rectangle())
+                .help(pace.tooltip)
+        }
+    }
+
+    /// Short of the reset the line takes the status colour; time to spare is only a quiet aside.
+    private func noteTone(_ pace: QuotaPace) -> Color {
+        pace.tone == .amber || pace.tone == .red ? paceColor(pace, 0) : Color.primary.opacity(0.42)
     }
 
     /// The name with its plan beside it in a quieter tone — "Claude Team", as Claude's own usage page
@@ -987,7 +1028,7 @@ struct ProviderPanel: View {
                     .font(.system(size: 30, weight: .semibold)).monospacedDigit().tracking(-0.5)
                 Text("%").font(.system(size: 16, weight: .semibold))
             }
-            .foregroundStyle(panel.gated || panel.stale ? lockedQuotaColor : quotaStatusColor(percent))
+            .foregroundStyle(panel.gated || panel.stale ? lockedQuotaColor : sessionColor(percent))
             .fixedSize()
             .offset(y: -6)
             .frame(height: 22, alignment: .top)
@@ -1003,17 +1044,27 @@ struct ProviderPanel: View {
     }
 
     /// The long window: a capsule with its percent riding the fill, and the countdown and reset
-    /// clock underneath.
+    /// clock underneath. The fill takes the window's pace; a thin line marks where even use would
+    /// have it now, and the pace's own line (short by how long, or how much to spare) sits right.
     private func capsule(percent: Int, resetAt: Date?) -> some View {
-        let color = panel.gated || panel.stale ? lockedQuotaColor : quotaStatusColor(percent)
+        let locked = panel.gated || panel.stale
+        let pace = locked ? nil : panel.pace
+        let color = locked ? lockedQuotaColor : paceColor(pace, percent)
         return VStack(alignment: .leading, spacing: 9) {
             GeometryReader { geo in
-                let fill = max(18, geo.size.width * CGFloat(clampPct(percent)) / 100)
+                let width = geo.size.width
+                let fill = max(18, width * CGFloat(clampPct(percent)) / 100)
                 let number = Text("\(clampPct(percent))%")
                     .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color.primary.opacity(0.09))
                     Capsule().fill(color).frame(width: fill)
+                    if let pace {
+                        // Behind the text, so a line under a word never cuts it.
+                        Rectangle().fill(Color.primary.opacity(0.45))
+                            .frame(width: 1.5)
+                            .offset(x: min(width - 1.5, max(0, width * pace.idealPercent / 100 - 0.75)))
+                    }
                     // White on the fill while it's wide enough to hold the number; past the end
                     // otherwise, where the fill can't carry it.
                     if fill >= 46 {
@@ -1021,9 +1072,22 @@ struct ProviderPanel: View {
                     } else {
                         number.foregroundStyle(Color.primary.opacity(0.9)).padding(.leading, fill + 6)
                     }
+                    if let pace, let note = pace.note {
+                        // Its own tone on the track, white wherever the fill runs under it.
+                        let label = Text(note)
+                            .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
+                            .padding(.trailing, 9)
+                            .frame(width: width, alignment: .trailing)
+                        label.foregroundStyle(noteTone(pace))
+                            .mask(alignment: .trailing) { Rectangle().frame(width: max(0, width - fill)) }
+                        label.foregroundStyle(.white.opacity(0.92))
+                            .mask(alignment: .leading) { Rectangle().frame(width: fill) }
+                    }
                 }
+                .clipShape(Capsule())
             }
             .frame(height: 18)
+            .help(pace?.tooltip ?? "")
 
             HStack(spacing: 10) {
                 labelled("timer", relDuration(resetAt, now)
@@ -1087,6 +1151,17 @@ func quotaStatusColor(_ percent: Int) -> Color {
         let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
         return NSColor(hex: isDark ? darkHex : lightHex)
     })
+}
+
+/// A long window's colour by its pace (see `QuotaPace`): green when it lasts to the reset, amber or red
+/// by how long it would sit empty. Early in the window, or with no pace at all, by what's left.
+func paceColor(_ pace: QuotaPace?, _ percent: Int) -> Color {
+    switch pace?.tone {
+    case .green: quotaStatusColor(100)
+    case .amber: quotaStatusColor(20)
+    case .red: quotaStatusColor(0)
+    case .early, nil: quotaStatusColor(percent)
+    }
 }
 
 extension NSColor {

@@ -16,7 +16,7 @@ extension LiveUsageDataSource {
 
         let local = fetchCodexLocalSessions(name: name, home: home).withAccount(account)
         if local.isAvailable {
-            saveSnapshot(local)
+            saveSnapshot(local, live: note == nil)
             // An expired token means the CLI hasn't run since it lapsed, so its session file is at
             // least that old: dim it instead of passing days-old numbers off as live.
             return note.map(local.markedStale) ?? local
@@ -68,9 +68,9 @@ extension LiveUsageDataSource {
                   let rl = record.payload?.rate_limits else { continue }
 
             // Classify each window by its real length, not its slot (see codexStatus): a window of
-            // <= 6h is the 5-hour session, anything longer is the weekly one. Since July 2026 the
-            // sole window OpenAI returns can be the weekly one (window_minutes 10080), so "primary"
-            // no longer implies "5-hour".
+            // <= 6h is the 5-hour session, anything longer is the weekly one. While the 5-hour limit
+            // was gone (July 2026; back by November) the sole window was the weekly one
+            // (window_minutes 10080), so "primary" alone never says which.
             let now = Date()
             for (w, slotIsPrimary) in [(rl.primary, true), (rl.secondary, false)] {
                 guard let w, let summary = summarizeCodexWindow(w, now: now) else { continue }
@@ -191,12 +191,12 @@ extension LiveUsageDataSource {
     }
 
     /// Build the Codex `ServiceStatus` from a parsed `wham/usage` response root. Pure (no I/O) so it's
-    /// unit-testable. Classifies each present window by its real PERIOD, not its slot: OpenAI
-    /// temporarily removed Codex's 5-hour limit in July 2026, so the sole window it now returns can be
-    /// the WEEKLY one sitting in the `primary_window` slot (limit_window_seconds 604800) — "primary" no
-    /// longer implies "5-hour". A window of <= 6h is the 5-hour session, anything longer is the weekly
-    /// one; see `codexWindowIsSession` for what happens when the period field is missing. An absent
-    /// window stays nil (no misleading "100%"). If the 5h window returns later, it's the session again.
+    /// unit-testable. Classifies each present window by its real PERIOD, not its slot: while OpenAI had
+    /// Codex's 5-hour limit removed (July 2026; it was back by November) the sole window was the WEEKLY
+    /// one sitting in the `primary_window` slot (limit_window_seconds 604800), so "primary" alone never
+    /// says "5-hour". A window of <= 6h is the 5-hour session, anything longer is the weekly one; see
+    /// `codexWindowIsSession` for what happens when the period field is missing. An absent window stays
+    /// nil (no misleading "100%"), so a plan or a period without the 5-hour window still reads right.
     func codexStatus(fromUsageRoot root: [String: Any], now: Date = Date(), extraRows: [ModelStatus] = [],
                      name: String = "Codex") -> ServiceStatus {
         var (session, weekly, weeklyWindow) = codexWindows(root["rate_limit"] as? [String: Any] ?? [:], now: now)

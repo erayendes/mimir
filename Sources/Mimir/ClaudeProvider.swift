@@ -180,7 +180,7 @@ extension LiveUsageDataSource {
         // since this cache was written shouldn't show a phantom percent.
         if let cached = readClaudeUsageCache(maxAge: 24 * 60 * 60) {
             let status = buildClaudeStatus(from: cached, note: note, live: false)
-            saveSnapshot(status)
+            saveSnapshot(status, live: false)
             return status
         }
         // Persisted snapshot, else an older cache trusted by reset time (windows still within their
@@ -189,7 +189,7 @@ extension LiveUsageDataSource {
             return snap
         }
         if let stale = claudeCardFromStaleCache(staleNote: staleNote) {
-            saveSnapshot(stale)
+            saveSnapshot(stale, live: false)
             return stale
         }
         return unavailableService(name: "Claude", iconName: "claude", models: [], note: note)

@@ -90,7 +90,7 @@ enum WidgetBridge {
     /// The prominent window per session, each paired with the weekly (7g) quota that gates it. Reuses
     /// the shared `ServiceStatus.sessionWindows` pairing (Antigravity per `.session` model matched to its
     /// weekly by name; Claude/Codex the account session). Prefers the 5-hour reading; when a service has
-    /// no active 5h window (Codex since OpenAI's July 2026 removal) it falls back to the weekly reading
+    /// no active 5h window (Codex Go, or Codex while OpenAI had it removed in July 2026) it falls back to the weekly reading
     /// tagged `isWeekly` so the widget shows the real binding limit with a "7g" pill instead of dropping
     /// the row. Only windows with neither reading are dropped.
     private static func fiveHourMetrics(_ svc: ServiceStatus) -> [WindowMetric] {

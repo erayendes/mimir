@@ -112,3 +112,11 @@
 "Version" = "Version";
 "Support Mimir" = "Support Mimir";
 "Join the beta" = "Join the beta";
+
+/* Pace of a long window */
+"pace.short.hours" = "≈%lldh short";
+"pace.short.days" = "≈%lldd short";
+"pace.spare" = "≈%lld%% to spare";
+"pace.runsOut" = "Runs out %@ at this pace";
+"pace.leftAtReset" = "≈%lld%% left at reset at this pace";
+"pace.budget" = "Safe daily budget: %lld%%";

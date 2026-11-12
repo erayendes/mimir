@@ -534,7 +534,7 @@ final class UsageParsingTests: XCTestCase {
             sessionResetAt: nil, weeklyResetAt: past,
             weeklyRemainingPercent: 12, weeklyWindowSeconds: month,
             models: [], isAvailable: true, statusNote: nil)
-        ds.saveSnapshot(status)
+        ds.saveSnapshot(status, live: false)
         defer { try? FileManager.default.removeItem(at: ds.snapshotURL(for: "RoundTrip")) }
 
         let card = try XCTUnwrap(ds.loadSnapshot(for: "RoundTrip", iconName: "codex"))
@@ -573,7 +573,7 @@ final class UsageParsingTests: XCTestCase {
                      ModelStatus(name: "Luna", remainingPercent: 40, resetAt: future, window: .session,
                                  groupLabel: LiveUsageDataSource.codexExtraLimitGroup)],
             isAvailable: true, statusNote: nil)
-        ds.saveSnapshot(status)
+        ds.saveSnapshot(status, live: false)
         defer { try? FileManager.default.removeItem(at: ds.snapshotURL(for: "RoundTrip")) }
 
         let card = try XCTUnwrap(ds.loadSnapshot(for: "RoundTrip", iconName: "codex"))
