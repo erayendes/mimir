@@ -439,10 +439,10 @@ extension View {
 
     /// Set, not pushed: the panel never becomes key, so AppKit keeps resetting the cursor to the
     /// arrow and a one-off push on entry was lost straight away. Setting it on every move holds.
-    func pointingHandCursor() -> some View {
+    func pointingHandCursor(_ enabled: Bool = true) -> some View {
         onContinuousHover { phase in
             switch phase {
-            case .active: NSCursor.pointingHand.set()
+            case .active: if enabled { NSCursor.pointingHand.set() }
             case .ended: NSCursor.arrow.set()
             }
         }
@@ -551,6 +551,8 @@ struct ServiceCard: View {
         VStack(alignment: .leading, spacing: 9) {
             ForEach(Array(panels.enumerated()), id: \.offset) { _, panel in
                 ProviderPanel(panel: panel.promotingLoneWindow(), now: now)
+                    // Its bubbles may reach past its bottom edge: over the rows below, not under them.
+                    .zIndex(1)
             }
 
             ForEach(Array(modelLimitRows.enumerated()), id: \.offset) { _, row in
@@ -877,9 +879,14 @@ struct ProviderPanel: View {
         let f = DateFormatter(); f.dateFormat = "HH:mm"; return f
     }()
 
-    /// The login's e-mail, raised by a click on the plan and gone again on its own.
-    @State private var accountShown = ProcessInfo.processInfo.environment["MIMIR_DEMO_ACCOUNT"] != nil
-    @State private var hideAccount: Task<Void, Never>?
+    /// A bubble raised by a click and gone again on its own: the login's e-mail (a click on the plan)
+    /// or the long window's pace (a click on its capsule). One at a time, so they never stack.
+    enum Bubble { case account, pace }
+    @State private var bubble: Bubble? = {
+        let env = ProcessInfo.processInfo.environment
+        return env["MIMIR_DEMO_ACCOUNT"] != nil ? .account : env["MIMIR_DEMO_PACE"] != nil ? .pace : nil
+    }()
+    @State private var hideBubble: Task<Void, Never>?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -896,7 +903,7 @@ struct ProviderPanel: View {
         .padding(9)
         .overlay(alignment: .topLeading) {
             // Just the address, just under the plan it came from, over whatever sits there.
-            if accountShown, let email = panel.email {
+            if bubble == .account, let email = panel.email {
                 Text(email)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(Color.primary.opacity(0.75))
@@ -906,7 +913,7 @@ struct ProviderPanel: View {
                     .background(Capsule().fill(.regularMaterial))
                     .overlay(Capsule().stroke(Color.primary.opacity(0.1), lineWidth: 1))
                     .padding(.top, 28).padding(.leading, 6)
-                    .onTapGesture { setAccountShown(false) }
+                    .onTapGesture { setBubble(nil) }
                     .transition(.opacity)
             }
         }
@@ -942,9 +949,14 @@ struct ProviderPanel: View {
                 .foregroundStyle(quotaStatusColor(0))
                 .padding(.trailing, 9)
                 .frame(maxWidth: .infinity, minHeight: 18, maxHeight: 18, alignment: .trailing)
-                .contentShape(Rectangle())
-                .help(pace.tooltip)
+                .paceBubble(Self.paceInfo(pace), shown: bubble == .pace, toggle: { toggle(.pace) },
+                            close: { setBubble(nil) })
         }
+    }
+
+    /// What the pace bubble says; nothing early in the window, when there's no estimate to give.
+    static func paceInfo(_ pace: QuotaPace?) -> String? {
+        pace.flatMap { $0.tone == .early ? nil : $0.tooltip }
     }
 
     /// The name with its plan beside it in a quieter tone — "Claude Team", as Claude's own usage page
@@ -969,7 +981,7 @@ struct ProviderPanel: View {
                         .lineLimit(1)
                         .fixedSize()
                     if panel.email != nil {
-                        Button { setAccountShown(!accountShown) } label: { label }
+                        Button { toggle(.account) } label: { label }
                             .buttonStyle(.plain)
                             .pointingHandCursor()
                     } else {
@@ -987,14 +999,16 @@ struct ProviderPanel: View {
         }
     }
 
-    private func setAccountShown(_ shown: Bool) {
-        hideAccount?.cancel()
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) { accountShown = shown }
-        guard shown else { return }
-        hideAccount = Task { @MainActor in
+    private func toggle(_ which: Bubble) { setBubble(bubble == which ? nil : which) }
+
+    private func setBubble(_ which: Bubble?) {
+        hideBubble?.cancel()
+        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) { bubble = which }
+        guard which != nil else { return }
+        hideBubble = Task { @MainActor in
             try? await Task.sleep(for: .seconds(2.5))
             guard !Task.isCancelled else { return }
-            withAnimation(.easeOut(duration: 0.2)) { accountShown = false }
+            withAnimation(.easeOut(duration: 0.2)) { bubble = nil }
         }
     }
 
@@ -1079,7 +1093,13 @@ struct ProviderPanel: View {
                 }
             }
             .frame(height: 18)
-            .help(pace?.tooltip ?? "")
+            .paceBubble(Self.paceInfo(pace), shown: bubble == .pace, toggle: { toggle(.pace) },
+                        close: { setBubble(nil) })
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(["\(clampPct(percent))%", Self.paceInfo(pace)]
+                .compactMap { $0 }.joined(separator: ", "))
+            // Over the countdown row below, which the bubble covers.
+            .zIndex(1)
 
             HStack(spacing: 10) {
                 labelled("timer", relDuration(resetAt, now)
@@ -1212,5 +1232,32 @@ struct BrandIconView: View {
                 .foregroundStyle(.primary.opacity(0.5))
                 .accessibilityHidden(true)
         }
+    }
+}
+
+extension View {
+    /// A click raises the pace in a bubble just under this view, in the e-mail bubble's style; a
+    /// click on either closes it. Without `info` (early in the window, a last-known card) a click
+    /// does nothing and the cursor stays an arrow.
+    func paceBubble(_ info: String?, shown: Bool, toggle: @escaping () -> Void,
+                    close: @escaping () -> Void) -> some View {
+        contentShape(Rectangle())
+            .onTapGesture { if info != nil { toggle() } }
+            .pointingHandCursor(info != nil)
+            .overlay(alignment: .topLeading) {
+                if shown, let info {
+                    Text(info)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(Color.primary.opacity(0.75))
+                        .fixedSize()
+                        .padding(.horizontal, 8).padding(.vertical, 4)
+                        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.regularMaterial))
+                        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(Color.primary.opacity(0.1), lineWidth: 1))
+                        .offset(y: 22)
+                        .onTapGesture { close() }
+                        .transition(.opacity)
+                }
+            }
     }
 }
