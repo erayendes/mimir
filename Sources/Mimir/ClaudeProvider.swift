@@ -25,7 +25,9 @@ extension LiveUsageDataSource {
         }
 
         if let cached = readClaudeUsageCache(maxAge: 5 * 60, writtenThisSession: true) {
-            let main = buildClaudeStatus(from: cached, note: "oauth usage cache").withCooldownHint(0)
+            let account = cli == nil ? loadSnapshot(for: "Claude", iconName: "claude")?.account : nil
+            let main = buildClaudeStatus(from: cached, note: "oauth usage cache")
+                .withAccount(account).withCooldownHint(0)
             return [main] + [desktopSnapshot()].compactMap { $0 }
         }
 

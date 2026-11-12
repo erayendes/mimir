@@ -260,8 +260,7 @@ struct LiveUsageDataSource {
         // Which login the numbers belong to, so a card shown from its snapshot still names it.
         if let plan = status.account?.plan { payload["plan"] = plan }
         if let email = status.account?.email { payload["email"] = email }
-        // Claude.app's separate card has no e-mail: its organization is what proves, on the way
-        // back, that the snapshot is still another account's.
+        // The organization proves that Claude.app's separate card still belongs to another account.
         if let org = status.account?.org { payload["org"] = org }
         if !status.models.isEmpty {
             payload["models"] = status.models.map { m -> [String: Any] in

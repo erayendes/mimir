@@ -27,6 +27,7 @@ extension LiveUsageDataSource {
     /// (`cliOrg` nil) the app's session is simply the Claude card. nil when the app isn't installed
     /// or signed in, the session can't be read, the request fails, or the answer carries no quota.
     func fetchClaudeDesktopWebUsage(userInitiated: Bool, cliOrg: String?) async -> (status: ServiceStatus, sameAccount: Bool)? {
+        let startedAt = Date()
         // After a 429 the OAuth path answers instead, rather than asking claude.ai again every minute.
         guard Date() >= Self.desktopUsageBackoffUntil else { return nil }
         guard let sessionKey = readClaudeDesktopSessionKey(userInitiated: userInitiated) else {
@@ -72,10 +73,27 @@ extension LiveUsageDataSource {
                 return nil
             }
 
+            var email: String?
+            if cliOrg == nil || !sameAccount {
+                let snapshotName = sameAccount ? "Claude" : Self.claudeDesktopCardName
+                let previous = loadSnapshot(for: snapshotName, iconName: "claude")?.account
+                email = previous?.org == uuid ? previous?.email : nil
+                // Leave time for the usage result to return before fetchAll's 8-second limit.
+                let emailTimeout = min(2, 7 - Date().timeIntervalSince(startedAt))
+                if email == nil, emailTimeout > 0 {
+                    let bootstrapRequest = request("https://claude.ai/api/bootstrap")
+                    email = await withTimeout(seconds: emailTimeout) { () async -> String? in
+                        guard let (data, response) = try? await URLSession.shared.data(for: bootstrapRequest),
+                              (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+                        return Self.claudeBootstrapEmail(data)
+                    } ?? nil
+                }
+            }
+
             guard sameAccount else {
                 // Another account's numbers: its own card and snapshot, never the CLI card's cache.
                 let status = buildClaudeStatus(from: root, note: "claude.ai desktop", name: Self.claudeDesktopCardName)
-                    .withAccount(AccountInfo(plan: Self.claudeOrgPlan(org), org: uuid))
+                    .withAccount(AccountInfo(plan: Self.claudeOrgPlan(org), email: email, org: uuid))
                 saveSnapshot(status)
                 return (status.withCooldownHint(0), false)
             }
@@ -83,9 +101,8 @@ extension LiveUsageDataSource {
             noteClaudeAccount(uuid)
             writeClaudeUsageCache(usageData)
             var status = buildClaudeStatus(from: root, note: "claude.ai desktop")
-            // With a CLI login, its profile names the account (e-mail included); without one the
-            // organization's plan is all there is.
-            if cliOrg == nil { status = status.withAccount(AccountInfo(plan: Self.claudeOrgPlan(org), org: uuid)) }
+            // With a CLI login, its profile names the account; without one use the desktop session.
+            if cliOrg == nil { status = status.withAccount(AccountInfo(plan: Self.claudeOrgPlan(org), email: email, org: uuid)) }
             saveSnapshot(status)
             Self.desktopLog.log("OK session=\(status.sessionRemainingPercent ?? -1) weekly=\(status.weeklyRemainingPercent ?? -1)")
             return (status.withCooldownHint(0), true)
@@ -93,6 +110,12 @@ extension LiveUsageDataSource {
             Self.desktopLog.log("request threw: \(error.localizedDescription, privacy: .public)")
             return nil
         }
+    }
+
+    static func claudeBootstrapEmail(_ data: Data) -> String? {
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let account = root["account"] as? [String: Any] else { return nil }
+        return (account["email_address"] as? String) ?? (account["email"] as? String)
     }
 
     /// Cloudflare's "Just a moment" page: claude.ai sits behind it, and some networks (VPNs,
