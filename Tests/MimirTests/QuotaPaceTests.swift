@@ -65,27 +65,28 @@ final class QuotaPaceTests: XCTestCase {
                                           window: week, now: now)!.idealPercent)
     }
 
-    /// The ideal line is never hidden: a label it would cross moves clear of it.
-    func testLabelsMoveClearOfTheLine() {
-        // The number on a wide fill, the line through it: it moves 4 pt past the line, still white.
+    /// The labels keep their places; the ideal line steps out where it would cross one.
+    func testTheLineGivesWayToTheLabels() {
+        // Through the number: no line, the number where it always was.
         var l = ProviderPanel.capsuleLabels(width: 300, fill: 200, numberWidth: 24, noteWidth: nil, line: 15)
-        XCTAssertEqual(l.numberX, 20.5)
-        XCTAssertTrue(l.numberOnFill)
-        // Past the line it no longer fits the fill: it sits just right of it.
-        l = ProviderPanel.capsuleLabels(width: 300, fill: 50, numberWidth: 24, noteWidth: nil, line: 30)
-        XCTAssertFalse(l.numberOnFill)
-        XCTAssertEqual(l.numberX, 56)
-        // Nothing to dodge: where it always was.
-        l = ProviderPanel.capsuleLabels(width: 300, fill: 200, numberWidth: 24, noteWidth: nil, line: 150)
+        XCTAssertFalse(l.lineShown)
         XCTAssertEqual(l.numberX, 9)
-        // The red note, right-aligned, moves left of a line that runs through it.
+        XCTAssertTrue(l.numberOnFill)
+        // Clear of both: drawn.
+        l = ProviderPanel.capsuleLabels(width: 300, fill: 30, numberWidth: 24, noteWidth: 80, line: 150)
+        XCTAssertTrue(l.lineShown)
+        XCTAssertEqual(l.numberX, 36)
+        XCTAssertFalse(l.numberOnFill)
+        // Through the red note: no line, the note still right-aligned on the track.
         l = ProviderPanel.capsuleLabels(width: 300, fill: 30, numberWidth: 24, noteWidth: 80, line: 250)
-        XCTAssertEqual(l.noteX, 250 - 4 - 80)
+        XCTAssertFalse(l.lineShown)
+        XCTAssertEqual(l.noteX, 300 - 9 - 80)
         XCTAssertFalse(l.noteOnFill)
         // Too long for the track: wholly inside the fill, white.
         l = ProviderPanel.capsuleLabels(width: 300, fill: 250, numberWidth: 24, noteWidth: 80, line: nil)
         XCTAssertEqual(l.noteX, 250 - 9 - 80)
         XCTAssertTrue(l.noteOnFill)
+        XCTAssertFalse(l.lineShown)
     }
 
     func testLeftOverAtReset() {

@@ -1058,11 +1058,6 @@ struct ProviderPanel: View {
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color.primary.opacity(0.09))
                     Capsule().fill(color).frame(width: fill)
-                    if let line {
-                        Rectangle().fill(Color.primary.opacity(0.45))
-                            .frame(width: 1.5)
-                            .offset(x: line)
-                    }
                     Text("\(clampPct(percent))%").font(font)
                         .foregroundStyle(labels.numberOnFill ? Color.white.opacity(0.92) : Color.primary.opacity(0.9))
                         .padding(.leading, labels.numberX)
@@ -1074,6 +1069,14 @@ struct ProviderPanel: View {
                     }
                 }
                 .clipShape(Capsule())
+                // Outside the clip, so it stands a little proud of the capsule at both ends.
+                .overlay(alignment: .leading) {
+                    if let line, labels.lineShown {
+                        Capsule().fill(Color.white)
+                            .frame(width: 1.5, height: 25)
+                            .offset(x: line)
+                    }
+                }
             }
             .frame(height: 18)
             .help(pace?.tooltip ?? "")
@@ -1091,29 +1094,22 @@ struct ProviderPanel: View {
         }
     }
 
-    /// Where the capsule's two labels go. The number rides the fill while it's wide enough to hold
-    /// it, else sits just past it; the note sits right on the empty track, or inside the fill in white
-    /// when it can't fit there, so it never splits across the two. The ideal line is never hidden: a
-    /// label it would cross moves 4 pt clear of it — the number to its right, the note to its right
-    /// when there's room, else to its left.
+    /// Where the capsule's two labels go, and whether the ideal line can show. The number rides the
+    /// fill while it's wide enough to hold it, else sits just past it; the note sits right on the empty
+    /// track, or inside the fill in white when it can't fit there, so it never splits across the two.
+    /// The labels stay put: where the line would cross one, the line is the one left out.
     static func capsuleLabels(width: CGFloat, fill: CGFloat, numberWidth: CGFloat, noteWidth: CGFloat?,
-                              line: CGFloat?) -> (numberX: CGFloat, numberOnFill: Bool, noteX: CGFloat, noteOnFill: Bool) {
-        let crosses = { (x: CGFloat, w: CGFloat) in line.map { $0 + 1.5 >= x - 2 && $0 <= x + w + 2 } ?? false }
-        var numberX: CGFloat = fill >= 46 ? 9 : fill + 6
-        var numberOnFill = fill >= 46
-        if let line, crosses(numberX, numberWidth) {
-            let past = line + 1.5 + 4
-            numberOnFill = past + numberWidth + 4 <= fill
-            numberX = numberOnFill ? past : max(past, fill + 6)
+                              line: CGFloat?) -> (numberX: CGFloat, numberOnFill: Bool, noteX: CGFloat,
+                                                  noteOnFill: Bool, lineShown: Bool) {
+        let numberX: CGFloat = fill >= 46 ? 9 : fill + 6
+        var noteX: CGFloat = 0
+        if let noteWidth {
+            noteX = width - 9 - noteWidth
+            if noteX < fill + 6 { noteX = fill - 9 - noteWidth }
         }
-        guard let noteWidth else { return (numberX, numberOnFill, 0, false) }
-        var noteX = width - 9 - noteWidth
-        if noteX < fill + 6 { noteX = fill - 9 - noteWidth }
-        if let line, crosses(noteX, noteWidth) {
-            let right = line + 1.5 + 4
-            noteX = right + noteWidth <= width - 9 ? right : line - 4 - noteWidth
-        }
-        return (numberX, numberOnFill, noteX, noteX + noteWidth <= fill)
+        let crosses = { (x: CGFloat, w: CGFloat) in line.map { $0 + 1.5 >= x - 3 && $0 <= x + w + 3 } ?? false }
+        let lineShown = line != nil && !crosses(numberX, numberWidth) && !crosses(noteX, noteWidth ?? 0)
+        return (numberX, fill >= 46, noteX, noteWidth.map { noteX + $0 <= fill } ?? false, lineShown)
     }
 
     /// How wide a capsule label draws, so the ideal line and the note can keep clear of it.
