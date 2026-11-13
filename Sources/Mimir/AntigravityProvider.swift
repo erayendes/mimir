@@ -64,7 +64,8 @@ extension LiveUsageDataSource {
         // it once Google's token endpoint answers. Every run would otherwise also start agy's
         // self-updater (~2 GB a month at this cadence); it honours only a lowercase `true`.
         let noBrowser = Self.agyNoBrowserDir.map { "PATH='\($0)':\"$PATH\" " } ?? ""
-        let out = runShell("command -v agy >/dev/null 2>&1 && curl -s -o /dev/null -m 5 https://oauth2.googleapis.com && \(noBrowser)AGY_CLI_DISABLE_AUTO_UPDATE=true agy -p /usage --output-format json --print-timeout 30s")
+        // Gemini.app installs agy here even when the login shell's PATH doesn't include it.
+        let out = runShell("export PATH=\"$PATH:$HOME/.gemini/bin\" && command -v agy >/dev/null 2>&1 && curl -s -o /dev/null -m 5 https://oauth2.googleapis.com && \(noBrowser)AGY_CLI_DISABLE_AUTO_UPDATE=true agy -p /usage --output-format json --print-timeout 30s")
         guard let data = out.data(using: .utf8),
               let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               root["status"] as? String == "SUCCESS",
@@ -325,11 +326,14 @@ extension LiveUsageDataSource {
             let buckets = (group["buckets"] as? [[String: Any]] ?? [])
                 .sorted { !antigravityBucketIsWeekly($0) && antigravityBucketIsWeekly($1) }
             for bucket in buckets {
-                guard let fraction = doubleValue(bucket["remainingFraction"])
-                    ?? doubleValue(bucket["remaining_fraction"]) else { continue }
-                let percent = Int((min(1, max(0, fraction)) * 100).rounded())
+                let fraction = doubleValue(bucket["remainingFraction"])
+                    ?? doubleValue(bucket["remaining_fraction"])
                 let reset = ((bucket["resetTime"] as? String) ?? (bucket["reset_time"] as? String))
                     .flatMap { parseISO8601($0) }
+                let id = (bucket["bucketId"] as? String) ?? (bucket["id"] as? String) ?? ""
+                // Google omits the fraction at zero; require a window before treating it as exhausted.
+                guard fraction != nil || reset != nil || !id.isEmpty else { continue }
+                let percent = Int((min(1, max(0, fraction ?? 0)) * 100).rounded())
                 let window: ModelWindow = antigravityBucketIsWeekly(bucket) ? .weekly : .session
                 rows.append(ModelStatus(name: family, remainingPercent: percent, resetAt: reset, window: window))
             }

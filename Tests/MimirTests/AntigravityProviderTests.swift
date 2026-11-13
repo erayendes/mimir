@@ -82,6 +82,67 @@ final class AntigravityProviderTests: XCTestCase {
         XCTAssertEqual(rows.first { $0.window == .session }?.remainingPercent, 80)
         XCTAssertEqual(rows.first { $0.window == .weekly }?.remainingPercent, 40)
     }
+
+    func testMissingFractionKeepsExistingWindowsAtZero() {
+        let resetTime = "2099-01-01T00:00:00Z"
+        let reset = ISO8601DateFormatter().date(from: resetTime)!
+        for (idKey, resetKey) in [("bucketId", "resetTime"), ("id", "reset_time")] {
+            let groups: [[String: Any]] = [[
+                "displayName": "Gemini",
+                "buckets": [
+                    [idKey: "gemini-5h", resetKey: resetTime],
+                    [idKey: "gemini-weekly", resetKey: resetTime],
+                ],
+            ]]
+            let rows = ds.antigravityQuotaSummaryRows(groups: groups)
+            XCTAssertEqual(rows.map(\.name), ["Gemini", "Gemini"])
+            XCTAssertEqual(rows.map(\.window), [.session, .weekly])
+            XCTAssertEqual(rows.map(\.remainingPercent), [0, 0])
+            XCTAssertEqual(rows.compactMap(\.resetAt), [reset, reset])
+        }
+    }
+
+    func testMissingFractionRequiresAnExistingWindow() {
+        let groups: [[String: Any]] = [[
+            "displayName": "Gemini",
+            "buckets": [
+                [:],
+                ["bucketId": ""],
+                ["resetTime": "invalid"],
+                ["bucketId": "gemini-weekly"],
+                ["reset_time": "2099-01-01T00:00:00Z"],
+            ],
+        ]]
+        let rows = ds.antigravityQuotaSummaryRows(groups: groups)
+        XCTAssertEqual(rows.map(\.remainingPercent), [0, 0])
+        XCTAssertEqual(rows.map(\.window), [.session, .weekly])
+        XCTAssertNotNil(rows.first?.resetAt)
+        XCTAssertNil(rows.last?.resetAt)
+    }
+
+    func testNewModelNamesUseExistingFallbackFamilies() {
+        let cases: [(String, String?)] = [
+            ("Gemini 4 Argon", nil),
+            ("Gemini 4 Hydrogen", "Gemini"),
+            ("Orchestrator (Argon)", nil),
+            ("Gemini 3.8 Flash", "Gemini"),
+            ("Claude Opus 5.5", "Claude"),
+            ("Claude Sonnet 5.5", "Claude"),
+            ("GPT-OSS 120B (Medium)", "Claude"),
+            ("Gemini 4 Carbon", "Gemini"),
+        ]
+        for (name, family) in cases {
+            let root: [String: Any] = ["models": ["model": [
+                "displayName": name,
+                "quotaInfo": ["remainingFraction": 0.4, "resetTime": "2099-01-01T00:00:00Z"],
+            ]]]
+            let rows = ds.normalizeAntigravityModels(root)
+            XCTAssertEqual(rows.map(\.name), family.map { [$0] } ?? [], name)
+        }
+        XCTAssertTrue(ds.normalizeAntigravityModels([
+            "models": ["gemini-4-carbon": ["displayName": "Gemini 4 Carbon"]],
+        ]).isEmpty, "an unavailable model without quota must not create a row")
+    }
 }
 
 /// The `agy` CLI (`agy -p /usage --output-format json`) reports the same buckets as the IDE's gRPC
