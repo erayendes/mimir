@@ -696,9 +696,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         checkNotifications()
     }
 
-    /// Menu-bar image: the Mimir glyph alone. Non-template; in light mode the glyph is filled black
-    /// for contrast, in dark mode the source artwork is drawn as-is. The source PNG carries wide
-    /// transparent margins, so only the glyph's own bounds are drawn — the status item hugs it.
+    /// Menu-bar image: the Mimir glyph alone, as a template — its detail is cut out in transparency,
+    /// so the system tints it for light and dark and dims it on an inactive display's menu bar. The
+    /// source PNG carries wide transparent margins, so only the glyph's own bounds are drawn.
     private func buildMenuBarImage() -> NSImage {
         // Glyph bounds inside the 1024×1024 source (bottom-left origin), with a hair of margin.
         let glyph = NSRect(x: 270, y: 140, width: 490, height: 738)
@@ -707,19 +707,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         let img = NSImage(size: NSSize(width: width, height: height), flipped: false) { [iconSource] rect in
             guard let ctx = NSGraphicsContext.current else { return true }
             ctx.imageInterpolation = .high
-            if let source = iconSource {
-                source.draw(in: rect, from: glyph, operation: .sourceOver, fraction: 1.0)
-                let isDark = NSAppearance.currentDrawing().bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-                if !isDark {
-                    ctx.compositingOperation = .sourceAtop
-                    NSColor.black.setFill()
-                    rect.fill()
-                    ctx.compositingOperation = .sourceOver
-                }
-            }
+            iconSource?.draw(in: rect, from: glyph, operation: .sourceOver, fraction: 1.0)
             return true
         }
-        img.isTemplate = false
+        img.isTemplate = true
         return img
     }
 
