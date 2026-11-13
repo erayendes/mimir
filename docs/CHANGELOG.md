@@ -9,6 +9,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [3.2-beta.4] - 2026-11-13
+
+Antigravity quotas show up sooner after the Mac starts: in the first five minutes Mimir retries about every minute instead of waiting five.
+
+Antigravity is now found when Gemini.app installed it.
+
+An Antigravity quota that has run out now shows 0% instead of disappearing from the card.
+
 ### [3.2-beta.3] - 2026-11-12
 
 Weekly and 30-day quota bars are now colored by whether your current pace will last until the reset, not by the percentage left. (Quotas that would run out only slightly early get leeway of about 2% of the window.)
@@ -698,6 +706,14 @@ Bu projedeki tüm önemli değişiklikler bu dosyada belgelenecektir.
 
 Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
+
+### [3.2-beta.4] - 2026-11-13
+
+Mac açıldıktan sonra Antigravity kotaları daha erken görünüyor: ilk beş dakikada Mimir beş dakika beklemek yerine yaklaşık her dakika yeniden deniyor.
+
+Gemini.app ile kurulan Antigravity artık bulunuyor.
+
+Biten Antigravity kotası artık karttan kaybolmuyor, %0 olarak görünüyor.
 
 ### [3.2-beta.3] - 2026-11-12
 
