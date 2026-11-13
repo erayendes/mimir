@@ -8,7 +8,30 @@
     <description>Mimir update feed</description>
     <language>en</language>
 
-                                                                            <item>
+                                                                                <item>
+      <title>Mimir 3.2-beta.4</title>
+      <sparkle:channel>beta</sparkle:channel>
+      <sparkle:version>300199004</sparkle:version>
+      <sparkle:shortVersionString>3.2-beta.4</sparkle:shortVersionString>
+      <pubDate>Fri, 13 Nov 2026 06:45:06 +0000</pubDate>
+      <description><![CDATA[
+<p>Antigravity quotas show up sooner after the Mac starts: in the first five minutes Mimir retries about every minute instead of waiting five.</p>
+<p>Antigravity is now found when Gemini.app installed it.</p>
+<p>An Antigravity quota that has run out now shows 0% instead of disappearing from the card.</p>
+<hr>
+<p>Mac açıldıktan sonra Antigravity kotaları daha erken görünüyor: ilk beş dakikada Mimir beş dakika beklemek yerine yaklaşık her dakika yeniden deniyor.</p>
+<p>Gemini.app ile kurulan Antigravity artık bulunuyor.</p>
+<p>Biten Antigravity kotası artık karttan kaybolmuyor, %0 olarak görünüyor.</p>
+      ]]></description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v3.2-beta.4/Mimir.zip"
+        sparkle:edSignature="R2/M1j5/49G13erSQ0WAwyaNx9MAlqCx9fGf3YDjQr8Iy2D+grjPw4jewtHkq2MsI3hSUiaH3c1+8/phZnZCBA=="
+        length="7120469"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 3.2-beta.3</title>
       <sparkle:channel>beta</sparkle:channel>
       <sparkle:version>300199003</sparkle:version>
