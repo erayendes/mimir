@@ -55,7 +55,8 @@ extension LiveUsageDataSource {
         let now = Date()
         // Throttle failures too: a machine with no `agy` installed would otherwise spawn a login
         // shell on every refresh tick forever, to learn "still not installed".
-        guard now.timeIntervalSince(Self.antigravityCLILastRun) >= 5 * 60 else { return nil }
+        guard now.timeIntervalSince(Self.antigravityCLILastRun)
+                >= Self.antigravityCLIInterval(sinceLaunch: now.timeIntervalSince(Self.antigravityCLIStart)) else { return nil }
         Self.antigravityCLILastRun = now
 
         // An expired token that `agy` can't refresh sends it into interactive OAuth, which opens the
@@ -89,6 +90,15 @@ extension LiveUsageDataSource {
 
     /// Written and read only from the Antigravity fetch, which the store runs one at a time.
     nonisolated(unsafe) private static var antigravityCLILastRun = Date.distantPast
+    /// Set on the first fetch, which runs at launch.
+    private static let antigravityCLIStart = Date()
+
+    /// Right after boot the network is often not up yet and the first run fails: try every minute for
+    /// the first five, so a day-old snapshot doesn't sit as "couldn't fetch" for five minutes, then
+    /// every five. A little under a minute, so the 60-second poll's jitter never skips a turn.
+    static func antigravityCLIInterval(sinceLaunch: TimeInterval) -> TimeInterval {
+        sinceLaunch < 5 * 60 ? 50 : 5 * 60
+    }
 
     /// A directory whose `open` and `xdg-open` only fail. Whenever its silent login hiccups (no
     /// network yet, a keychain timeout after wake) `agy -p` falls back to browser sign-in, started

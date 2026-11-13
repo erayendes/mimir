@@ -12,6 +12,13 @@ import XCTest
 final class AntigravityProviderTests: XCTestCase {
     private let ds = LiveUsageDataSource()
 
+    /// The CLI is retried every minute for the first five after launch, every five after that.
+    func testCLIRetriesEveryMinuteRightAfterLaunch() {
+        XCTAssertEqual(LiveUsageDataSource.antigravityCLIInterval(sinceLaunch: 0), 50)
+        XCTAssertEqual(LiveUsageDataSource.antigravityCLIInterval(sinceLaunch: 4 * 60 + 59), 50)
+        XCTAssertEqual(LiveUsageDataSource.antigravityCLIInterval(sinceLaunch: 5 * 60), 5 * 60)
+    }
+
     private func bucket(_ id: String, fraction: Double, window: String? = nil) -> [String: Any] {
         var b: [String: Any] = ["bucketId": id, "remainingFraction": fraction]
         if let window { b["window"] = window }
