@@ -126,11 +126,29 @@ final class QuotaPaceTests: XCTestCase {
         let reset = now.addingTimeInterval(3.5 * 86_400)
         let tooShort = [QuotaReading(at: now.addingTimeInterval(-2 * 3600), percent: 100, resetAt: reset)]
         XCTAssertEqual(halfway(30, history: tooShort).leftAtReset, 40)
-        let tooOld = [QuotaReading(at: now.addingTimeInterval(-25 * 3600), percent: 100, resetAt: reset)]
+        let tooOld = [QuotaReading(at: now.addingTimeInterval(-31 * 3600), percent: 100, resetAt: reset)]
         XCTAssertEqual(halfway(30, history: tooOld).leftAtReset, 40)
-        // A slower last day doesn't soften the average.
-        let slow = [QuotaReading(at: now.addingTimeInterval(-86_400), percent: 71, resetAt: reset)]
-        XCTAssertEqual(halfway(30, history: slow).leftAtReset, 40)
+        // A slower few hours don't soften the average…
+        let slowHours = [QuotaReading(at: now.addingTimeInterval(-10 * 3600), percent: 71, resetAt: reset)]
+        XCTAssertEqual(halfway(30, history: slowHours).leftAtReset, 40)
+    }
+
+    /// With a full day of readings the pace is that day's, slower or faster than the week so far.
+    func testAFullDaySetsThePaceEitherWay() {
+        let reset = now.addingTimeInterval(3.5 * 86_400)
+        // 30 used, but only 2 of it in the last day: 2 a day leaves 63 of 70 at the reset.
+        let slow = [QuotaReading(at: now.addingTimeInterval(-86_400), percent: 72, resetAt: reset)]
+        XCTAssertEqual(halfway(30, history: slow).leftAtReset, 63)
+        // Nothing spent today: it all lasts.
+        let idle = [QuotaReading(at: now.addingTimeInterval(-21 * 3600), percent: 70, resetAt: reset)]
+        XCTAssertEqual(halfway(30, history: idle).leftAtReset, 70)
+        // A night with the Mac off: the reading just past a day back still anchors it, not this morning's.
+        let night = [QuotaReading(at: now.addingTimeInterval(-24.5 * 3600), percent: 72, resetAt: reset),
+                     QuotaReading(at: now.addingTimeInterval(-15 * 3600), percent: 72, resetAt: reset)]
+        XCTAssertEqual(halfway(30, history: night).leftAtReset, 63)
+        // A day short of 20 hours is not a full day yet.
+        let partial = [QuotaReading(at: now.addingTimeInterval(-19 * 3600), percent: 70, resetAt: reset)]
+        XCTAssertEqual(halfway(30, history: partial).leftAtReset, 40)
     }
 
     func testSpanRoundsToHoursThenDays() {

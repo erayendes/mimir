@@ -25,7 +25,7 @@ struct QuotaPace: Equatable {
     /// Early in the window: how long until a pace is given.
     var estimateIn: TimeInterval? = nil
 
-    /// `history` is this window's earlier readings (see `QuotaHistory`); only the last day counts.
+    /// `history` is this window's earlier readings (see `QuotaHistory`); only about the last day counts.
     static func compute(remaining: Int, resetAt: Date, window: TimeInterval, now: Date,
                         history: [QuotaReading] = []) -> QuotaPace? {
         let left = resetAt.timeIntervalSince(now)
@@ -39,15 +39,15 @@ struct QuotaPace: Equatable {
                              leftAtReset: nil, estimateIn: Self.earlyStretch(window) - elapsed)
         }
         let average = (100 - remaining) / elapsed
-        // The last day's pace, from the oldest reading in it, once that spans at least three hours.
-        let recent = history.filter { now.timeIntervalSince($0.at) <= 86_400 }
-            .min { $0.at < $1.at }
-            .flatMap { first -> Double? in
-                let span = now.timeIntervalSince(first.at)
-                return span >= 3 * 3600 ? max(0, Double(first.percent) - remaining) / span : nil
-            } ?? 0
-        // The worse of the two: a quiet week shouldn't hide today's burst.
-        let rate = max(average, recent)
+        // The last day's pace, from the reading nearest a day back, once that spans at least three hours.
+        // History reaches a little past a day, so a night with the Mac off doesn't leave a hole here.
+        let first = history.filter { now.timeIntervalSince($0.at) <= QuotaHistory.keep }
+            .min { abs(now.timeIntervalSince($0.at) - 86_400) < abs(now.timeIntervalSince($1.at) - 86_400) }
+        let span = first.map { now.timeIntervalSince($0.at) } ?? 0
+        let recent = first.flatMap { span >= 3 * 3600 ? max(0, Double($0.percent) - remaining) / span : nil }
+        // A full day of readings is how it's being spent now, faster or slower than the week so far.
+        // Less than that only ever adds to the average: a quiet week shouldn't hide today's burst.
+        let rate = if let recent, span >= 20 * 3600 { recent } else { max(average, recent ?? 0) }
         guard rate > 0 else {
             return QuotaPace(tone: .green, idealPercent: ideal, runsOutAt: nil, emptyFor: nil,
                              leftAtReset: Int(remaining))
@@ -115,7 +115,7 @@ struct QuotaPace: Equatable {
     }()
 }
 
-/// The last day of live readings per long window, kept on disk so a relaunch doesn't forget today's
+/// About the last day of live readings per long window, kept on disk so a relaunch doesn't forget today's
 /// pace. Written only from live reads (see `saveSnapshot(_:live:)`); read by the popover.
 final class QuotaHistory: @unchecked Sendable {
     static let shared = QuotaHistory(
@@ -130,6 +130,9 @@ final class QuotaHistory: @unchecked Sendable {
         series = (try? Data(contentsOf: url))
             .flatMap { try? JSONDecoder().decode([String: [QuotaReading]].self, from: $0) } ?? [:]
     }
+
+    /// How far back readings are kept: a day, plus room for a night the Mac spent off.
+    static let keep: TimeInterval = 30 * 3600
 
     static func key(_ service: String, _ window: String) -> String { "\(service)|\(window)" }
 
@@ -166,9 +169,9 @@ final class QuotaHistory: @unchecked Sendable {
             changed = changed || list != before
         }
         guard changed else { return }
-        // A day back is all the pace looks at; older readings and windows that have reset go.
+        // About a day back is all the pace looks at; older readings and windows that have reset go.
         series = series.compactMapValues { list in
-            let kept = list.filter { now.timeIntervalSince($0.at) <= 86_400 && $0.resetAt > now }
+            let kept = list.filter { now.timeIntervalSince($0.at) <= Self.keep && $0.resetAt > now }
             return kept.isEmpty ? nil : kept
         }
         guard let data = try? JSONEncoder().encode(series) else { return }
