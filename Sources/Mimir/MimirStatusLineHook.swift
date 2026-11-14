@@ -11,6 +11,8 @@ import Foundation
 /// statusLine command is chained through (its output is preserved), remembered in a sidecar so
 /// disable/upgrade can reconstruct or restore it, and `settings.json` is backed up before the first
 /// write and never clobbered when it doesn't parse.
+/// The existing toggle also owns Antigravity's command hook and Codex's built-in limit items;
+/// companion failures are logged locally, without changing the Claude toggle's UI or outcome.
 enum MimirStatusLineHook {
     /// Claude Code's config directory. `CLAUDE_CONFIG_DIR` is Anthropic's own override and points
     /// every Claude path — credentials, settings, our hook's output — somewhere other than
@@ -199,10 +201,13 @@ enum MimirStatusLineHook {
     /// Rewrite the script in place from current code, preserving any chained command — cheap, touches
     /// no settings. Called on every launch when wired so app upgrades take effect without a version
     /// marker. The extra dirs' `mimir-wired` marker only guards settings, not this script refresh.
+    /// Companion CLIs are adopted on this same launch path for users who already enabled Claude.
     static func refreshScript() {
         guard isWired() else { return }
         _ = writeScript(chained: savedChain())
         wireExtraDirs(true)
+        AntigravityStatusLineHook().refreshScript()
+        CodexStatusLineHook().refreshScript()
     }
 
     /// Second logins (`ExtraAccount.claude`, e.g. `~/.claude-work`) point at the same script, which
@@ -249,6 +254,8 @@ enum MimirStatusLineHook {
         if isOurCommand((current?["statusLine"] as? [String: Any])?["command"] as? String) {
             _ = writeScript(chained: savedChain())   // still refresh the script body
             wireExtraDirs(true)
+            AntigravityStatusLineHook().enable()
+            CodexStatusLineHook().enable()
             return .alreadyOn
         }
         let (settings, chained) = wiredSettings(from: current)
@@ -263,6 +270,8 @@ enum MimirStatusLineHook {
             return .failed(String(localized: "couldn't write to ~/.claude"))
         }
         wireExtraDirs(true)
+        AntigravityStatusLineHook().enable()
+        CodexStatusLineHook().enable()
         return chained == nil ? .enabled : .chained
     }
 
@@ -273,6 +282,8 @@ enum MimirStatusLineHook {
         let settings = unwiredSettings(from: readSettings(), chained: savedChain())
         guard writeSettings(settings) else { return .failed(String(localized: "couldn't write to ~/.claude")) }
         wireExtraDirs(false)
+        AntigravityStatusLineHook().disable()
+        CodexStatusLineHook().disable()
         for path in [scriptPath, prevPath, usagePath] {
             try? FileManager.default.removeItem(atPath: path)
         }
