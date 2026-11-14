@@ -210,7 +210,7 @@ private struct SmallView: View {
                             Spacer(minLength: 0)
                             if let weekly {
                                 WeeklyBar(percent: weekly.percent, resetAt: weekly.resetAt, now: now,
-                                          tone: m.tone, idealPercent: m.idealPercent, note: m.note,
+                                          tone: m.tone, note: m.note,
                                           height: 18, compact: true, passive: metric.isStale)
                             } else if m.isWeekly, m.tone == .red, !metric.isStale, let note = m.note,
                                       WeeklyBar.textWidth(note) <= geo.size.width - 32 {
@@ -290,17 +290,17 @@ private struct ResetColumn: View {
     }
 }
 
-/// The weekly capsule: track + fill, the percent on the fill (white in full colour; punched out in
-/// the vibrant/accented modes, which flatten every colour to white), and the reset row underneath.
-/// Too little fill to hold the label → just past the fill, in label colour.
+/// The weekly capsule, drawn like the popover's: track + fill, and the percent always at the left
+/// end, white where it sits over the fill and in label colour where a narrow fill ends under it
+/// (in the vibrant/accented modes, which flatten every colour to white, the part over the fill is
+/// punched out instead). Font and inset scale with the bar as the popover's 10.5pt on 18pt; the
+/// reset row sits underneath.
 private struct WeeklyBar: View {
     @Environment(\.widgetRenderingMode) private var renderingMode
-    @Environment(\.colorScheme) private var scheme
     let percent: Int
     let resetAt: Date?
     let now: Date
     var tone: QuotaTone? = nil
-    var idealPercent: Double? = nil
     var note: String? = nil
     var height: CGFloat = 22
     var compact = false
@@ -310,8 +310,11 @@ private struct WeeklyBar: View {
         VStack(alignment: .leading, spacing: 6) {
             GeometryReader { geo in
                 let barW = max(height, geo.size.width * CGFloat(clampPct(percent)) / 100)
-                let label = Text("\(min(99, percent))%").font(.system(size: 12, weight: .semibold)).monospacedDigit()
-                let numberEnd = (barW >= 48 ? 10 : barW + 6) + Self.textWidth("\(min(99, percent))%", size: 12)
+                let fontSize = height * 10.5 / 18
+                let inset = height / 2
+                let text = "\(clampPct(percent))%"
+                let label = Text(text).font(.system(size: fontSize, weight: .semibold).monospacedDigit())
+                let numberEnd = inset + Self.textWidth(text, size: fontSize)
                 let noteWidth = note.map { Self.textWidth($0) }
                 let trackX = noteWidth.map { geo.size.width - 8 - $0 } ?? 0
                 let fillX = noteWidth.map { barW - 8 - $0 } ?? 0
@@ -321,38 +324,33 @@ private struct WeeklyBar: View {
                     && fillX >= numberEnd + 6
                 ZStack(alignment: .leading) {
                     Capsule().fill(Tok.track)
+                    // The part of the label past a narrow fill's end, in label colour.
+                    label.foregroundStyle(Tok.primary).fixedSize().padding(.leading, inset)
+                        .mask(alignment: .leading) {
+                            HStack(spacing: 0) { Color.clear.frame(width: barW); Rectangle() }
+                        }
                     ZStack(alignment: .leading) {
                         Capsule().fill(passive ? Tok.passive : statusColor(percent, tone: tone))
-                        if barW >= 48 {
-                            // Full colour: painted white, which reads on every status colour. The
-                            // vibrant/accented modes flatten colours to white, so there the label is
-                            // punched out instead (a hole shows the backdrop); the hole is too pale
-                            // to read over a light face, hence not used in full colour.
-                            if renderingMode == .fullColor {
-                                label.foregroundStyle(.white.opacity(0.92)).padding(.leading, 10)
-                            } else {
-                                label.padding(.leading, 10).blendMode(.destinationOut)
-                            }
+                        // Full colour: painted white, which reads on every status colour. The
+                        // vibrant/accented modes flatten colours to white, so there the label is
+                        // punched out instead (a hole shows the track); the hole is too pale to
+                        // read over a light face, hence not used in full colour.
+                        if renderingMode == .fullColor {
+                            label.foregroundStyle(.white.opacity(0.92)).fixedSize().padding(.leading, inset)
+                        } else {
+                            label.fixedSize().padding(.leading, inset).blendMode(.destinationOut)
                         }
                     }
+                    .frame(width: barW, alignment: .leading)
+                    .clipped()
                     .compositingGroup()
-                    .frame(width: barW)
-                    if barW < 48 { label.foregroundStyle(Tok.primary).padding(.leading, barW + 6) }
                     if let note, noteOnTrack || noteOnFill {
                         Text(note).font(.system(size: 10.5, weight: .semibold)).monospacedDigit()
                             .foregroundStyle(noteOnFill ? Color.white.opacity(0.92) : statusColor(0))
                             .lineLimit(1).fixedSize().offset(x: noteOnFill ? fillX : trackX)
                     }
                 }
-                .overlay(alignment: .topLeading) {
-                    if !passive, tone != nil, let idealPercent {
-                        WidgetDownTriangle().fill(Color.primary.opacity(scheme == .dark ? 0.8 : 0.5))
-                            .frame(width: 8, height: 5)
-                            // Kept off the rounded ends (radius height/2), as the popover's 18pt capsule does with 13.
-                            .offset(x: min(geo.size.width - height / 2 - 4,
-                                           max(height / 2 + 4, geo.size.width * CGFloat(idealPercent) / 100)) - 4)
-                    }
-                }
+                .clipShape(Capsule())
             }
             .frame(height: height)
             HStack(spacing: compact ? 8 : 10) {
@@ -368,17 +366,6 @@ private struct WeeklyBar: View {
     static func textWidth(_ text: String, size: CGFloat = 10.5) -> CGFloat {
         let font = NSFont.monospacedDigitSystemFont(ofSize: size, weight: .semibold)
         return ceil((text as NSString).size(withAttributes: [.font: font]).width)
-    }
-}
-
-private struct WidgetDownTriangle: Shape {
-    func path(in rect: CGRect) -> Path {
-        Path { p in
-            p.move(to: CGPoint(x: rect.minX, y: rect.minY))
-            p.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
-            p.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
-            p.closeSubpath()
-        }
     }
 }
 
@@ -437,7 +424,7 @@ private struct MediumView: View {
                     .padding(16).padding(.top, 34)
                 } else if let weekly {
                     WeeklyBar(percent: weekly.percent, resetAt: weekly.resetAt, now: now,
-                              tone: m.tone, idealPercent: m.idealPercent, note: m.note,
+                              tone: m.tone, note: m.note,
                               height: 22, passive: metric.isStale)
                         .padding(.horizontal, 16)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
