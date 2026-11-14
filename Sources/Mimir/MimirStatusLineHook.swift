@@ -116,7 +116,8 @@ enum MimirStatusLineHook {
 
     /// The hook script. Saves Claude Code's raw stdin JSON for Mimir (no jq needed for the save —
     /// just `cat` + redirect), then renders a status line: the chained command's output when we're
-    /// preserving one, otherwise a compact Mimir 5h/7d line when `jq` is available (else nothing).
+    /// preserving one, otherwise a compact Mimir 5h/7d remaining-percent line when `jq` is available
+    /// (else nothing). Missing windows are omitted, just like the app's cards.
     /// No backslashes leak into the script — jq builds its string with `+`, not Swift interpolation.
     static func scriptBody(chained: String?) -> String {
         let render: String
@@ -124,7 +125,20 @@ enum MimirStatusLineHook {
             let escaped = cmd.replacingOccurrences(of: "'", with: "'\\''")
             render = "printf '%s' \"$input\" | bash -c '\(escaped)'"
         } else {
-            render = "command -v jq >/dev/null 2>&1 && printf '%s' \"$input\" | jq -r '\"Mimir  5h \" + ((.rate_limits.five_hour.used_percentage // 0) | floor | tostring) + \"%  ·  7d \" + ((.rate_limits.seven_day.used_percentage // 0) | floor | tostring) + \"%\"' 2>/dev/null"
+            // Clamp before rounding so floor(x + 0.5) matches remainingPercent(fromUsed:)'s
+            // nearest-integer, ties-away-from-zero rounding throughout the displayed 0...100 range.
+            render = """
+            command -v jq >/dev/null 2>&1 && printf '%s' "$input" | jq -r '
+              def window($label):
+                select(. != null) | tonumber?
+                | (100 - .) | ([0, .] | max) | ([100, .] | min)
+                | (. + 0.5 | floor | tostring)
+                | $label + " " + . + "%";
+              [(.rate_limits.five_hour.used_percentage | window("5h")),
+               (.rate_limits.seven_day.used_percentage | window("7d"))]
+              | select(length > 0) | "Mimir  " + join("  ·  ")
+            ' 2>/dev/null
+            """
         }
         return """
         #!/bin/bash
@@ -183,7 +197,8 @@ enum MimirStatusLineHook {
     }
 
     /// Rewrite the script in place from current code, preserving any chained command — cheap, touches
-    /// no settings. Call on launch when wired so app upgrades take effect.
+    /// no settings. Called on every launch when wired so app upgrades take effect without a version
+    /// marker. The extra dirs' `mimir-wired` marker only guards settings, not this script refresh.
     static func refreshScript() {
         guard isWired() else { return }
         _ = writeScript(chained: savedChain())
