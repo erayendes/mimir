@@ -532,7 +532,7 @@ struct PopoverBackdrop: View {
 
 /// One provider = one card. The card is the widget: each quota pair is drawn as the medium
 /// widget's face — the five-hour window tints that share of the panel from the left, its number
-/// sits top right with the reset clock and countdown, and the long window rides a capsule below.
+/// sits top right with its reset countdown, and the long window rides a capsule below.
 /// Popover and widget then say the same thing the same way. A provider with independent families
 /// (Antigravity) gets one panel per family; everyone else gets one.
 ///
@@ -867,28 +867,22 @@ struct PanelData {
 
 /// The medium widget, shrunk to fit a card. The panel's face IS the five-hour gauge: what's left
 /// of that window tints the same share of the panel from the left, so the reading is the shape of
-/// the thing, not a bar next to it. Its number sits top right with the reset clock above the
-/// countdown; the long window runs along the bottom as a capsule carrying its own percent.
+/// the thing, not a bar next to it. Its number sits top right with its reset countdown (a click
+/// shows the clock instead); the long window runs along the bottom as a capsule carrying its own percent.
 ///
 /// Deliberately the same geometry as `DetailedWidget`'s medium size — a user who has both on
 /// screen should not have to learn two pictures of one quota.
 struct ProviderPanel: View {
     let panel: PanelData
     let now: Date
-    @Environment(\.colorScheme) private var scheme
 
     private static let clockFormatter: DateFormatter = {
         let f = DateFormatter(); f.dateFormat = "HH:mm"; return f
     }()
 
-    /// A bubble raised by a click and gone again on its own: the login's e-mail (a click on the plan)
-    /// or the long window's pace (a click on its capsule). One at a time, so they never stack.
-    enum Bubble { case account, pace }
-    @State private var bubble: Bubble? = {
-        let env = ProcessInfo.processInfo.environment
-        return env["MIMIR_DEMO_ACCOUNT"] != nil ? .account : env["MIMIR_DEMO_PACE"] != nil ? .pace : nil
-    }()
-    @State private var hideBubble: Task<Void, Never>?
+    /// A click anywhere on the panel turns it over: the back carries the login and where the long
+    /// window's pace leads. Another click turns it back, and so does the popover going away.
+    @State private var boxOpen = ProcessInfo.processInfo.environment["MIMIR_DEMO_PACE"] != nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -899,25 +893,18 @@ struct ProviderPanel: View {
                 // A plan without a long window (a Team seat with no weekly limit) keeps the room
                 // the capsule takes, so every panel stands the same height.
                 capsule(percent: 0, resetAt: nil).hidden()
-                    .overlay(alignment: .topTrailing) { lonePaceNote }
             }
         }
+        // The back takes the front's exact room, so the card keeps its size either way.
+        .opacity(boxOpen && hasBox ? 0 : 1)
+        .overlay { if boxOpen, hasBox { back.transition(.opacity) } }
         .padding(9)
-        .overlay(alignment: .topLeading) {
-            // Just the address, just under the plan it came from, over whatever sits there.
-            if bubble == .account, let email = panel.email {
-                Text(email)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Color.primary.opacity(0.75))
-                    .lineLimit(1)
-                    .fixedSize()
-                    .padding(.horizontal, 8).padding(.vertical, 3)
-                    .background(Capsule().fill(.regularMaterial))
-                    .overlay(Capsule().stroke(Color.primary.opacity(0.1), lineWidth: 1))
-                    .padding(.top, 28).padding(.leading, 6)
-                    .onTapGesture { setBubble(nil) }
-                    .transition(.opacity)
-            }
+        .contentShape(Rectangle())
+        .onTapGesture { if hasBox { setBox(!boxOpen) } }
+        .pointingHandCursor(hasBox)
+        // The popover hiding (or another app coming forward) takes the key window away.
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification)) { _ in
+            boxOpen = false
         }
         .background(
             ZStack(alignment: .leading) {
@@ -943,25 +930,48 @@ struct ProviderPanel: View {
         panel.paceOnFace ? paceColor(panel.pace, percent) : quotaStatusColor(percent)
     }
 
-    /// A lone long window's pace line, plain text in the empty capsule slot under the face.
-    @ViewBuilder private var lonePaceNote: some View {
-        if panel.paceOnFace, !panel.stale, let pace = panel.pace {
-            Text(pace.note ?? "")
-                .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
-                .foregroundStyle(quotaStatusColor(0))
-                .padding(.trailing, 9)
-                .frame(maxWidth: .infinity, minHeight: 18, maxHeight: 18, alignment: .trailing)
-                .paceBubble(Self.paceInfo(pace), shown: bubble == .pace, toggle: { toggle(.pace) },
-                            close: { setBubble(nil) })
+    /// Where the long window's pace leads (see `QuotaPace.info`); none on a last-known card.
+    private var paceInfo: String? { panel.gated || panel.stale ? nil : panel.pace?.info }
+
+    private var hasBox: Bool { panel.email != nil || paceInfo != nil }
+
+    /// The panel turned over: the login's e-mail in the plan's tone, then where the pace leads.
+    private var back: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let email = panel.email {
+                Text(email)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Color.primary.opacity(0.42))
+                    .lineLimit(1)
+            }
+            if let info = paceInfo {
+                Text(info)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Color.primary.opacity(0.75))
+                    .lineSpacing(3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
-    /// What the pace bubble says (see `QuotaPace.info`).
-    static func paceInfo(_ pace: QuotaPace?) -> String? { pace?.info }
+    /// The long window's countdown and the day it resets.
+    private func weeklyReset(_ resetAt: Date?) -> some View {
+        HStack(spacing: 10) {
+            labelled("timer", relDuration(resetAt, now)
+                     ?? TimeFormatter.duration(from: panel.weeklyWindow))
+            if let clock = dayClockText(resetAt) {
+                labelled("clock", clock)
+            }
+            Spacer(minLength: 0)
+        }
+        .font(.system(size: 10.5, weight: .medium).monospacedDigit())
+        .foregroundStyle(Color.primary.opacity(0.42))
+    }
 
     /// The name with its plan beside it in a quieter tone — "Claude Team", as Claude's own usage page
-    /// writes it — then the reset clock over the countdown and the number. The plan is the way to the
-    /// login: a click shows the e-mail the card reads, just under it.
+    /// writes it — then the reset clock over the countdown and the number.
     private var header: some View {
         HStack(alignment: .top, spacing: 8) {
             HStack(spacing: 4) {
@@ -975,18 +985,11 @@ struct ProviderPanel: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
                 if let plan = panel.plan {
-                    let label = Text(plan)
+                    Text(plan)
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(Color.primary.opacity(0.42))
                         .lineLimit(1)
                         .fixedSize()
-                    if panel.email != nil {
-                        Button { toggle(.account) } label: { label }
-                            .buttonStyle(.plain)
-                            .pointingHandCursor()
-                    } else {
-                        label
-                    }
                 }
             }
             // Every point left of the clock goes to the name before the spacer takes any: shared
@@ -999,17 +1002,8 @@ struct ProviderPanel: View {
         }
     }
 
-    private func toggle(_ which: Bubble) { setBubble(bubble == which ? nil : which) }
-
-    private func setBubble(_ which: Bubble?) {
-        hideBubble?.cancel()
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) { bubble = which }
-        guard which != nil else { return }
-        hideBubble = Task { @MainActor in
-            try? await Task.sleep(for: .seconds(2.5))
-            guard !Task.isCancelled else { return }
-            withAnimation(.easeOut(duration: 0.2)) { bubble = nil }
-        }
+    private func setBox(_ open: Bool) {
+        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) { boxOpen = open }
     }
 
     /// The reset clock over the countdown, then the number. Every line keeps its place whether or not
@@ -1053,8 +1047,7 @@ struct ProviderPanel: View {
     }
 
     /// The long window: a capsule with its percent riding the fill, and the countdown and reset
-    /// clock underneath. The fill takes the window's pace; a thin line marks where even use would
-    /// have it now, and when the pace runs it dry, how long it stays empty sits on the right.
+    /// clock underneath. The fill takes the window's pace; a click on the panel says where it leads.
     private func capsule(percent: Int, resetAt: Date?) -> some View {
         let locked = panel.gated || panel.stale
         let pace = locked ? nil : panel.pace
@@ -1063,73 +1056,27 @@ struct ProviderPanel: View {
             GeometryReader { geo in
                 let width = geo.size.width
                 let fill = max(18, width * CGFloat(clampPct(percent)) / 100)
-                let font = Font.system(size: 10.5, weight: .semibold).monospacedDigit()
-                let note = pace?.note
-                let labels = Self.capsuleLabels(width: width, fill: fill,
-                                                noteWidth: note.map { Self.textWidth($0) })
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color.primary.opacity(0.09))
                     Capsule().fill(color).frame(width: fill)
-                    Text("\(clampPct(percent))%").font(font)
-                        .foregroundStyle(labels.numberOnFill ? Color.white.opacity(0.92) : Color.primary.opacity(0.9))
-                        .padding(.leading, labels.numberX)
-                    if let note {
-                        Text(note).font(font)
-                            .foregroundStyle(labels.noteOnFill ? Color.white.opacity(0.92) : quotaStatusColor(0))
-                            .lineLimit(1).fixedSize()
-                            .offset(x: labels.noteX)
-                    }
+                    // Always in the same spot: white over the fill, the track's colour where a narrow fill ends under it.
+                    let number = Text("\(clampPct(percent))%").font(.system(size: 10.5, weight: .semibold).monospacedDigit())
+                    number.foregroundStyle(Color.primary.opacity(0.9))
+                        .overlay(alignment: .leading) {
+                            number.foregroundStyle(Color.white.opacity(0.92))
+                                .mask(alignment: .leading) { Rectangle().frame(width: max(0, fill - 9)) }
+                        }
+                        .padding(.leading, 9)
                 }
                 .clipShape(Capsule())
-                // Where even use would have the bar now: a small arrow hanging from the capsule's top edge,
-                // wholly inside it. Kept off the rounded ends (radius 9), where its corners would stick out.
-                .overlay(alignment: .topLeading) {
-                    if let ideal = pace?.idealPercent {
-                        DownTriangle().fill(Color.primary.opacity(scheme == .dark ? 0.8 : 0.5))
-                            .frame(width: 8, height: 5)
-                            .offset(x: min(width - 13, max(13, width * CGFloat(ideal) / 100)) - 4)
-                    }
-                }
             }
             .frame(height: 18)
-            .paceBubble(Self.paceInfo(pace), shown: bubble == .pace, toggle: { toggle(.pace) },
-                        close: { setBubble(nil) })
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel(["\(clampPct(percent))%", Self.paceInfo(pace)]
+            .accessibilityLabel(["\(clampPct(percent))%", pace?.info]
                 .compactMap { $0 }.joined(separator: ", "))
-            // Over the countdown row below, which the bubble covers.
-            .zIndex(1)
 
-            HStack(spacing: 10) {
-                labelled("timer", relDuration(resetAt, now)
-                         ?? TimeFormatter.duration(from: panel.weeklyWindow))
-                if let clock = dayClockText(resetAt) {
-                    labelled("clock", clock)
-                }
-                Spacer(minLength: 0)
-            }
-            .font(.system(size: 10.5, weight: .medium).monospacedDigit())
-            .foregroundStyle(Color.primary.opacity(0.42))
+            weeklyReset(resetAt)
         }
-    }
-
-    /// Where the capsule's two labels go. The number rides the fill while it's wide enough to hold it,
-    /// else sits just past it; the note sits right on the empty track, or inside the fill in white when
-    /// it can't fit there, so it never splits across the two.
-    nonisolated static func capsuleLabels(width: CGFloat, fill: CGFloat, noteWidth: CGFloat?)
-        -> (numberX: CGFloat, numberOnFill: Bool, noteX: CGFloat, noteOnFill: Bool) {
-        var noteX: CGFloat = 0
-        if let noteWidth {
-            noteX = width - 9 - noteWidth
-            if noteX < fill + 6 { noteX = fill - 9 - noteWidth }
-        }
-        return (fill >= 46 ? 9 : fill + 6, fill >= 46, noteX, noteWidth.map { noteX + $0 <= fill } ?? false)
-    }
-
-    /// How wide a capsule label draws, so the ideal line and the note can keep clear of it.
-    private static func textWidth(_ text: String) -> CGFloat {
-        let font = NSFont.monospacedDigitSystemFont(ofSize: 10.5, weight: .semibold)
-        return ceil((text as NSString).size(withAttributes: [.font: font]).width)
     }
 
     private func clockText(_ at: Date?) -> String? {
@@ -1229,41 +1176,3 @@ struct BrandIconView: View {
     }
 }
 
-extension View {
-    /// A click raises the pace in a bubble just under this view, in the e-mail bubble's style; a
-    /// click on either closes it. Without `info` (a last-known card) a click does nothing and the
-    /// cursor stays an arrow.
-    func paceBubble(_ info: String?, shown: Bool, toggle: @escaping () -> Void,
-                    close: @escaping () -> Void) -> some View {
-        contentShape(Rectangle())
-            .onTapGesture { if info != nil { toggle() } }
-            .pointingHandCursor(info != nil)
-            .overlay(alignment: .topLeading) {
-                if shown, let info {
-                    Text(info)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(Color.primary.opacity(0.75))
-                        .fixedSize()
-                        .padding(.horizontal, 8).padding(.vertical, 4)
-                        .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.regularMaterial))
-                        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .stroke(Color.primary.opacity(0.1), lineWidth: 1))
-                        .offset(y: 22)
-                        .onTapGesture { close() }
-                        .transition(.opacity)
-                }
-            }
-    }
-}
-
-/// The ideal-point marker: a small triangle pointing down at the capsule.
-struct DownTriangle: Shape {
-    func path(in rect: CGRect) -> Path {
-        Path { p in
-            p.move(to: CGPoint(x: rect.minX, y: rect.minY))
-            p.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
-            p.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
-            p.closeSubpath()
-        }
-    }
-}

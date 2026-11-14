@@ -115,10 +115,13 @@
 "Join the beta" = "Beta'ya katıl";
 
 /* Pace of a long window */
-"pace.short.hours" = "≈%lld saat kotasız";
-"pace.short.days" = "≈%lld gün kotasız";
-"pace.runsOut" = "Bu tempoyla %@ biter";
-"pace.leftAtReset" = "Bu tempoyla sıfırlanınca ≈%%%lld kalır";
+"pace.short.hours" = "~%lld saat kotasız";
+"pace.short.days" = "~%lld gün kotasız";
+"pace.lasts.hours" = "Kotanız bu tempoyla ~%lld saat sürer";
+"pace.lasts.days" = "Kotanız bu tempoyla ~%lld gün sürer";
+"pace.empty.hours" = "Yenilenene kadar ~%lld saat kotasız kalırsınız";
+"pace.empty.days" = "Yenilenene kadar ~%lld gün kotasız kalırsınız";
+"pace.leftAtReset" = "Bu tempoyla ~%%%lld kotanızı kullanmayacaksınız";
 "pace.early.minutes" = "Tahmin %lld dakika sonra başlar";
 "pace.early.hours" = "Tahmin %lld saat sonra başlar";
 "pace.early.days" = "Tahmin %lld gün sonra başlar";

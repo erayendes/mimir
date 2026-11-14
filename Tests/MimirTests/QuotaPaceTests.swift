@@ -16,7 +16,7 @@ final class QuotaPaceTests: XCTestCase {
     func testEmptyTimeDecidesTheTone() {
         // Halfway, empty time = half × (2u − 100) / u: 51 → 3.3h (under 2% of a week), 52 → 6.5h.
         XCTAssertEqual(halfway(51).tone, .green)
-        XCTAssertNotNil(halfway(51).runsOutAt)
+        XCTAssertNotNil(halfway(51).lastsFor)
         XCTAssertNil(halfway(51).note)
         XCTAssertEqual(halfway(52).tone, .amber)
         XCTAssertEqual(halfway(55).tone, .amber)   // 15.3h, under 10% (16.8h)
@@ -43,7 +43,7 @@ final class QuotaPaceTests: XCTestCase {
         let pace = QuotaPace.compute(remaining: 40, resetAt: now.addingTimeInterval(week - 7 * 3600),
                                      window: week, now: now)!
         XCTAssertEqual(pace.tone, .early)
-        XCTAssertNil(pace.runsOutAt)
+        XCTAssertNil(pace.lastsFor)
         // No ideal line yet: it would only sit on the capsule's end.
         XCTAssertNil(pace.idealPercent)
         // But the bubble says when the forecast starts: 17h after 7h of a week.
@@ -59,7 +59,10 @@ final class QuotaPaceTests: XCTestCase {
         // Past the early stretch there's a forecast instead, and one line of it.
         XCTAssertNil(halfway(30).estimateIn)
         XCTAssertFalse(halfway(30).info!.contains("\n"))
-        XCTAssertNotNil(halfway(56).info)
+        // Running out: how long it lasts, then how long it sits empty — 60 used halfway lasts 2.3 days of 3.5.
+        let lines = halfway(60).info!.split(separator: "\n")
+        XCTAssertEqual(lines.count, 2)
+        XCTAssertEqual(halfway(60).lastsFor!, 3.5 * 86_400 * 2 / 3, accuracy: 1)
     }
 
     /// The early stretch is the longer of a day and 5% of the window.
@@ -79,22 +82,6 @@ final class QuotaPaceTests: XCTestCase {
                                           window: week, now: now)!.idealPercent)
     }
 
-    /// The number rides a wide fill, else sits past it; the red note sits on the track, or wholly
-    /// inside the fill in white when the track can't hold it.
-    func testCapsuleLabels() {
-        var l = ProviderPanel.capsuleLabels(width: 300, fill: 200, noteWidth: nil)
-        XCTAssertEqual(l.numberX, 9)
-        XCTAssertTrue(l.numberOnFill)
-        l = ProviderPanel.capsuleLabels(width: 300, fill: 30, noteWidth: 80)
-        XCTAssertEqual(l.numberX, 36)
-        XCTAssertFalse(l.numberOnFill)
-        XCTAssertEqual(l.noteX, 300 - 9 - 80)
-        XCTAssertFalse(l.noteOnFill)
-        l = ProviderPanel.capsuleLabels(width: 300, fill: 250, noteWidth: 80)
-        XCTAssertEqual(l.noteX, 250 - 9 - 80)
-        XCTAssertTrue(l.noteOnFill)
-    }
-
     func testLeftOverAtReset() {
         // 30 used in 3.5 days: 70 left, 30 more at this rate, 40 to spare.
         let pace = halfway(30)
@@ -110,7 +97,7 @@ final class QuotaPaceTests: XCTestCase {
         let pace = halfway(0)
         XCTAssertEqual(pace.tone, .green)
         XCTAssertEqual(pace.leftAtReset, 100)
-        XCTAssertNil(pace.runsOutAt)
+        XCTAssertNil(pace.lastsFor)
     }
 
     func testTheLastDaysPaceWinsWhenFaster() {

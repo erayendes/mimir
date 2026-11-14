@@ -115,10 +115,13 @@
 "Join the beta" = "Join the beta";
 
 /* Pace of a long window */
-"pace.short.hours" = "≈%lldh short";
-"pace.short.days" = "≈%lldd short";
-"pace.runsOut" = "Runs out %@ at this pace";
-"pace.leftAtReset" = "≈%lld%% left at reset at this pace";
+"pace.short.hours" = "~%lldh short";
+"pace.short.days" = "~%lldd short";
+"pace.lasts.hours" = "At this pace your quota lasts ~%lldh";
+"pace.lasts.days" = "At this pace your quota lasts ~%lldd";
+"pace.empty.hours" = "Then ~%lldh without quota until it renews";
+"pace.empty.days" = "Then ~%lldd without quota until it renews";
+"pace.leftAtReset" = "At this pace ~%lld%% of your quota goes unused";
 "pace.early.minutes" = "Forecast starts in %lldm";
 "pace.early.hours" = "Forecast starts in %lldh";
 "pace.early.days" = "Forecast starts in %lldd";
