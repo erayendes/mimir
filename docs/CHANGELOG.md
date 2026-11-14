@@ -9,6 +9,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [3.2-beta.5] - 2026-11-14
+
+The card front is quieter: the bar shows only its percentage, on the left and white over the fill. The arrow and the "short" note are gone, in the widget too.
+
+Click a card to turn it over: it shows the account's e-mail and where the current pace leads, how long the quota lasts and how long you'd be left without it, or how much will go unused. Another click turns it back.
+
+The pace now follows the last day of use once about a day of readings is in, so slowing down also softens the forecast.
+
+The status line of Claude Code now shows the remaining percentage, like the rest of Mimir. Antigravity's CLI (agy) gets the same Mimir line, and Codex's status line gets its own five-hour and weekly limits. All three follow the "Prompt-free Claude tracking" setting.
+
+The menu bar icon now dims on an inactive display like the other icons.
+
 ### [3.2-beta.4] - 2026-11-13
 
 Antigravity quotas show up sooner after the Mac starts: in the first five minutes Mimir retries about every minute instead of waiting five.
@@ -706,6 +718,18 @@ Bu projedeki tüm önemli değişiklikler bu dosyada belgelenecektir.
 
 Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
+
+### [3.2-beta.5] - 2026-11-14
+
+Kartın ön yüzü sadeleşti: çubukta yalnızca yüzde var, solda ve dolgunun üstünde beyaz. Ok ve "kotasız" notu kalktı, widget'ta da.
+
+Karta tıklayınca arka yüzü açılıyor: hesabın e-postası ve mevcut tempoyla kotanın ne kadar süreceği, ardından ne kadar kotasız kalınacağı ya da ne kadarının kullanılmayacağı yazıyor. Bir tıklama daha ön yüze döndürüyor.
+
+Tempo artık yaklaşık bir günlük veri birikince son günün kullanımına göre hesaplanıyor; yavaşlayınca tahmin de yumuşuyor.
+
+Claude Code'un status line'ı artık Mimir'in geri kalanı gibi kalan yüzdeyi gösteriyor. Antigravity'nin CLI'ı (agy) aynı Mimir satırını, Codex'in status line'ı da kendi beş saatlik ve haftalık limitlerini gösteriyor. Üçü de "Parolasız Claude takibi" ayarına bağlı.
+
+Menü çubuğu simgesi, etkin olmayan ekranda diğer simgeler gibi soluklaşıyor.
 
 ### [3.2-beta.4] - 2026-11-13
 
