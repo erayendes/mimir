@@ -9,6 +9,8 @@ enum PaceFileWriter {
         let idealPercent: Double
         let note: String?
         let resetAt: Double
+        /// Present only for a model-scoped window; CLI stdin has no matching percentage.
+        var remainingPercent: Int? = nil
     }
 
     private struct Snapshot: Codable {
@@ -18,6 +20,7 @@ enum PaceFileWriter {
             let note: String?
             let resetAt: Double
             let writtenAt: Double
+            let remainingPercent: Int?
 
             init(_ window: Window, now: Date) {
                 tone = window.tone
@@ -25,6 +28,7 @@ enum PaceFileWriter {
                 note = window.note
                 resetAt = window.resetAt
                 writtenAt = now.timeIntervalSince1970
+                remainingPercent = window.remainingPercent
             }
         }
         let windows: [String: StampedWindow]
@@ -69,39 +73,67 @@ enum PaceFileWriter {
                 }
             default: continue
             }
-            var windows: [String: Window] = [:]
-            if !service.isStale {
-                for metric in provider.fiveHour {
-                    guard let key = keys(metric.label), let tone = metric.tone,
-                          let ideal = metric.idealPercent, let reset = metric.weeklyResetAt else { continue }
-                    windows[key] = Window(tone: tone.rawValue, idealPercent: ideal,
-                                          note: tone == .red ? metric.note : nil,
-                                          resetAt: reset.timeIntervalSince1970)
-                }
-                // The widget's prominent rows omit a weekly-only Antigravity family (Argon).
-                // The popover still computes its pace, so include that family here as well.
-                if service.providerTitle == "Antigravity" {
-                    for row in service.models where row.window == .weekly {
-                        guard let key = keys(row.name),
-                              windows[key] == nil, row.remainingPercent > 0,
-                              let reset = row.resetAt,
-                              let pace = QuotaPace.compute(remaining: row.remainingPercent, resetAt: reset,
-                                  window: 7 * 86_400, now: now,
-                                  history: QuotaHistory.shared.readings(
-                                      QuotaHistory.key(service.name, row.name), resetAt: reset)),
-                              pace.tone != .early, let ideal = pace.idealPercent else { continue }
-                        let tone: String = switch pace.tone {
-                        case .green: "green"
-                        case .amber: "amber"
-                        case .red: "red"
-                        case .early: "green"
-                        }
-                        windows[key] = Window(tone: tone, idealPercent: ideal, note: pace.note,
-                                              resetAt: reset.timeIntervalSince1970)
-                    }
-                }
-            }
+            let windows = windows(service: service, provider: provider, keys: keys, now: now)
             try? write(windows, to: directory, now: now)
         }
+    }
+
+    static func windows(service: ServiceStatus, provider: ProviderPayload,
+                        keys: (String) -> String?, now: Date) -> [String: Window] {
+        var windows: [String: Window] = [:]
+        if !service.isStale {
+            for metric in provider.fiveHour {
+                guard let key = keys(metric.label), let tone = metric.tone,
+                      let ideal = metric.idealPercent, let reset = metric.weeklyResetAt else { continue }
+                windows[key] = Window(tone: tone.rawValue, idealPercent: ideal,
+                                      note: tone == .red ? metric.note : nil,
+                                      resetAt: reset.timeIntervalSince1970)
+            }
+            if service.providerTitle == "Claude",
+               let row = service.models.first(where: {
+                   $0.name == "Fable" && $0.valueText == nil && $0.groupLabel == nil
+               }), let reset = row.resetAt, reset > now {
+                let pace = QuotaPace.compute(remaining: row.remainingPercent, resetAt: reset,
+                    window: 7 * 86_400, now: now,
+                    history: QuotaHistory.shared.readings(
+                        QuotaHistory.key(service.name, row.name), resetAt: reset))
+                let tone: String = switch pace?.tone {
+                case .green: "green"
+                case .amber: "amber"
+                case .red: "red"
+                case .early, nil:
+                    row.remainingPercent >= 40 ? "green" : row.remainingPercent >= 10 ? "amber" : "red"
+                }
+                let ideal = pace?.idealPercent
+                    ?? min(100, max(0, 100 * reset.timeIntervalSince(now) / (7 * 86_400)))
+                windows["seven_day_fable"] = Window(tone: tone, idealPercent: ideal,
+                    note: pace?.tone == .red ? pace?.note : nil,
+                    resetAt: reset.timeIntervalSince1970,
+                    remainingPercent: row.remainingPercent)
+            }
+            // The widget's prominent rows omit a weekly-only Antigravity family (Argon).
+            // The popover still computes its pace, so include that family here as well.
+            if service.providerTitle == "Antigravity" {
+                for row in service.models where row.window == .weekly {
+                    guard let key = keys(row.name),
+                          windows[key] == nil, row.remainingPercent > 0,
+                          let reset = row.resetAt,
+                          let pace = QuotaPace.compute(remaining: row.remainingPercent, resetAt: reset,
+                              window: 7 * 86_400, now: now,
+                              history: QuotaHistory.shared.readings(
+                                  QuotaHistory.key(service.name, row.name), resetAt: reset)),
+                          pace.tone != .early, let ideal = pace.idealPercent else { continue }
+                    let tone: String = switch pace.tone {
+                    case .green: "green"
+                    case .amber: "amber"
+                    case .red: "red"
+                    case .early: "green"
+                    }
+                    windows[key] = Window(tone: tone, idealPercent: ideal, note: pace.note,
+                                          resetAt: reset.timeIntervalSince1970)
+                }
+            }
+        }
+        return windows
     }
 }

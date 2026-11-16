@@ -16,16 +16,25 @@ enum StatusLineRendering {
             else (($s / 86400 | floor) | tostring) + "d"
               + (if ($s % 86400) >= 3600 then ((($s % 86400) / 3600 | floor) | tostring) + "h" else "" end)
             end end;
-      def pace($key; $reset):
-        ($pace | try fromjson catch {}) as $file
-        | ($file.windows[$key] // null) as $item
-        | if $reset != null and $item != null
+      def fresh($item):
+        $item != null
              and ($item.writtenAt | type) == "number"
              and $item.writtenAt <= $now and $now - $item.writtenAt < 1800
              and ($item.resetAt | type) == "number"
-             and (($item.resetAt - $reset) | fabs) <= 300
              and (["green", "amber", "red"] | index($item.tone)) != null
-             and ($item.idealPercent | type) == "number"
+             and ($item.idealPercent | type) == "number";
+      def pace($key; $reset):
+        ($pace | try fromjson catch {}) as $file
+        | ($file.windows[$key] // null) as $item
+        | if $reset != null and fresh($item)
+             and (($item.resetAt - $reset) | fabs) <= 300
+          then $item else null end;
+      def model_pace($key):
+        ($pace | try fromjson catch {}) as $file
+        | ($file.windows[$key] // null) as $item
+        | if fresh($item) and $item.resetAt > $now
+             and ($item.remainingPercent | type) == "number"
+             and $item.remainingPercent >= 0 and $item.remainingPercent <= 100
           then $item else null end;
       def ideal($reset; $entry):
         if $entry != null then $entry.idealPercent

@@ -142,9 +142,21 @@ enum MimirStatusLineHook {
                 | {label: $label, percent: $percent, filled: $filled,
                    countdown: countdown($reset), tone: $entry.tone, note: $entry.note,
                    marker: (if $ideal == null then null else [9, ($ideal / 10 | floor)] | min | [0, .] | max end)};
+              def fable_window:
+                model_pace("seven_day_fable") as $entry
+                | if $entry == null then null else
+                    ($entry.remainingPercent | floor) as $percent
+                    | {label: "7d", percent: $percent,
+                       filled: (($percent / 10 + 0.5) | floor),
+                       countdown: countdown($entry.resetAt), tone: $entry.tone, note: $entry.note,
+                       marker: ([9, ($entry.idealPercent / 10 | floor)] | min | [0, .] | max)}
+                  end;
               ((.model.display_name // .model.id // "") | sub(" \\([^()]*\\)$"; "")) as $model
+              | ((.model.id // "" | tostring | ascii_downcase | contains("fable"))
+                 or (.model.display_name // "" | tostring | startswith("Fable"))) as $isFable
               | [window(.rate_limits.five_hour; "5h"; null),
-                 window(.rate_limits.seven_day; "7d"; "seven_day")]
+                 (if $isFable then (fable_window // window(.rate_limits.seven_day; "7d"; "seven_day"))
+                  else window(.rate_limits.seven_day; "7d"; "seven_day") end)]
               | select(length > 0)
               | render(.; (if $model != "" then $model + "  " else "" end); (try ($width | tonumber) catch null))
             ' 2>/dev/null

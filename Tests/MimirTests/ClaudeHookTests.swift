@@ -278,6 +278,36 @@ final class ClaudeHookTests: XCTestCase {
         }
     }
 
+    func testFableUsesScopedWeeklyWindowAndFallsBackWhenMissingOrStale() throws {
+        let now = 2_000_000_000
+        let fiveReset = now + 59 * 60 + 1
+        let allReset = now + 3 * 86_400 + 4 * 3600
+        let fableReset = now + 2 * 86_400
+        let limits = "\"rate_limits\":{\"five_hour\":{\"used_percentage\":30,\"resets_at\":\(fiveReset)},\"seven_day\":{\"used_percentage\":20,\"resets_at\":\(allReset)}}"
+        let all = "\"seven_day\":{\"tone\":\"amber\",\"idealPercent\":60,\"resetAt\":\(allReset),\"writtenAt\":\(now)}"
+        func file(_ written: Int) -> String {
+            "{\"windows\":{\(all),\"seven_day_fable\":{\"remainingPercent\":25,\"tone\":\"red\",\"idealPercent\":70,\"note\":\"~2 gün kotasız\",\"resetAt\":\(fableReset),\"writtenAt\":\(written)}}}"
+        }
+        let five = "\(expectedWindow("5h", 70)) 60m"
+        for (model, name) in [
+            ("\"id\":\"claude-fable-5-5\",\"display_name\":\"Opaque 5.5\"", "Opaque 5.5"),
+            ("\"id\":\"opaque\",\"display_name\":\"Fable 5.5\"", "Fable 5.5")
+        ] {
+            let input = "{\"model\":{\(model)},\(limits)}"
+            let scoped = "\(name)  \(five)  ·  "
+                + markedWindow("7d", 25, marker: 7, color: 31, countdown: "2d", note: "~2 gün kotasız") + "\n"
+            let fallback = "\(name)  \(five)  ·  "
+                + markedWindow("7d", 80, marker: 6, color: 33, countdown: "3d4h") + "\n"
+            XCTAssertEqual(try runScript(input: input, pace: file(now), clock: now), scoped)
+            XCTAssertEqual(try runScript(input: input, pace: file(now - 1800), clock: now), fallback)
+            XCTAssertEqual(try runScript(input: input, pace: "{\"windows\":{\(all)}}", clock: now), fallback)
+        }
+        let opus = "{\"model\":{\"id\":\"claude-opus-5-5\",\"display_name\":\"Opus 5.5\"},\(limits)}"
+        let unchanged = "Opus 5.5  \(five)  ·  "
+            + markedWindow("7d", 80, marker: 6, color: 33, countdown: "3d4h") + "\n"
+        XCTAssertEqual(try runScript(input: opus, pace: file(now), clock: now), unchanged)
+    }
+
     func testMinuteCountdownAndExpiredReset() throws {
         let now = 2_000_000_000
         let input = "{\"rate_limits\":{\"five_hour\":{\"used_percentage\":60,\"resets_at\":\(now + 45 * 60)},\"seven_day\":{\"used_percentage\":60,\"resets_at\":\(now - 1)}}}"
