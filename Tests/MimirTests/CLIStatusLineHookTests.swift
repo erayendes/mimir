@@ -61,12 +61,12 @@ struct CLIStatusLineHookTests {
     ])
     func agyRemainingPercent(fraction: Double, expected: Int) throws {
         let input = """
-        {"model":{"id":"gemini-4-argon"},"quota":{
+        {"model":{"id":"gemini-3.8-flash","display_name":"Gemini 3.8 Flash (Medium)"},"quota":{
           "gemini-5h":{"remaining_fraction":\(fraction),"reset_in_seconds":100},
           "gemini-weekly":{"remaining_fraction":0.9378,"reset_in_seconds":50},
           "3p-5h":{"remaining_fraction":0.01},"3p-weekly":{"remaining_fraction":0.02}}}
         """
-        #expect(try runAGY(input: input) == "Mimir  5h \(expected)%  ·  7d 94%\n")
+        #expect(try runAGY(input: input) == "Mimir  Gemini 3.8 Flash  5h \(expected)%  ·  7d 94%\n")
     }
 
     @Test(arguments: [
@@ -76,6 +76,7 @@ struct CLIStatusLineHookTests {
         (#"{"quota":{"gemini-5h":{"remaining_fraction":"unknown"},"gemini-weekly":{"remaining_fraction":0.5}}}"#, "Mimir  7d 50%\n"),
         (#"{"quota":{"gemini-5h":{"remaining_fraction":0.9,"disabled":true}}}"#, ""),
         (#"{"quota":{"gemini-weekly":{"remaining_amount":100}}}"#, ""),
+        (#"{"model":{"display_name":"Gemini 3.8 Flash (Medium)"},"quota":{}}"#, ""),
         (#"{"quota":null}"#, ""),
         (#"{"model":null}"#, ""),
         (#"{"quota":{}}"#, ""),
@@ -84,23 +85,55 @@ struct CLIStatusLineHookTests {
         #expect(try runAGY(input: input) == expected)
     }
 
+    @Test func agyDisplaysModelNameAndFallsBackToID() throws {
+        let quota = #""quota":{"gemini-5h":{"remaining_fraction":0.99},"gemini-weekly":{"remaining_fraction":0.99}}"#
+        #expect(try runAGY(input: "{\"model\":{\"id\":\"gemini-3.8-flash\",\"display_name\":\"Gemini 3.8 Flash (Medium)\"}," + quota + "}")
+            == "Mimir  Gemini 3.8 Flash  5h 99%  ·  7d 99%\n")
+        #expect(try runAGY(input: "{\"model\":{\"id\":\"gemini-3.8-flash\"}," + quota + "}")
+            == "Mimir  gemini-3.8-flash  5h 99%  ·  7d 99%\n")
+    }
+
     @Test func agySelectsFamilyAndUsesMinimumWhenAmbiguous() throws {
         let quota = #"""
         "quota":{"gemini-5h":{"remaining_fraction":0.8},"gemini-weekly":{"remaining_fraction":0.1},
-        "claude-5h":{"remaining_fraction":0.3},"claude-weekly":{"remaining_fraction":0.7}}
+        "3p-5h":{"remaining_fraction":0.3},"3p-weekly":{"remaining_fraction":0.7}}
         """#
         #expect(try runAGY(input: "{\"model\":{\"display_name\":\"Claude Opus\"}," + quota + "}")
-            == "Mimir  5h 30%  ·  7d 70%\n")
+            == "Mimir  Claude Opus  5h 30%  ·  7d 70%\n")
         #expect(try runAGY(input: "{\"model\":{\"id\":\"opaque-id\",\"display_name\":\"Claude Opus\"}," + quota + "}")
-            == "Mimir  5h 30%  ·  7d 70%\n")
+            == "Mimir  Claude Opus  5h 30%  ·  7d 70%\n")
         #expect(try runAGY(input: "{\"model\":{\"id\":\"custom\"}," + quota + "}")
-            == "Mimir  5h 30%  ·  7d 10%\n")
+            == "Mimir  custom  5h 30%  ·  7d 10%\n")
         // A known family's missing window must not borrow a different family's number.
         #expect(try runAGY(input: #"{"model":{"id":"Gemini"},"quota":{"gemini-weekly":{"remaining_fraction":0.5},"3p-5h":{"remaining_fraction":0.2}}}"#)
-            == "Mimir  7d 50%\n")
-        // 3p is not sufficient evidence of a Claude-only bucket: conservative per-window min.
+            == "Mimir  Gemini  7d 50%\n")
         #expect(try runAGY(input: #"{"model":{"id":"Claude"},"quota":{"gemini-weekly":{"remaining_fraction":0.5},"3p-weekly":{"remaining_fraction":0.2}}}"#)
-            == "Mimir  7d 20%\n")
+            == "Mimir  Claude  7d 20%\n")
+    }
+
+    @Test func agyKeepsArgonQuotaSeparateFromGemini() throws {
+        let quota = #"""
+        "quota":{"3p-5h":{"remaining_fraction":0.05},"3p-weekly":{"remaining_fraction":0.06},
+        "gemini-5h":{"remaining_fraction":0.8},"gemini-weekly":{"remaining_fraction":0.9},
+        "gemini-argon-wtu-weekly":{"remaining_fraction":0.1}}
+        """#
+        #expect(try runAGY(input: "{\"model\":{\"id\":\"gemini-3.8-flash\",\"display_name\":\"Gemini 3.8 Flash\"}," + quota + "}")
+            == "Mimir  Gemini 3.8 Flash  5h 80%  ·  7d 90%\n")
+        #expect(try runAGY(input: "{\"model\":{\"id\":\"opaque-id\",\"display_name\":\"Gemini 4 Argon\"}," + quota + "}")
+            == "Mimir  Gemini 4 Argon  7d 10%\n")
+        #expect(try runAGY(input: "{\"model\":{\"id\":\"gemini-4-argon\",\"display_name\":\"Gemini 4\"}," + quota + "}")
+            == "Mimir  Gemini 4  7d 10%\n")
+    }
+
+    @Test func agyUsesShared3pQuotaForGPTAndClaude() throws {
+        let quota = #"""
+        "quota":{"3p-5h":{"remaining_fraction":0.4},"3p-weekly":{"remaining_fraction":0.6},
+        "gemini-5h":{"remaining_fraction":0.05},"gemini-weekly":{"remaining_fraction":0.1}}
+        """#
+        #expect(try runAGY(input: "{\"model\":{\"id\":\"gpt-oss-120b\",\"display_name\":\"GPT-OSS 120B\"}," + quota + "}")
+            == "Mimir  GPT-OSS 120B  5h 40%  ·  7d 60%\n")
+        #expect(try runAGY(input: "{\"model\":{\"id\":\"claude-sonnet-4\",\"display_name\":\"Claude Sonnet 4\"}," + quota + "}")
+            == "Mimir  Claude Sonnet 4  5h 40%  ·  7d 60%\n")
     }
 
     @Test func agyChainsInputAndOutputVerbatim() throws {

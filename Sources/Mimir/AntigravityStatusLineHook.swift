@@ -25,8 +25,8 @@ struct AntigravityStatusLineHook {
     /// quota is a bucket-ID -> object map; remaining_fraction is already REMAINING, not used.
     /// The local agy binary also exposes map[string]types.StatusLineQuotaBucket and these JSON
     /// field tags. Bucket IDs are server supplied: gemini-weekly is documented; gemini-5h and
-    /// 3p-{5h,weekly} also occur in the provider's quota fixtures. A 3p bucket alone does not prove
-    /// a Claude-only family. When model-to-bucket matching is ambiguous, take the minimum per
+    /// 3p-{5h,weekly} and gemini-argon-wtu-weekly also occur in real payloads. 3p is shared by
+    /// Claude and GPT models. When model-to-bucket matching is ambiguous, take the minimum per
     /// named window. Never infer window length from reset_in_seconds (time left, not duration).
     static func scriptBody(chained: String?) -> String {
         let render: String
@@ -38,8 +38,9 @@ struct AntigravityStatusLineHook {
             command -v jq >/dev/null 2>&1 && printf '%s' "$input" | jq -r '
               def family:
                 ascii_downcase
-                | if test("gemini") then "gemini"
-                  elif test("claude|opus|sonnet|haiku") then "claude"
+                | if test("argon") then "argon"
+                  elif test("gemini") then "gemini"
+                  elif test("3p|claude|opus|sonnet|haiku|gpt|oss") then "3p"
                   else null end;
               def window($pattern; $label):
                 [.[] | select(.key | ascii_downcase | test($pattern))
@@ -47,14 +48,16 @@ struct AntigravityStatusLineHook {
                 | select(length > 0) | min | (. * 100)
                 | ([0, .] | max) | ([100, .] | min)
                 | (. + 0.5 | floor | tostring) | $label + " " + . + "%";
-              (((.model.id // "") | family) // ((.model.display_name // "") | family)) as $family
+              ((.model.display_name // .model.id // "") | sub(" \\([^()]*\\)$"; "")) as $model
+              | ([(.model.id // ""), (.model.display_name // "")] | join(" ") | family) as $family
               | (.quota // {} | to_entries
                  | map(select((.value | type) == "object" and .value.disabled != true))) as $all
               | [$all[] | select($family != null and (.key | family) == $family)] as $matched
               | (if ($matched | length) > 0 then $matched else $all end)
               | [(window("(^|[-_])(5h|five[-_]hour)$"; "5h")),
                  (window("(^|[-_])(weekly|7d|seven[-_]day)$"; "7d"))]
-              | select(length > 0) | "Mimir  " + join("  ·  ")
+              | select(length > 0)
+              | "Mimir  " + (if $model != "" then $model + "  " else "" end) + join("  ·  ")
             ' 2>/dev/null
             """#
         }
