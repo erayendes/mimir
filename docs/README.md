@@ -35,6 +35,7 @@ Gemini, Claude and GPT) — without leaving your workflow.
 - **Reset countdowns** — know exactly when each limit refreshes
 - **Status colours** — green / amber / red based on remaining quota, in the popover and the widgets
 - **Minimalist design** — monochrome icon, full macOS light/dark mode support
+- **Status line** — your remaining quota inside Claude Code, Antigravity's `agy` and Codex, with one toggle (see [Status line](#status-line))
 - **No backend** — Mimir talks only to each provider's own endpoint, with that provider's own token; your quota figures and tokens go nowhere else
 
 ### Supported services
@@ -130,7 +131,7 @@ GET https://api.anthropic.com/api/oauth/usage
 - The token is read from Claude Code's records under `~/.claude` / the macOS **Keychain**.
 - The response is **cached for 5 minutes**, so the Keychain (and its permission prompt) is touched only at launch and around token expiry.
 
-3. **Claude Code's status line** — with **Prompt-free Claude tracking** on (right-click menu). A small hook in `~/.claude/settings.json` receives the session JSON Claude Code already fetched, with its official 5-hour and 7-day numbers, and saves it to `~/.claude/mimir-usage.json`. No Keychain, no token, no network, no prompt. While the hook is fresh (Claude Code rendered a status line in the last 30 minutes) a background refresh never touches the Keychain, and it fills the card whenever the token is expired or can't be read silently. An existing `statusLine` command is chained through, not replaced; `settings.json` is backed up before the first write.
+3. **Claude Code's status line** — with **Prompt-free Claude tracking** on (right-click menu). A small hook in `~/.claude/settings.json` receives the session JSON Claude Code already fetched, with its official 5-hour and 7-day numbers, and saves it to `~/.claude/mimir-usage.json`; it also prints Mimir's line in Claude Code's status line (see [Status line](#status-line)). No Keychain, no token, no network, no prompt. While the hook is fresh (Claude Code rendered a status line in the last 30 minutes) a background refresh never touches the Keychain, and it fills the card whenever the token is expired or can't be read silently. An existing `statusLine` command is chained through, not replaced; `settings.json` is backed up before the first write.
 
 **Tokens are read, never refreshed.** Anthropic rotates the refresh token single-use, so a refresh from outside would sign Claude Code out. Mimir only reads the token Claude Code currently holds and uses it while valid; once it has expired, the card shows **token expired — open Claude Code** and Claude Code refreshes it on its own next use.
 
@@ -188,6 +189,8 @@ Mimir shows group-based quotas for **Antigravity**. Antigravity no longer manage
 4. **Local language server** data. Several can be running at once — the desktop app and the IDE each start their own, and both report the same account quota — so Mimir asks each in turn until one answers. A server that has just launched can reply with an auth error while its sibling serves fine, and stopping at the first one would drop the whole source.
 5. **Last snapshot** — when the IDE/Cockpit is closed, valid until its reset time passes.
 
+**`agy`'s status line.** With **Prompt-free Claude tracking** on, Antigravity's CLI `agy` saves its own quota JSON to `~/.gemini/antigravity-cli/mimir-usage.json` each time it draws its status line. While that capture is under 30 minutes old, Mimir fills the card from it instead of starting another `agy` process (see [Status line](#status-line)).
+
 **When the IDE is closed.** When the IDE or Cockpit is closed, Mimir shows the **last snapshot**; if there is no account info at all, the card shows **open Antigravity or Cockpit**.
 
 | Symptom | Likely cause / fix |
@@ -197,6 +200,20 @@ Mimir shows group-based quotas for **Antigravity**. Antigravity no longer manage
 | Quotas differ from expected | Antigravity uses group-pool logic; read by group, not per-model |
 
 > 🔒 **Privacy:** All reads are local / against authorized endpoints; your quotas and tokens stay on your machine and reach no Mimir server — there is none. Crash reports and anonymous, categorical telemetry are the only outbound extras. See [Privacy & Security](#privacy--security).
+
+### Status line
+
+One right-click toggle, **Prompt-free Claude tracking**, wires your quota into each CLI's status line and removes it again when turned off. Every file Mimir edits is backed up before its first write.
+
+```
+Mimir  5h 77%  ·  7d 41%
+```
+
+The numbers are **remaining** percentages; a window the session doesn't report is left out.
+
+- **Claude Code** — the hook in `settings.json` ([data source 3](#claude)) prints this line and saves the session JSON. Extra Claude accounts (e.g. `~/.claude-work`) get it too. The visible line needs `jq`; saving works without it.
+- **Antigravity (`agy`)** — a `statusLine` command in `~/.gemini/antigravity-cli/settings.json` prints the same line for the current model's family and saves `agy`'s quota JSON to `mimir-usage.json` next to it (a private file), which then [feeds the Antigravity card](#antigravity). An existing `statusLine` command is chained, not replaced; the original settings come back when you turn it off.
+- **Codex** — Codex can't run a custom command in its status line, so Mimir adds Codex's own `five-hour-limit` and `weekly-limit` items to `[tui] status_line` in `config.toml` (extra accounts such as `~/.codex-work` too). They are added once: an item you remove later stays removed, turning the toggle off removes only what Mimir added, and a `status_line` shaped in a way Mimir can't edit safely is left alone.
 
 ### Privacy & Security
 
@@ -295,6 +312,7 @@ anlık olarak gösteren hafif bir uygulamadır.
 - **Geri sayım** — her limitin tam olarak ne zaman yenileneceğini gösterir
 - **Durum renkleri** — kalan kotaya göre yeşil / amber / kırmızı, popover'da ve widget'larda
 - **Minimalist tasarım** — monokrom ikon, macOS açık/koyu tema desteği
+- **Durum satırı** — kalan kotanız Claude Code'da, Antigravity'nin `agy`'sinde ve Codex'te, tek bir anahtarla (bkz. [Durum satırı](#durum-satırı))
 - **Arka uç yok** — Mimir yalnızca her sağlayıcının kendi uç noktasına, o sağlayıcının kendi token'ıyla bağlanır; kota bilgileriniz ve token'larınız başka hiçbir yere gitmez
 
 ### Desteklenen servisler
@@ -390,7 +408,7 @@ GET https://api.anthropic.com/api/oauth/usage
 - Token, Claude Code'un `~/.claude` altındaki kayıtlarından / macOS **Keychain**'den okunur.
 - Yanıt 5 dakikalık bir **önbelleğe** alınır; böylece Keychain'e yalnızca uygulama başlarken ve token süresi dolmaya yakınken dokunulur.
 
-3. **Claude Code'un durum satırı** — sağ tık menüsündeki **Parolasız Claude takibi** açıkken. `~/.claude/settings.json` içine konan küçük bir kanca, Claude Code'un zaten çektiği oturum JSON'unu — resmî 5 saatlik ve 7 günlük sayılarıyla — alır ve `~/.claude/mimir-usage.json` dosyasına yazar. Keychain yok, token yok, ağ yok, izin penceresi yok. Kanca tazeyken (Claude Code son 30 dakikada bir durum satırı çizmişse) arka plan yenilemesi Keychain'e hiç dokunmaz; token süresi dolmuş ya da sessizce okunamıyorsa kartı bu kanca doldurur. Mevcut bir `statusLine` komutu silinmez, zincire eklenir; ilk yazımdan önce `settings.json` yedeklenir.
+3. **Claude Code'un durum satırı** — sağ tık menüsündeki **Parolasız Claude takibi** açıkken. `~/.claude/settings.json` içine konan küçük bir kanca, Claude Code'un zaten çektiği oturum JSON'unu — resmî 5 saatlik ve 7 günlük sayılarıyla — alır ve `~/.claude/mimir-usage.json` dosyasına yazar; Claude Code'un durum satırına da Mimir satırını basar (bkz. [Durum satırı](#durum-satırı)). Keychain yok, token yok, ağ yok, izin penceresi yok. Kanca tazeyken (Claude Code son 30 dakikada bir durum satırı çizmişse) arka plan yenilemesi Keychain'e hiç dokunmaz; token süresi dolmuş ya da sessizce okunamıyorsa kartı bu kanca doldurur. Mevcut bir `statusLine` komutu silinmez, zincire eklenir; ilk yazımdan önce `settings.json` yedeklenir.
 
 **Token okunur, yenilenmez.** Anthropic refresh token'ı tek kullanımlık döndürür; dışarıdan yapılan bir yenileme Claude Code'un oturumunu düşürür. Mimir yalnızca Claude Code'un elindeki token'ı okur ve geçerli olduğu sürece kullanır; süresi dolunca kart **token süresi doldu — Claude Code'u aç** der ve Claude Code bir sonraki kullanımında token'ı kendisi yeniler.
 
@@ -448,6 +466,8 @@ Mimir, **Antigravity** için grup bazlı kotaları gösterir. Antigravity kotay�
 4. **Yerel dil sunucusu** (language server) verisi. Aynı anda birden fazlası çalışıyor olabilir — masaüstü uygulaması ve IDE ayrı ayrı kendi sunucusunu başlatır, ikisi de aynı hesap kotasını bildirir — bu yüzden Mimir cevap alana kadar hepsini sırayla dener. Yeni başlamış bir sunucu kimlik doğrulama hatası döndürürken diğeri sorunsuz cevap verebilir; ilkinde durmak kaynağın tamamını düşürürdü.
 5. **Son anlık görüntü** (snapshot) — IDE/Cockpit kapalıysa, sıfırlanma zamanı geçene kadar geçerli.
 
+**`agy`'nin durum satırı.** **Parolasız Claude takibi** açıkken Antigravity'nin CLI'ı `agy`, durum satırını her çizişinde kendi kota JSON'unu `~/.gemini/antigravity-cli/mimir-usage.json` dosyasına yazar. Bu kayıt 30 dakikadan yeniyse Mimir kartı, ayrıca bir `agy` süreci başlatmak yerine buradan doldurur (bkz. [Durum satırı](#durum-satırı)).
+
 **IDE kapalıyken.** IDE veya Cockpit kapalıyken Mimir **son anlık görüntüyü** gösterir; hiç hesap bilgisi yoksa kart **Antigravity veya Cockpit'i aç** notunu verir.
 
 | Belirti | Olası neden / çözüm |
@@ -457,6 +477,20 @@ Mimir, **Antigravity** için grup bazlı kotaları gösterir. Antigravity kotay�
 | Kotalar beklenenden farklı | Antigravity grup havuzu mantığı kullanır; per-model değil grup bazında okuyun |
 
 > 🔒 **Gizlilik:** Tüm okuma yereldir/yetkili uç noktalarladır; kotalarınız ve token'larınız makinenizden çıkıp bir Mimir sunucusuna gitmez — çünkü yoktur. Dışarı giden tek ek, çökme raporları ve anonim telemetridir. Bkz. [Gizlilik ve Güvenlik](#gizlilik-ve-güvenlik).
+
+### Durum satırı
+
+Sağ tık menüsündeki tek anahtar, **Parolasız Claude takibi**, kotanızı her CLI'ın durum satırına bağlar; kapatınca geri alır. Mimir'in düzenlediği her dosya ilk yazımdan önce yedeklenir.
+
+```
+Mimir  5h 77%  ·  7d 41%
+```
+
+Sayılar **kalan** yüzdelerdir; oturumun bildirmediği pencere satıra konmaz.
+
+- **Claude Code** — `settings.json` içindeki kanca ([3. veri kaynağı](#claude-1)) bu satırı basar ve oturum JSON'unu kaydeder. Ek Claude hesaplarına (örn. `~/.claude-work`) da kurulur. Görünen satır için `jq` gerekir; kayıt onsuz da çalışır.
+- **Antigravity (`agy`)** — `~/.gemini/antigravity-cli/settings.json` içindeki bir `statusLine` komutu aynı satırı o anki modelin ailesi için basar ve `agy`'nin kota JSON'unu yanındaki `mimir-usage.json` dosyasına (yalnızca sizin okuyabileceğiniz bir dosya) kaydeder; bu kayıt [Antigravity kartını besler](#antigravity-1). Mevcut bir `statusLine` komutu silinmez, zincire eklenir; anahtarı kapatınca eski ayarlar geri gelir.
+- **Codex** — Codex durum satırında özel komut çalıştıramadığı için Mimir, `config.toml` dosyasındaki `[tui] status_line` listesine Codex'in kendi `five-hour-limit` ve `weekly-limit` öğelerini ekler (`~/.codex-work` gibi ek hesaplara da). Öğeler bir kez eklenir: sonradan kaldırdığınız öğe kaldırılmış kalır, anahtarı kapatmak yalnızca Mimir'in eklediklerini siler, Mimir'in güvenle düzenleyemeyeceği biçimdeki bir `status_line` olduğu gibi bırakılır.
 
 ### Gizlilik ve Güvenlik
 
