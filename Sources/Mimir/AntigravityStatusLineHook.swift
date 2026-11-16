@@ -35,46 +35,43 @@ struct AntigravityStatusLineHook {
             render = "printf '%s' \"$input\" | bash -c '\(escaped)'"
         } else {
             render = #"""
-            command -v jq >/dev/null 2>&1 && printf '%s' "$input" | jq -r '
-              def color($percent):
-                if $percent >= 40 then "32" elif $percent >= 10 then "33" else "31" end;
-              def display($bars):
-                .label + " " +
-                (if $bars then
-                  .filled as $filled
-                  | (if $filled > 0 then "\u001b[" + color(.percent) + "m" + ("█" * $filled) + "\u001b[0m" else "" end)
-                    + (if $filled < 10 then "\u001b[2m" + ("░" * (10 - $filled)) + "\u001b[0m" else "" end) + " "
-                else "" end)
-                + "\u001b[" + color(.percent) + "m" + (.percent | tostring) + "%\u001b[0m";
+            command -v jq >/dev/null 2>&1 && printf '%s' "$input" | jq -r --argjson now "$(date +%s)" --arg pace "$pace" --arg columns "${COLUMNS:-}" '
+              \#(StatusLineRendering.jq)
               def family:
                 ascii_downcase
                 | if test("argon") then "argon"
                   elif test("gemini") then "gemini"
                   elif test("3p|claude|opus|sonnet|haiku|gpt|oss") then "3p"
                   else null end;
-              def window($pattern; $label):
+              def window($pattern; $label; $family):
                 [.[] | select(.key | ascii_downcase | test($pattern))
-                 | .value.remaining_fraction | select(. != null) | tonumber?]
-                | select(length > 0) | min | (. * 100)
+                 | .value as $bucket
+                 | ($bucket.remaining_fraction | tonumber?) as $fraction
+                 | {fraction: $fraction,
+                    reset: ((try ($bucket.reset_time | fromdateiso8601) catch null)
+                            // (try ($bucket.reset_in_seconds | tonumber | . + $now) catch null))}]
+                | select(length > 0) | min_by(.fraction)
+                | . as $selected | (.fraction * 100)
                 | ([0, .] | max) | ([100, .] | min)
                 | . as $remaining
+                | (if $label == "7d" and $family != null then pace($family; $selected.reset) else null end) as $entry
+                | (if $label == "7d" then ideal($selected.reset; $entry) else null end) as $ideal
                 | {label: $label, percent: ($remaining + 0.5 | floor),
-                   filled: ($remaining / 10 + 0.5 | floor)};
-              .terminal_width as $terminal_width
+                   filled: ($remaining / 10 + 0.5 | floor), countdown: countdown($selected.reset),
+                   tone: $entry.tone, note: $entry.note,
+                   marker: (if $ideal == null then null else [9, ($ideal / 10 | floor)] | min | [0, .] | max end)};
+              (try ((.terminal_width // $columns) | tonumber) catch null) as $terminal_width
               | ((.model.display_name // .model.id // "") | sub(" \\([^()]*\\)$"; "")) as $model
               | ([(.model.id // ""), (.model.display_name // "")] | join(" ") | family) as $family
               | (.quota // {} | to_entries
                  | map(select((.value | type) == "object" and .value.disabled != true))) as $all
               | [$all[] | select($family != null and (.key | family) == $family)] as $matched
               | (if ($matched | length) > 0 then $matched else $all end)
-              | [(window("(^|[-_])(5h|five[-_]hour)$"; "5h")),
-                 (window("(^|[-_])(weekly|7d|seven[-_]day)$"; "7d"))] as $windows
+              | [(window("(^|[-_])(5h|five[-_]hour)$"; "5h"; $family)),
+                 (window("(^|[-_])(weekly|7d|seven[-_]day)$"; "7d"; $family))] as $windows
               | select($windows | length > 0)
               | ("Mimir  " + (if $model != "" then $model + "  " else "" end)) as $prefix
-              | ($prefix + ([$windows[] | .label + " " + (.percent | tostring) + "%"] | join("  ·  ")) | length
-                 + 11 * ($windows | length)) as $full_width
-              | ($terminal_width == null or ($terminal_width | tonumber? // 0) >= $full_width) as $bars
-              | $prefix + ([$windows[] | display($bars)] | join("  ·  "))
+              | render($windows; $prefix; $terminal_width)
             ' 2>/dev/null
             """#
         }
@@ -94,6 +91,7 @@ struct AntigravityStatusLineHook {
             trap 'rm -f "$capture"' EXIT
             printf '%s' "$input" > "$capture" && mv -f "$capture" "$usage_dir/mimir-usage.json"
         ) 2>/dev/null
+        pace=$(cat "$(dirname -- "${BASH_SOURCE[0]}")/mimir-pace.json" 2>/dev/null)
         \(render)
         """
     }

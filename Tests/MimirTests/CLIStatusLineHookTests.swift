@@ -15,6 +15,16 @@ struct CLIStatusLineHookTests {
         return "\(label) \(bar)\u{1B}[\(color)m\(percent)%\u{1B}[0m"
     }
 
+    private static func markedWeek(_ percent: Int, marker: Int, color: Int,
+                                   countdown: String = "", note: String = "") -> String {
+        let filled = (percent + 5) / 10
+        let cells = (0..<10).map { cell in
+            if cell == marker { return "\u{1B}[1;97m│\u{1B}[0m" }
+            return cell < filled ? "\u{1B}[\(color)m█\u{1B}[0m" : "\u{1B}[2m░\u{1B}[0m"
+        }.joined()
+        return "7d \(cells) \u{1B}[\(color)m\(percent)%\u{1B}[0m" + countdown + note
+    }
+
     private static func expectedLine(_ model: String = "", _ five: Int? = nil, _ week: Int? = nil, bars: Bool = true) -> String {
         let windows = [("5h", five), ("7d", week)].compactMap { label, percent in
             percent.map { expectedWindow(label, $0, bars: bars) }
@@ -44,11 +54,20 @@ struct CLIStatusLineHookTests {
             as? [String: Any])
     }
 
-    private func runAGY(input: String, chained: String? = nil) throws -> String {
+    private func runAGY(input: String, chained: String? = nil, pace: String? = nil,
+                        clock: Int? = nil) throws -> String {
         var result = ""
         try withDirectory { directory in
             try write(input, "input.json", in: directory)
             try write(AntigravityStatusLineHook.scriptBody(chained: chained), "mimir-statusline.sh", in: directory)
+            if let pace { try write(pace, "mimir-pace.json", in: directory) }
+            if let clock {
+                let bin = directory.appendingPathComponent("bin")
+                try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
+                try write("#!/bin/sh\necho \(clock)\n", "bin/date", in: directory)
+                try FileManager.default.setAttributes([.posixPermissions: 0o755],
+                    ofItemAtPath: bin.appendingPathComponent("date").path)
+            }
             let inputHandle = try FileHandle(forReadingFrom: directory.appendingPathComponent("input.json"))
             defer { try? inputHandle.close() }
             let output = Pipe()
@@ -57,6 +76,8 @@ struct CLIStatusLineHookTests {
             task.arguments = [directory.appendingPathComponent("mimir-statusline.sh").path]
             var environment = ProcessInfo.processInfo.environment
             for key in ["HOME", "CLAUDE_CONFIG_DIR", "CODEX_HOME"] { environment[key] = directory.path }
+            environment.removeValue(forKey: "COLUMNS")
+            if clock != nil { environment["PATH"] = directory.appendingPathComponent("bin").path + ":" + (environment["PATH"] ?? "/usr/bin:/bin") }
             task.environment = environment
             task.standardInput = inputHandle
             task.standardOutput = output
@@ -80,8 +101,8 @@ struct CLIStatusLineHookTests {
     func agyRemainingPercent(fraction: Double, expected: Int) throws {
         let input = """
         {"model":{"id":"gemini-3.8-flash","display_name":"Gemini 3.8 Flash (Medium)"},"quota":{
-          "gemini-5h":{"remaining_fraction":\(fraction),"reset_in_seconds":100},
-          "gemini-weekly":{"remaining_fraction":0.9378,"reset_in_seconds":50},
+          "gemini-5h":{"remaining_fraction":\(fraction)},
+          "gemini-weekly":{"remaining_fraction":0.9378},
           "3p-5h":{"remaining_fraction":0.01},"3p-weekly":{"remaining_fraction":0.02}}}
         """
         #expect(try runAGY(input: input) == CLIStatusLineHookTests.expectedLine("Gemini 3.8 Flash", expected, 94))
@@ -102,6 +123,34 @@ struct CLIStatusLineHookTests {
         #expect(Data(full.utf8) == Data(CLIStatusLineHookTests.expectedLine("Gemini 3.8 Flash", 70, 40).utf8))
         #expect(Data(narrow.utf8) == Data(CLIStatusLineHookTests.expectedLine("Gemini 3.8 Flash", 70, 40, bars: false).utf8))
         #expect(Data(narrow.utf8) == Data("Mimir  Gemini 3.8 Flash  5h \u{1B}[32m70%\u{1B}[0m  ·  7d \u{1B}[32m40%\u{1B}[0m\n".utf8))
+    }
+
+    @Test func agyCountdownPaceAndWidthStages() throws {
+        let now = 2_000_000_000
+        let reset = now + 3 * 86400 + 4 * 3600
+        let iso = ISO8601DateFormatter().string(from: Date(timeIntervalSince1970: TimeInterval(reset)))
+        let quota = "\"model\":{\"id\":\"gemini\"},\"quota\":{\"gemini-5h\":{\"remaining_fraction\":0.7,\"reset_in_seconds\":8100},\"gemini-weekly\":{\"remaining_fraction\":0.4,\"reset_time\":\"\(iso)\"}}"
+        let input = "{" + quota + "}"
+        let five = Self.expectedWindow("5h", 70)
+        let week = Self.markedWeek(40, marker: 4, color: 32, countdown: " 3d4h")
+        #expect(Data(try runAGY(input: input, clock: now).utf8) == Data("Mimir  gemini  \(five) 2h15m  ·  \(week)\n".utf8))
+
+        let pace = "{\"windows\":{\"gemini\":{\"tone\":\"red\",\"idealPercent\":80,\"note\":\"~2 gün kotasız\",\"resetAt\":\(reset),\"writtenAt\":\(now)}}}"
+        let red = "Mimir  gemini  \(five) 2h15m  ·  "
+            + Self.markedWeek(40, marker: 8, color: 31, countdown: " 3d4h", note: " ~2 gün kotasız") + "\n"
+        #expect(Data(try runAGY(input: input, pace: pace, clock: now).utf8) == Data(red.utf8))
+        let stale = pace.replacingOccurrences(of: "\"writtenAt\":\(now)", with: "\"writtenAt\":\(now - 1801)")
+        #expect(Data(try runAGY(input: input, pace: stale, clock: now).utf8)
+                == Data("Mimir  gemini  \(five) 2h15m  ·  \(week)\n".utf8))
+
+        let noCountdown = "Mimir  gemini  5h ██████████ 70%  ·  7d ██████████ 40%"
+        let full = "Mimir  gemini  5h ██████████ 70% 2h15m  ·  7d ██████████ 40% 3d4h"
+        let barsInput = "{" + quota + ",\"terminal_width\":\(full.count - 1)}"
+        #expect(Data(try runAGY(input: barsInput, clock: now).utf8)
+                == Data("Mimir  gemini  \(five)  ·  \(Self.markedWeek(40, marker: 4, color: 32))\n".utf8))
+        let narrowInput = "{" + quota + ",\"terminal_width\":\(noCountdown.count - 1)}"
+        #expect(Data(try runAGY(input: narrowInput, clock: now).utf8)
+                == Data("Mimir  gemini  5h \u{1B}[32m70%\u{1B}[0m  ·  7d \u{1B}[32m40%\u{1B}[0m\n".utf8))
     }
 
     @Test(arguments: [(0.745, 7), (0.75, 8)])

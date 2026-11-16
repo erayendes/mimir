@@ -127,24 +127,24 @@ enum MimirStatusLineHook {
             let escaped = cmd.replacingOccurrences(of: "'", with: "'\\''")
             render = "printf '%s' \"$input\" | bash -c '\(escaped)'"
         } else {
-            // Clamp before rounding so floor(x + 0.5) matches remainingPercent(fromUsed:)'s
-            // nearest-integer, ties-away-from-zero rounding throughout the displayed 0...100 range.
             render = #"""
-            command -v jq >/dev/null 2>&1 && printf '%s' "$input" | jq -r '
-              def color($percent):
-                if $percent >= 40 then "32" elif $percent >= 10 then "33" else "31" end;
-              def window($label):
-                select(. != null) | tonumber?
-                | (100 - .) | ([0, .] | max) | ([100, .] | min)
+            command -v jq >/dev/null 2>&1 && printf '%s' "$input" | jq -r --argjson now "$(date +%s)" --arg pace "$pace" --arg width "${COLUMNS:-}" '
+              \#(StatusLineRendering.jq)
+              def window($obj; $label; $key):
+                ($obj.used_percentage | tonumber?) as $used
+                | (try ($obj.resets_at | tonumber) catch null) as $reset
+                | (100 - $used) | ([0, .] | max) | ([100, .] | min)
                 | . as $remaining
                 | ($remaining + 0.5 | floor) as $percent
                 | ($remaining / 10 + 0.5 | floor) as $filled
-                | (if $filled > 0 then "\u001b[" + color($percent) + "m" + ("█" * $filled) + "\u001b[0m" else "" end)
-                  + (if $filled < 10 then "\u001b[2m" + ("░" * (10 - $filled)) + "\u001b[0m" else "" end) as $bar
-                | $label + " " + $bar + " " + "\u001b[" + color($percent) + "m" + ($percent | tostring) + "%\u001b[0m";
-              [(.rate_limits.five_hour.used_percentage | window("5h")),
-               (.rate_limits.seven_day.used_percentage | window("7d"))]
-              | select(length > 0) | "Mimir  " + join("  ·  ")
+                | (if $key == null then null else pace($key; $reset) end) as $entry
+                | (if $key == null then null else ideal($reset; $entry) end) as $ideal
+                | {label: $label, percent: $percent, filled: $filled,
+                   countdown: countdown($reset), tone: $entry.tone, note: $entry.note,
+                   marker: (if $ideal == null then null else [9, ($ideal / 10 | floor)] | min | [0, .] | max end)};
+              [window(.rate_limits.five_hour; "5h"; null),
+               window(.rate_limits.seven_day; "7d"; "seven_day")]
+              | select(length > 0) | render(.; "Mimir  "; (try ($width | tonumber) catch null))
             ' 2>/dev/null
             """#
         }
@@ -155,6 +155,7 @@ enum MimirStatusLineHook {
         # no API, no token, no keychain prompt. Toggle it from Mimir's menu.
         input=$(cat)
         printf '%s' "$input" > "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/mimir-usage.json"
+        pace=$(cat "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/mimir-pace.json" 2>/dev/null)
         \(render)
         """
     }

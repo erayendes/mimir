@@ -139,6 +139,18 @@ final class ClaudeHookTests: XCTestCase {
         return "\(label) \(bar) \u{1B}[\(color)m\(percent)%\u{1B}[0m"
     }
 
+    private func markedWindow(_ label: String, _ percent: Int, marker: Int,
+                              color: Int = 32, countdown: String? = nil, note: String? = nil) -> String {
+        let filled = (percent + 5) / 10
+        let bar = (0..<10).map { cell in
+            if cell == marker { return "\u{1B}[1;97m│\u{1B}[0m" }
+            if cell < filled { return "\u{1B}[\(color)m█\u{1B}[0m" }
+            return "\u{1B}[2m░\u{1B}[0m"
+        }.joined()
+        return "\(label) \(bar) \u{1B}[\(color)m\(percent)%\u{1B}[0m"
+            + (countdown.map { " " + $0 } ?? "") + (note.map { " " + $0 } ?? "")
+    }
+
     func testScriptBodyAlwaysSavesUsageAndChainsWhenGiven() {
         let chained = MimirStatusLineHook.scriptBody(chained: "bash \"/x/ponytail.sh\"")
         XCTAssertTrue(chained.contains("mimir-usage.json"))        // always saves the raw JSON
@@ -210,8 +222,82 @@ final class ClaudeHookTests: XCTestCase {
                        "custom status\n" + input)
     }
 
+    func testCountdownAndMarkerInFilledAndEmptyCells() throws {
+        let now = 2_000_000_000
+        let five = now + 2 * 3600 + 15 * 60
+        let week = now + 3 * 86400 + 4 * 3600 // ideal 45%: cell 4
+        for (remaining, markerInFill) in [(70, true), (20, false)] {
+            let input = """
+            {"rate_limits":{"five_hour":{"used_percentage":30,"resets_at":\(five)},
+              "seven_day":{"used_percentage":\(100 - remaining),"resets_at":\(week)}}}
+            """
+            let expected = "Mimir  \(expectedWindow("5h", 70)) 2h15m  ·  "
+                + markedWindow("7d", remaining, marker: 4,
+                               color: remaining >= 40 ? 32 : 33, countdown: "3d4h") + "\n"
+            XCTAssertEqual(Data(try runScript(input: input, clock: now).utf8), Data(expected.utf8),
+                           "markerInFill = \(markerInFill)")
+        }
+    }
+
+    func testMarkerEdgesAndEarlyStretch() throws {
+        let now = 2_000_000_000
+        let reset = now + 3 * 86400
+        for (ideal, marker) in [(0, 0), (99, 9)] {
+            let pace = """
+            {"windows":{"seven_day":{"tone":"green","idealPercent":\(ideal),"resetAt":\(reset),"writtenAt":\(now)}}}
+            """
+            let input = "{\"rate_limits\":{\"seven_day\":{\"used_percentage\":50,\"resets_at\":\(reset)}}}"
+            XCTAssertEqual(try runScript(input: input, pace: pace, clock: now),
+                           "Mimir  " + markedWindow("7d", 50, marker: marker, countdown: "3d") + "\n")
+        }
+        let early = now + 7 * 86400 - 3600
+        let input = "{\"rate_limits\":{\"seven_day\":{\"used_percentage\":50,\"resets_at\":\(early)}}}"
+        XCTAssertEqual(try runScript(input: input, clock: now), "Mimir  \(expectedWindow("7d", 50)) 6d23h\n")
+    }
+
+    func testFreshPaceOverridesColorAndAppendsRedNoteButStaleFallsBack() throws {
+        let now = 2_000_000_000
+        let reset = now + 3 * 86400 + 4 * 3600
+        let input = "{\"rate_limits\":{\"seven_day\":{\"used_percentage\":30,\"resets_at\":\(reset)}}}"
+        func pace(_ written: Int, _ resetAt: Int) -> String {
+            "{\"windows\":{\"seven_day\":{\"tone\":\"red\",\"idealPercent\":80,\"note\":\"~2 gün kotasız\",\"resetAt\":\(resetAt),\"writtenAt\":\(written)}}}"
+        }
+        let fresh = "Mimir  " + markedWindow("7d", 70, marker: 8, color: 31,
+                                               countdown: "3d4h", note: "~2 gün kotasız") + "\n"
+        XCTAssertEqual(Data(try runScript(input: input, pace: pace(now, reset), clock: now).utf8), Data(fresh.utf8))
+        let fallback = "Mimir  " + markedWindow("7d", 70, marker: 4, countdown: "3d4h") + "\n"
+        for file in [nil, pace(now - 1801, reset), pace(now, reset + 3600)] {
+            XCTAssertEqual(Data(try runScript(input: input, pace: file, clock: now).utf8), Data(fallback.utf8))
+        }
+    }
+
+    func testMinuteCountdownAndExpiredReset() throws {
+        let now = 2_000_000_000
+        let input = "{\"rate_limits\":{\"five_hour\":{\"used_percentage\":60,\"resets_at\":\(now + 45 * 60)},\"seven_day\":{\"used_percentage\":60,\"resets_at\":\(now - 1)}}}"
+        XCTAssertEqual(try runScript(input: input, clock: now),
+                       "Mimir  \(expectedWindow("5h", 40)) 45m  ·  \(expectedWindow("7d", 40))\n")
+    }
+
+    func testClaudeWidthDropsCountdownsThenBars() throws {
+        let now = 2_000_000_000
+        let input = "{\"rate_limits\":{\"five_hour\":{\"used_percentage\":30,\"resets_at\":\(now + 8100)},\"seven_day\":{\"used_percentage\":60,\"resets_at\":\(now + 3 * 86400 + 4 * 3600)}}}"
+        let bare = "Mimir  5h ██████████ 70%  ·  7d ██████████ 40%"
+        let full = "Mimir  5h ██████████ 70% 2h15m  ·  7d ██████████ 40% 3d4h"
+        let bars = "Mimir  \(expectedWindow("5h", 70))  ·  "
+            + markedWindow("7d", 40, marker: 4) + "\n"
+        XCTAssertEqual(try runScript(input: input, columns: full.count - 1, clock: now), bars)
+        let percent = "Mimir  5h \u{1B}[32m70%\u{1B}[0m  ·  7d \u{1B}[32m40%\u{1B}[0m\n"
+        XCTAssertEqual(Data(try runScript(input: input, columns: bare.count - 1, clock: now).utf8), Data(percent.utf8))
+        let reset = now + 3 * 86400 + 4 * 3600
+        let pace = "{\"windows\":{\"seven_day\":{\"tone\":\"red\",\"idealPercent\":80,\"note\":\"~2 gün kotasız\",\"resetAt\":\(reset),\"writtenAt\":\(now)}}}"
+        let withNote = "Mimir  5h \u{1B}[32m70%\u{1B}[0m  ·  7d \u{1B}[31m40%\u{1B}[0m ~2 gün kotasız\n"
+        XCTAssertEqual(Data(try runScript(input: input, pace: pace, columns: bare.count - 1, clock: now).utf8),
+                       Data(withNote.utf8))
+    }
+
     /// Run the generated hook in an isolated Claude config directory; never touch the user's hook.
-    private func runScript(input: String, chained: String? = nil) throws -> String {
+    private func runScript(input: String, chained: String? = nil, pace: String? = nil,
+                           columns: Int? = nil, clock: Int? = nil) throws -> String {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("mimir-test-statusline-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -219,6 +305,14 @@ final class ClaudeHookTests: XCTestCase {
 
         let inputURL = directory.appendingPathComponent("input.json")
         try Data(input.utf8).write(to: inputURL)
+        if let pace { try pace.write(to: directory.appendingPathComponent("mimir-pace.json"), atomically: true, encoding: .utf8) }
+        if let clock {
+            let bin = directory.appendingPathComponent("bin")
+            try FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
+            let date = bin.appendingPathComponent("date")
+            try "#!/bin/sh\necho \(clock)\n".write(to: date, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: date.path)
+        }
         let inputHandle = try FileHandle(forReadingFrom: inputURL)
         defer { try? inputHandle.close() }
         let output = Pipe()
@@ -227,6 +321,8 @@ final class ClaudeHookTests: XCTestCase {
         task.arguments = ["-c", MimirStatusLineHook.scriptBody(chained: chained)]
         var environment = ProcessInfo.processInfo.environment
         environment["CLAUDE_CONFIG_DIR"] = directory.path
+        if let columns { environment["COLUMNS"] = String(columns) } else { environment.removeValue(forKey: "COLUMNS") }
+        if clock != nil { environment["PATH"] = directory.appendingPathComponent("bin").path + ":" + (environment["PATH"] ?? "/usr/bin:/bin") }
         task.environment = environment
         task.standardInput = inputHandle
         task.standardOutput = output

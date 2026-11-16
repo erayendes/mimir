@@ -32,6 +32,7 @@ enum WidgetBridge {
     static func update(_ services: [ServiceStatus]) {
         let now = Date()
         let payload = makePayload(services, generatedAt: now)
+        PaceFileWriter.update(services: services, payload: payload, now: now)
         let forced = pendingForceReload
         pendingForceReload = false
 
