@@ -5,6 +5,24 @@ import Testing
 /// All disk operations and subprocess HOME/config overrides are isolated. These tests never call
 /// the production lifecycle entry points, which resolve the user's actual CLI directories.
 struct CLIStatusLineHookTests {
+    private static func expectedWindow(_ label: String, _ percent: Int, bars: Bool = true) -> String {
+        let color = percent >= 40 ? 32 : (percent >= 10 ? 33 : 31)
+        let filled = (percent + 5) / 10
+        let bar = bars
+            ? (filled > 0 ? "\u{1B}[\(color)m" + String(repeating: "█", count: filled) + "\u{1B}[0m" : "")
+                + (filled < 10 ? "\u{1B}[2m" + String(repeating: "░", count: 10 - filled) + "\u{1B}[0m" : "") + " "
+            : ""
+        return "\(label) \(bar)\u{1B}[\(color)m\(percent)%\u{1B}[0m"
+    }
+
+    private static func expectedLine(_ model: String = "", _ five: Int? = nil, _ week: Int? = nil, bars: Bool = true) -> String {
+        let windows = [("5h", five), ("7d", week)].compactMap { label, percent in
+            percent.map { expectedWindow(label, $0, bars: bars) }
+        }
+        guard !windows.isEmpty else { return "" }
+        return "Mimir  " + (model.isEmpty ? "" : model + "  ") + windows.joined(separator: "  ·  ") + "\n"
+    }
+
     private func withDirectory(_ body: (URL) throws -> Void) throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("mimir-cli-hooks-\(UUID().uuidString)")
@@ -66,14 +84,40 @@ struct CLIStatusLineHookTests {
           "gemini-weekly":{"remaining_fraction":0.9378,"reset_in_seconds":50},
           "3p-5h":{"remaining_fraction":0.01},"3p-weekly":{"remaining_fraction":0.02}}}
         """
-        #expect(try runAGY(input: input) == "Mimir  Gemini 3.8 Flash  5h \(expected)%  ·  7d 94%\n")
+        #expect(try runAGY(input: input) == CLIStatusLineHookTests.expectedLine("Gemini 3.8 Flash", expected, 94))
+    }
+
+    @Test(arguments: [(0.4, 40), (0.39, 39), (0.1, 10), (0.09, 9)])
+    func agyUsesStaticColorBoundaries(fraction: Double, remaining: Int) throws {
+        let input = "{\"quota\":{\"gemini-5h\":{\"remaining_fraction\":\(fraction)}}}"
+        #expect(Data(try runAGY(input: input).utf8) == Data(CLIStatusLineHookTests.expectedLine("", remaining).utf8))
+    }
+
+    @Test func agyDropsBarsOnlyWhenTerminalIsNarrow() throws {
+        let quota = #""quota":{"gemini-5h":{"remaining_fraction":0.7},"gemini-weekly":{"remaining_fraction":0.4}}"#
+        let prefix = "{\"model\":{\"display_name\":\"Gemini 3.8 Flash\"}," + quota
+        let fullWidth = "Mimir  Gemini 3.8 Flash  5h 70%  ·  7d 40%".count + 22
+        let full = try runAGY(input: prefix + ",\"terminal_width\":\(fullWidth)}")
+        let narrow = try runAGY(input: prefix + ",\"terminal_width\":\(fullWidth - 1)}")
+        #expect(Data(full.utf8) == Data(CLIStatusLineHookTests.expectedLine("Gemini 3.8 Flash", 70, 40).utf8))
+        #expect(Data(narrow.utf8) == Data(CLIStatusLineHookTests.expectedLine("Gemini 3.8 Flash", 70, 40, bars: false).utf8))
+        #expect(Data(narrow.utf8) == Data("Mimir  Gemini 3.8 Flash  5h \u{1B}[32m70%\u{1B}[0m  ·  7d \u{1B}[32m40%\u{1B}[0m\n".utf8))
+    }
+
+    @Test(arguments: [(0.745, 7), (0.75, 8)])
+    func agyRoundsBarFromUnroundedRemaining(fraction: Double, filled: Int) throws {
+        let input = "{\"quota\":{\"gemini-5h\":{\"remaining_fraction\":\(fraction)}}}"
+        let bar = "\u{1B}[32m" + String(repeating: "█", count: filled) + "\u{1B}[0m"
+            + "\u{1B}[2m" + String(repeating: "░", count: 10 - filled) + "\u{1B}[0m"
+        let expected = "Mimir  5h \(bar) \u{1B}[32m75%\u{1B}[0m\n"
+        #expect(Data(try runAGY(input: input).utf8) == Data(expected.utf8))
     }
 
     @Test(arguments: [
-        (#"{"quota":{"gemini-5h":{"remaining_fraction":0.8}}}"#, "Mimir  5h 80%\n"),
-        (#"{"quota":{"gemini-weekly":{"remaining_fraction":0.9378}}}"#, "Mimir  7d 94%\n"),
-        (#"{"quota":{"gemini-5h":{"remaining_fraction":null},"gemini-weekly":{"remaining_fraction":"0.5"}}}"#, "Mimir  7d 50%\n"),
-        (#"{"quota":{"gemini-5h":{"remaining_fraction":"unknown"},"gemini-weekly":{"remaining_fraction":0.5}}}"#, "Mimir  7d 50%\n"),
+        (#"{"quota":{"gemini-5h":{"remaining_fraction":0.8}}}"#, CLIStatusLineHookTests.expectedLine("", 80)),
+        (#"{"quota":{"gemini-weekly":{"remaining_fraction":0.9378}}}"#, CLIStatusLineHookTests.expectedLine("", nil, 94)),
+        (#"{"quota":{"gemini-5h":{"remaining_fraction":null},"gemini-weekly":{"remaining_fraction":"0.5"}}}"#, CLIStatusLineHookTests.expectedLine("", nil, 50)),
+        (#"{"quota":{"gemini-5h":{"remaining_fraction":"unknown"},"gemini-weekly":{"remaining_fraction":0.5}}}"#, CLIStatusLineHookTests.expectedLine("", nil, 50)),
         (#"{"quota":{"gemini-5h":{"remaining_fraction":0.9,"disabled":true}}}"#, ""),
         (#"{"quota":{"gemini-weekly":{"remaining_amount":100}}}"#, ""),
         (#"{"model":{"display_name":"Gemini 3.8 Flash (Medium)"},"quota":{}}"#, ""),
@@ -88,9 +132,9 @@ struct CLIStatusLineHookTests {
     @Test func agyDisplaysModelNameAndFallsBackToID() throws {
         let quota = #""quota":{"gemini-5h":{"remaining_fraction":0.99},"gemini-weekly":{"remaining_fraction":0.99}}"#
         #expect(try runAGY(input: "{\"model\":{\"id\":\"gemini-3.8-flash\",\"display_name\":\"Gemini 3.8 Flash (Medium)\"}," + quota + "}")
-            == "Mimir  Gemini 3.8 Flash  5h 99%  ·  7d 99%\n")
+            == CLIStatusLineHookTests.expectedLine("Gemini 3.8 Flash", 99, 99))
         #expect(try runAGY(input: "{\"model\":{\"id\":\"gemini-3.8-flash\"}," + quota + "}")
-            == "Mimir  gemini-3.8-flash  5h 99%  ·  7d 99%\n")
+            == CLIStatusLineHookTests.expectedLine("gemini-3.8-flash", 99, 99))
     }
 
     @Test func agySelectsFamilyAndUsesMinimumWhenAmbiguous() throws {
@@ -99,16 +143,16 @@ struct CLIStatusLineHookTests {
         "3p-5h":{"remaining_fraction":0.3},"3p-weekly":{"remaining_fraction":0.7}}
         """#
         #expect(try runAGY(input: "{\"model\":{\"display_name\":\"Claude Opus\"}," + quota + "}")
-            == "Mimir  Claude Opus  5h 30%  ·  7d 70%\n")
+            == CLIStatusLineHookTests.expectedLine("Claude Opus", 30, 70))
         #expect(try runAGY(input: "{\"model\":{\"id\":\"opaque-id\",\"display_name\":\"Claude Opus\"}," + quota + "}")
-            == "Mimir  Claude Opus  5h 30%  ·  7d 70%\n")
+            == CLIStatusLineHookTests.expectedLine("Claude Opus", 30, 70))
         #expect(try runAGY(input: "{\"model\":{\"id\":\"custom\"}," + quota + "}")
-            == "Mimir  custom  5h 30%  ·  7d 10%\n")
+            == CLIStatusLineHookTests.expectedLine("custom", 30, 10))
         // A known family's missing window must not borrow a different family's number.
         #expect(try runAGY(input: #"{"model":{"id":"Gemini"},"quota":{"gemini-weekly":{"remaining_fraction":0.5},"3p-5h":{"remaining_fraction":0.2}}}"#)
-            == "Mimir  Gemini  7d 50%\n")
+            == CLIStatusLineHookTests.expectedLine("Gemini", nil, 50))
         #expect(try runAGY(input: #"{"model":{"id":"Claude"},"quota":{"gemini-weekly":{"remaining_fraction":0.5},"3p-weekly":{"remaining_fraction":0.2}}}"#)
-            == "Mimir  Claude  7d 20%\n")
+            == CLIStatusLineHookTests.expectedLine("Claude", nil, 20))
     }
 
     @Test func agyKeepsArgonQuotaSeparateFromGemini() throws {
@@ -118,11 +162,11 @@ struct CLIStatusLineHookTests {
         "gemini-argon-wtu-weekly":{"remaining_fraction":0.1}}
         """#
         #expect(try runAGY(input: "{\"model\":{\"id\":\"gemini-3.8-flash\",\"display_name\":\"Gemini 3.8 Flash\"}," + quota + "}")
-            == "Mimir  Gemini 3.8 Flash  5h 80%  ·  7d 90%\n")
+            == CLIStatusLineHookTests.expectedLine("Gemini 3.8 Flash", 80, 90))
         #expect(try runAGY(input: "{\"model\":{\"id\":\"opaque-id\",\"display_name\":\"Gemini 4 Argon\"}," + quota + "}")
-            == "Mimir  Gemini 4 Argon  7d 10%\n")
+            == CLIStatusLineHookTests.expectedLine("Gemini 4 Argon", nil, 10))
         #expect(try runAGY(input: "{\"model\":{\"id\":\"gemini-4-argon\",\"display_name\":\"Gemini 4\"}," + quota + "}")
-            == "Mimir  Gemini 4  7d 10%\n")
+            == CLIStatusLineHookTests.expectedLine("Gemini 4", nil, 10))
     }
 
     @Test func agyUsesShared3pQuotaForGPTAndClaude() throws {
@@ -131,9 +175,9 @@ struct CLIStatusLineHookTests {
         "gemini-5h":{"remaining_fraction":0.05},"gemini-weekly":{"remaining_fraction":0.1}}
         """#
         #expect(try runAGY(input: "{\"model\":{\"id\":\"gpt-oss-120b\",\"display_name\":\"GPT-OSS 120B\"}," + quota + "}")
-            == "Mimir  GPT-OSS 120B  5h 40%  ·  7d 60%\n")
+            == CLIStatusLineHookTests.expectedLine("GPT-OSS 120B", 40, 60))
         #expect(try runAGY(input: "{\"model\":{\"id\":\"claude-sonnet-4\",\"display_name\":\"Claude Sonnet 4\"}," + quota + "}")
-            == "Mimir  Claude Sonnet 4  5h 40%  ·  7d 60%\n")
+            == CLIStatusLineHookTests.expectedLine("Claude Sonnet 4", 40, 60))
     }
 
     @Test func agyChainsInputAndOutputVerbatim() throws {

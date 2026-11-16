@@ -131,6 +131,14 @@ final class ClaudeHookTests: XCTestCase {
 
     // MARK: - script body
 
+    private func expectedWindow(_ label: String, _ percent: Int) -> String {
+        let color = percent >= 40 ? 32 : (percent >= 10 ? 33 : 31)
+        let filled = (percent + 5) / 10
+        let bar = (filled > 0 ? "\u{1B}[\(color)m" + String(repeating: "█", count: filled) + "\u{1B}[0m" : "")
+            + (filled < 10 ? "\u{1B}[2m" + String(repeating: "░", count: 10 - filled) + "\u{1B}[0m" : "")
+        return "\(label) \(bar) \u{1B}[\(color)m\(percent)%\u{1B}[0m"
+    }
+
     func testScriptBodyAlwaysSavesUsageAndChainsWhenGiven() {
         let chained = MimirStatusLineHook.scriptBody(chained: "bash \"/x/ponytail.sh\"")
         XCTAssertTrue(chained.contains("mimir-usage.json"))        // always saves the raw JSON
@@ -151,20 +159,42 @@ final class ClaudeHookTests: XCTestCase {
             {"rate_limits":{"five_hour":{"used_percentage":\(used)},"seven_day":{"used_percentage":81.5}}}
             """
             XCTAssertEqual(try runScript(input: input),
-                           "Mimir  5h \(remaining)%  ·  7d 19%\n",
+                           "Mimir  \(expectedWindow("5h", remaining))  ·  \(expectedWindow("7d", 19))\n",
                            "used_percentage = \(used)")
             XCTAssertEqual(source.remainingPercent(fromUsed: used), remaining)
         }
     }
 
+    func testScriptUsesStaticColorBoundariesAndExactANSIBytes() throws {
+        for (remaining, color) in [(40, 32), (39, 33), (10, 33), (9, 31)] {
+            let input = "{\"rate_limits\":{\"five_hour\":{\"used_percentage\":\(100 - remaining)}}}"
+            let actual = try runScript(input: input)
+            let expected = "Mimir  \(expectedWindow("5h", remaining))\n"
+            XCTAssertEqual(Data(actual.utf8), Data(expected.utf8), "remaining = \(remaining), ANSI = \(color)")
+        }
+        let input = #"{"rate_limits":{"five_hour":{"used_percentage":30}}}"#
+        XCTAssertEqual(Data(try runScript(input: input).utf8),
+                       Data("Mimir  5h \u{1B}[32m███████\u{1B}[0m\u{1B}[2m░░░\u{1B}[0m \u{1B}[32m70%\u{1B}[0m\n".utf8))
+    }
+
+    func testScriptRoundsBarFromUnroundedRemaining() throws {
+        for (used, filled) in [(25.5, 7), (25.0, 8)] {
+            let input = "{\"rate_limits\":{\"five_hour\":{\"used_percentage\":\(used)}}}"
+            let bar = "\u{1B}[32m" + String(repeating: "█", count: filled) + "\u{1B}[0m"
+                + "\u{1B}[2m" + String(repeating: "░", count: 10 - filled) + "\u{1B}[0m"
+            let expected = "Mimir  5h \(bar) \u{1B}[32m75%\u{1B}[0m\n"
+            XCTAssertEqual(Data(try runScript(input: input).utf8), Data(expected.utf8))
+        }
+    }
+
     func testScriptOmitsUnavailableWindows() throws {
         let cases = [
-            (#"{"rate_limits":{"five_hour":{"used_percentage":0}}}"#, "Mimir  5h 100%\n"),
-            (#"{"rate_limits":{"seven_day":{"used_percentage":100}}}"#, "Mimir  7d 0%\n"),
-            (#"{"rate_limits":{"five_hour":null,"seven_day":{"used_percentage":33}}}"#, "Mimir  7d 67%\n"),
-            (#"{"rate_limits":{"five_hour":{},"seven_day":{"used_percentage":33}}}"#, "Mimir  7d 67%\n"),
-            (#"{"rate_limits":{"five_hour":{"used_percentage":null},"seven_day":{"used_percentage":"12"}}}"#, "Mimir  7d 88%\n"),
-            (#"{"rate_limits":{"five_hour":{"used_percentage":"unknown"},"seven_day":{"used_percentage":33}}}"#, "Mimir  7d 67%\n"),
+            (#"{"rate_limits":{"five_hour":{"used_percentage":0}}}"#, "Mimir  \(expectedWindow("5h", 100))\n"),
+            (#"{"rate_limits":{"seven_day":{"used_percentage":100}}}"#, "Mimir  \(expectedWindow("7d", 0))\n"),
+            (#"{"rate_limits":{"five_hour":null,"seven_day":{"used_percentage":33}}}"#, "Mimir  \(expectedWindow("7d", 67))\n"),
+            (#"{"rate_limits":{"five_hour":{},"seven_day":{"used_percentage":33}}}"#, "Mimir  \(expectedWindow("7d", 67))\n"),
+            (#"{"rate_limits":{"five_hour":{"used_percentage":null},"seven_day":{"used_percentage":"12"}}}"#, "Mimir  \(expectedWindow("7d", 88))\n"),
+            (#"{"rate_limits":{"five_hour":{"used_percentage":"unknown"},"seven_day":{"used_percentage":33}}}"#, "Mimir  \(expectedWindow("7d", 67))\n"),
             (#"{"rate_limits":{}}"#, ""),
             (#"{"rate_limits":null}"#, ""),
             (#"{"model":{"display_name":"Opus"}}"#, ""),

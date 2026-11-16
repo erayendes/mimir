@@ -36,6 +36,16 @@ struct AntigravityStatusLineHook {
         } else {
             render = #"""
             command -v jq >/dev/null 2>&1 && printf '%s' "$input" | jq -r '
+              def color($percent):
+                if $percent >= 40 then "32" elif $percent >= 10 then "33" else "31" end;
+              def display($bars):
+                .label + " " +
+                (if $bars then
+                  .filled as $filled
+                  | (if $filled > 0 then "\u001b[" + color(.percent) + "m" + ("█" * $filled) + "\u001b[0m" else "" end)
+                    + (if $filled < 10 then "\u001b[2m" + ("░" * (10 - $filled)) + "\u001b[0m" else "" end) + " "
+                else "" end)
+                + "\u001b[" + color(.percent) + "m" + (.percent | tostring) + "%\u001b[0m";
               def family:
                 ascii_downcase
                 | if test("argon") then "argon"
@@ -47,17 +57,24 @@ struct AntigravityStatusLineHook {
                  | .value.remaining_fraction | select(. != null) | tonumber?]
                 | select(length > 0) | min | (. * 100)
                 | ([0, .] | max) | ([100, .] | min)
-                | (. + 0.5 | floor | tostring) | $label + " " + . + "%";
-              ((.model.display_name // .model.id // "") | sub(" \\([^()]*\\)$"; "")) as $model
+                | . as $remaining
+                | {label: $label, percent: ($remaining + 0.5 | floor),
+                   filled: ($remaining / 10 + 0.5 | floor)};
+              .terminal_width as $terminal_width
+              | ((.model.display_name // .model.id // "") | sub(" \\([^()]*\\)$"; "")) as $model
               | ([(.model.id // ""), (.model.display_name // "")] | join(" ") | family) as $family
               | (.quota // {} | to_entries
                  | map(select((.value | type) == "object" and .value.disabled != true))) as $all
               | [$all[] | select($family != null and (.key | family) == $family)] as $matched
               | (if ($matched | length) > 0 then $matched else $all end)
               | [(window("(^|[-_])(5h|five[-_]hour)$"; "5h")),
-                 (window("(^|[-_])(weekly|7d|seven[-_]day)$"; "7d"))]
-              | select(length > 0)
-              | "Mimir  " + (if $model != "" then $model + "  " else "" end) + join("  ·  ")
+                 (window("(^|[-_])(weekly|7d|seven[-_]day)$"; "7d"))] as $windows
+              | select($windows | length > 0)
+              | ("Mimir  " + (if $model != "" then $model + "  " else "" end)) as $prefix
+              | ($prefix + ([$windows[] | .label + " " + (.percent | tostring) + "%"] | join("  ·  ")) | length
+                 + 11 * ($windows | length)) as $full_width
+              | ($terminal_width == null or ($terminal_width | tonumber? // 0) >= $full_width) as $bars
+              | $prefix + ([$windows[] | display($bars)] | join("  ·  "))
             ' 2>/dev/null
             """#
         }

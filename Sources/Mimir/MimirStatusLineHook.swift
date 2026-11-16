@@ -129,18 +129,24 @@ enum MimirStatusLineHook {
         } else {
             // Clamp before rounding so floor(x + 0.5) matches remainingPercent(fromUsed:)'s
             // nearest-integer, ties-away-from-zero rounding throughout the displayed 0...100 range.
-            render = """
+            render = #"""
             command -v jq >/dev/null 2>&1 && printf '%s' "$input" | jq -r '
+              def color($percent):
+                if $percent >= 40 then "32" elif $percent >= 10 then "33" else "31" end;
               def window($label):
                 select(. != null) | tonumber?
                 | (100 - .) | ([0, .] | max) | ([100, .] | min)
-                | (. + 0.5 | floor | tostring)
-                | $label + " " + . + "%";
+                | . as $remaining
+                | ($remaining + 0.5 | floor) as $percent
+                | ($remaining / 10 + 0.5 | floor) as $filled
+                | (if $filled > 0 then "\u001b[" + color($percent) + "m" + ("█" * $filled) + "\u001b[0m" else "" end)
+                  + (if $filled < 10 then "\u001b[2m" + ("░" * (10 - $filled)) + "\u001b[0m" else "" end) as $bar
+                | $label + " " + $bar + " " + "\u001b[" + color($percent) + "m" + ($percent | tostring) + "%\u001b[0m";
               [(.rate_limits.five_hour.used_percentage | window("5h")),
                (.rate_limits.seven_day.used_percentage | window("7d"))]
               | select(length > 0) | "Mimir  " + join("  ·  ")
             ' 2>/dev/null
-            """
+            """#
         }
         return """
         #!/bin/bash
