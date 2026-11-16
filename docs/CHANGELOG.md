@@ -9,6 +9,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [3.2-beta.6] - 2026-11-16
+
+Antigravity's CLI status line now names the selected model, for example "Mimir  Gemini 3.8 Flash  5h 99%  ·  7d 99%". Gemini 4 Argon shows its own quota, and Claude and GPT-OSS models show the shared one.
+
+The agy status line also feeds the Antigravity card: while its data is under 30 minutes old, Mimir doesn't start another agy process. Codex's limit items are added to extra Codex accounts too.
+
+Antigravity: an empty model list no longer shows fake 0% rows; a missing group such as Argon is filled in from another source; an unfinished agy run is stopped after 45 seconds.
+
+Claude: a keychain entry with only an MCP login or an empty token no longer hides the valid login; reset rights are kept when Mimir falls back to another source; Ultra accounts no longer show a stray five-hour bar.
+
+When a reset is pushed later, the "quota renewed" notification moves with it instead of arriving early.
+
 ### [3.2-beta.5] - 2026-11-14
 
 The card front is quieter: the bar shows only its percentage, on the left and white over the fill. The arrow and the "short" note are gone, in the widget too.
@@ -718,6 +730,18 @@ Bu projedeki tüm önemli değişiklikler bu dosyada belgelenecektir.
 
 Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
+
+### [3.2-beta.6] - 2026-11-16
+
+Antigravity CLI'ının durum satırı artık seçili modelin adını gösteriyor; örneğin "Mimir  Gemini 3.8 Flash  5h 99%  ·  7d 99%". Gemini 4 Argon kendi kotasını, Claude ve GPT-OSS modelleri ortak kotayı gösteriyor.
+
+agy'nin durum satırı Antigravity kartını da besliyor: verisi 30 dakikadan yeniyken Mimir ayrıca agy çalıştırmıyor. Codex'in limit öğeleri ek Codex hesaplarına da ekleniyor.
+
+Antigravity: boş model listesi artık sahte %0 satırları göstermiyor; Argon gibi eksik bir grup başka kaynaktan tamamlanıyor; bitmeyen bir agy çalışması 45 saniye sonra durduruluyor.
+
+Claude: yalnızca MCP girişi ya da boş token içeren keychain kaydı artık geçerli girişi gizlemiyor; Mimir başka kaynağa geçtiğinde sıfırlama hakları korunuyor; Ultra hesaplarda fazladan beş saatlik çubuk görünmüyor.
+
+Sıfırlama ileri kayarsa "kota yenilendi" bildirimi de onunla birlikte kayıyor, erken gelmiyor.
 
 ### [3.2-beta.5] - 2026-11-14
 
