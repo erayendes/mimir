@@ -629,7 +629,14 @@ struct LiveUsageDataSource {
             if let timeout {
                 let deadline = Date().addingTimeInterval(timeout)
                 while p.isRunning && Date() < deadline { Thread.sleep(forTimeInterval: 0.1) }
-                if p.isRunning { p.terminate() }
+                if p.isRunning {
+                    p.terminate()
+                    let grace = Date().addingTimeInterval(1)
+                    while p.isRunning && Date() < grace { Thread.sleep(forTimeInterval: 0.05) }
+                    if p.isRunning { kill(p.processIdentifier, SIGKILL) }
+                    p.waitUntilExit()
+                    return ""
+                }
             }
             p.waitUntilExit()
             let data = out.fileHandleForReading.readDataToEndOfFile()

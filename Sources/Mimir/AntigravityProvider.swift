@@ -3,43 +3,49 @@ import Foundation
 extension LiveUsageDataSource {
     func fetchAntigravity() async -> ServiceStatus {
         let defaults = ["Gemini", "Claude"]
+        let snapshot = fetchAntigravitySnapshot()
         // Only the IDE's language server names the login; the CLI and Cockpit don't. Their cards keep
         // the plan and e-mail the last IDE reading saved, instead of losing them whenever the IDE closes.
-        let known = { self.fetchAntigravitySnapshot()?.account }
+        let known = snapshot?.account
         // Primary live source: the grouped weekly + 5h quota summary that backs the IDE's
         // "Model Quota" page. Antigravity moved quota off per-model and onto shared group
         // buckets (Gemini / Claude), each with a weekly and a 5-hour window.
-        if let summary = fetchAntigravityQuotaSummary()?.withAccount(known()) {
-            saveAntigravitySnapshot(summary)
-            return summary
+        if let summary = fetchAntigravityQuotaSummary()?.withAccount(known) {
+            let complete = completeAntigravityWindows(summary, hook: readAntigravityHookUsage())
+            saveAntigravitySnapshot(complete)
+            return complete
         }
         // The interactive CLI already fetched these quotas. Prefer its fresh statusLine capture
         // to starting another agy process, while keeping the IDE's richer summary primary.
-        if let hook = readAntigravityHookUsage()?.withAccount(known()) {
-            saveAntigravitySnapshot(hook)
-            return hook
+        if let hook = readAntigravityHookUsage()?.withAccount(known) {
+            let complete = completeAntigravityWindows(hook)
+            saveAntigravitySnapshot(complete)
+            return complete
         }
         // No IDE running? The CLI carries the same numbers. `agy` users have no language server
         // process, no CSRF token and no Cockpit directory, so every source around this one misses
         // them entirely and their card never appears.
-        if let cli = fetchAntigravityCLI()?.withAccount(known()) {
-            saveAntigravitySnapshot(cli)
-            return cli
+        if let cli = fetchAntigravityCLI()?.withAccount(known) {
+            let complete = completeAntigravityWindows(cli)
+            saveAntigravitySnapshot(complete)
+            return complete
         }
-        if let authorized = await fetchAntigravityAuthorized(models: defaults)?.withAccount(known()) {
-            saveAntigravitySnapshot(authorized)
-            return authorized
+        if let authorized = await fetchAntigravityAuthorized(models: defaults)?.withAccount(known) {
+            let complete = completeAntigravityWindows(authorized)
+            saveAntigravitySnapshot(complete)
+            return complete
         }
         if let cached = fetchAntigravityCockpitCache(models: defaults) {
-            return cached.withAccount(known())
+            return completeAntigravityWindows(cached.withAccount(known))
         }
-        if let local = fetchAntigravityLocalLanguageServer(models: defaults)?.withAccount(known()) {
-            saveAntigravitySnapshot(local)
-            return local
+        if let local = fetchAntigravityLocalLanguageServer(models: defaults)?.withAccount(known) {
+            let complete = completeAntigravityWindows(local)
+            saveAntigravitySnapshot(complete)
+            return complete
         }
         // Live sources gone (IDE/Cockpit closed). Fall back to the last snapshot we
         // captured while one was open — valid until its reset time passes.
-        if let snapshot = fetchAntigravitySnapshot() {
+        if let snapshot {
             return snapshot
         }
 
@@ -48,10 +54,55 @@ extension LiveUsageDataSource {
             : "antigravity auth failed"
         return unavailableService(name: "Antigravity", iconName: "antigravity", models: defaults, note: note)
     }
+
+    /// Keep a live source's rows authoritative, filling only absent family/window pairs.
+    /// Read raw snapshot resets: loadSnapshot rolls expired rows forward as estimates.
+    func completeAntigravityWindows(_ live: ServiceStatus, hook: ServiceStatus? = nil,
+                                    snapshotRows: [ModelStatus]? = nil, now: Date = Date()) -> ServiceStatus {
+        var models = live.models
+        let saved = snapshotRows ?? readAntigravitySnapshotWindows(now: now)
+        for row in hook?.models ?? [] {
+            guard let window = row.window,
+                  !models.contains(where: { $0.name == row.name && $0.window == window }) else { continue }
+            models.append(row)
+        }
+        for row in saved {
+            guard let window = row.window,
+                  !models.contains(where: { $0.name == row.name && $0.window == window }),
+                  row.resetAt.map({ $0 > now }) ?? false else { continue }
+            models.append(row)
+        }
+        guard models.count != live.models.count else { return live }
+        return ServiceStatus(name: live.name, iconName: live.iconName,
+                             sessionResetAt: models.compactMap(\.resetAt).min(), weeklyResetAt: live.weeklyResetAt,
+                             models: models, isAvailable: live.isAvailable, statusNote: live.statusNote,
+                             account: live.account)
+    }
+
+    private func readAntigravitySnapshotWindows(now: Date) -> [ModelStatus] {
+        guard let data = try? Data(contentsOf: snapshotURL(for: "Antigravity")),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let saved = (root["savedAt"] as? String).flatMap({ parseISO8601($0) }),
+              now.timeIntervalSince(saved) <= 30 * 24 * 3_600,
+              let rows = root["models"] as? [[String: Any]] else { return [] }
+        return rows.compactMap { row in
+            guard let name = row["name"] as? String,
+                  let percent = row["remainingPercent"] as? Int,
+                  let reset = (row["resetAt"] as? String).flatMap({ parseISO8601($0) }), reset > now,
+                  let windowRaw = row["window"] as? String else { return nil }
+            let window: ModelWindow
+            switch windowRaw {
+            case "session": window = .session
+            case "weekly": window = .weekly
+            default: return nil
+            }
+            return ModelStatus(name: name, remainingPercent: percent, resetAt: reset, window: window)
+        }
+    }
     /// Prompt-free statusLine input, fresh for 30 minutes like Claude's hook. The map/field names
     /// come from https://antigravity.google/docs/cli/statusline/; bucket-to-family mappings come
-    /// from the existing /usage fixtures (3p is the shared Claude/GPT group). No real statusLine
-    /// capture was available to verify this shape. Unknown IDs and absent fractions are omitted,
+    /// from the existing /usage fixtures (3p is the shared Claude/GPT group). A statusLine
+    /// capture identifies Argon as gemini-argon-wtu-weekly. Unknown IDs and absent fractions are omitted,
     /// never turned into an exhausted window or guessed from the time left until reset.
     func readAntigravityHookUsage(maxAge: TimeInterval = 30 * 60,
                                  path: String = AntigravityStatusLineHook().usageURL.path,
@@ -70,7 +121,7 @@ extension LiveUsageDataSource {
             return value
         }
 
-        let families = [("Gemini", ["gemini"]), ("Claude", ["3p", "claude"]), ("Gemini 4 Argon", ["argon"])]
+        let families = [("Gemini", ["gemini"]), ("Claude", ["3p", "claude"]), ("Gemini 4 Argon", ["gemini-argon-wtu", "argon"])]
         let windows = [("5h", ["5h", "five-hour"]), ("weekly", ["weekly", "7d", "seven-day"])]
         var groups: [[String: Any]] = []
         for (family, prefixes) in families {
@@ -130,7 +181,7 @@ extension LiveUsageDataSource {
         // self-updater (~2 GB a month at this cadence); it honours only a lowercase `true`.
         let noBrowser = Self.agyNoBrowserDir.map { "PATH='\($0)':\"$PATH\" " } ?? ""
         // Gemini.app installs agy here even when the login shell's PATH doesn't include it.
-        let out = runShell("export PATH=\"$PATH:$HOME/.gemini/bin\" && command -v agy >/dev/null 2>&1 && curl -s -o /dev/null -m 5 https://oauth2.googleapis.com && \(noBrowser)AGY_CLI_DISABLE_AUTO_UPDATE=true agy -p /usage --output-format json --print-timeout 30s")
+        let out = runShell("export PATH=\"$PATH:$HOME/.gemini/bin\" && command -v agy >/dev/null 2>&1 && curl -s -o /dev/null -m 5 https://oauth2.googleapis.com && exec /usr/bin/env \(noBrowser)AGY_CLI_DISABLE_AUTO_UPDATE=true agy -p /usage --output-format json --print-timeout 30s", timeout: 45)
         guard let data = out.data(using: .utf8),
               let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               root["status"] as? String == "SUCCESS",
@@ -419,7 +470,8 @@ extension LiveUsageDataSource {
             ?? (bucket["displayName"] as? String) ?? (bucket["name"] as? String) ?? "").lowercased()
         if id.contains("weekly") || id.contains("7d") { return true }
         if id.contains("5h") || id.contains("session") || id.contains("hour") { return false }
-        return (bucket["window"] as? String) == "weekly"
+        let window = (bucket["window"] as? String)?.lowercased() ?? ""
+        return window.contains("weekly") || window.contains("7d") || window.contains("seven-day")
     }
 
     private func antigravityFamilyLabel(_ displayName: String) -> String {
@@ -440,6 +492,7 @@ extension LiveUsageDataSource {
         }
 
         let normalized = normalizeAntigravityModels(payload)
+        guard !normalized.isEmpty else { return nil }
         return ServiceStatus(
             name: "Antigravity",
             iconName: "antigravity",
@@ -454,12 +507,7 @@ extension LiveUsageDataSource {
 
     func normalizeAntigravityModels(_ root: [String: Any]) -> [ModelStatus] {
         let configs = antigravityModelConfigs(from: root)
-        guard !configs.isEmpty else {
-            return [
-                ModelStatus(name: "Gemini", remainingPercent: 0, resetAt: nil),
-                ModelStatus(name: "Claude", remainingPercent: 0, resetAt: nil)
-            ]
-        }
+        guard !configs.isEmpty else { return [] }
 
         var gemini: [ModelStatus] = []
         var claude: [ModelStatus] = []
