@@ -348,12 +348,16 @@ func refillIsDue(armed: Double, announced: Double, now: Double) -> Bool {
 
 /// The reset to arm next, or nil to leave the current arming alone: only when nothing is armed, the
 /// reset is still in the future, and it isn't the one already announced (so the data rolling forward
-/// at reset time can't clobber a refill we still owe).
-func nextArmedReset(armed: Double, announced: Double, resetAt: Date?, now: Date) -> Double? {
-    guard armed == 0, let resetAt else { return nil }
-    let stamp = resetAt.timeIntervalSince1970
-    guard stamp > now.timeIntervalSince1970, stamp != announced else { return nil }
-    return stamp
+/// at reset time can't clobber a refill we still owe). An arming still in the future moves with a
+/// reset that was pushed later — otherwise "quota renewed" fires at the old, now early time — but
+/// only past `jitter`, so a reset clock wobbling by seconds doesn't rewrite it every poll.
+func nextArmedReset(armed: Double, announced: Double, resetAt: Date?, now: Date,
+                    jitter: TimeInterval = 60) -> Double? {
+    guard let resetAt else { return nil }
+    let stamp = resetAt.timeIntervalSince1970, nowStamp = now.timeIntervalSince1970
+    guard stamp > nowStamp, stamp != announced else { return nil }
+    if armed == 0 { return stamp }
+    return armed > nowStamp && stamp > armed + jitter ? stamp : nil
 }
 
 /// Remaining-percent at which a long quota window counts as "running out". Anchored on the 7-day

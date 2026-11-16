@@ -109,4 +109,29 @@ final class ClaudeTokenSelectionTests: XCTestCase {
             keychain: { self.token("kc", expiresInSeconds: 9_999) })
         XCTAssertEqual(result?.accessToken, "kc")
     }
+
+    /// #111: a newest keychain entry holding only an MCP login, or a blank `accessToken`, is no login
+    /// — the next entry is tried, and only the newest may be read with a prompt. A blank credential
+    /// file likewise yields no token, so it can't hide the keychain login.
+    func testUnusableKeychainEntriesFallThroughSilently() {
+        let ds = LiveUsageDataSource()
+        let entries: [(service: String, account: String?, modifiedAt: Date?)] = [
+            ("Claude Code-credentials-aa", nil, nil), ("Claude Code-credentials-bb", nil, nil),
+            ("Claude Code-credentials", nil, nil)
+        ]
+        let data = [
+            "Claude Code-credentials-aa": #"{"mcpOAuth":{"srv":{"accessToken":"x"}}}"#,
+            "Claude Code-credentials-bb": #"{"claudeAiOauth":{"accessToken":"  ","expiresAt":1}}"#,
+            "Claude Code-credentials": #"{"claudeAiOauth":{"accessToken":"good","expiresAt":1}}"#,
+        ]
+        var interactiveReads: [String] = []
+        let raw = ds.firstUsableClaudeKeychainItem(in: entries, interactive: true) { candidate, interactive in
+            if interactive { interactiveReads.append(candidate.service) }
+            return data[candidate.service]
+        }
+        XCTAssertEqual(raw.flatMap(ds.parseClaudeToken)?.accessToken, "good")
+        XCTAssertEqual(interactiveReads, ["Claude Code-credentials-aa"])
+        XCTAssertNil(ds.parseClaudeToken(#"{"claudeAiOauth":{"accessToken":""}}"#))
+        XCTAssertNil(ds.parseClaudeToken(""))
+    }
 }

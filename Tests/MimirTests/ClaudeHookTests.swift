@@ -22,6 +22,17 @@ final class ClaudeHookTests: XCTestCase {
         XCTAssertEqual(parsed?.seven?.reset, Date(timeIntervalSince1970: 1_700_600_000))
     }
 
+    /// #111: the fresh hook has no five-hour window (Ultra loses it after verification); an older
+    /// cache's copy must not bring it back as a full window. The weekly one still refills as before.
+    func testHookWithoutFiveHourDoesNotResurrectItFromCache() {
+        let cached: [String: Any] = ["five_hour": ["utilization": 40.0], "seven_day": ["utilization": 30.0]]
+        let fiveGone = LiveUsageDataSource().claudeCardFromHook((five: nil, seven: (used: 12, reset: nil)), cached: cached)
+        XCTAssertNil(fiveGone.sessionRemainingPercent)
+        XCTAssertNotNil(fiveGone.weeklyRemainingPercent)
+        let sevenGone = LiveUsageDataSource().claudeCardFromHook((five: (used: 5, reset: nil), seven: nil), cached: cached)
+        XCTAssertEqual(sevenGone.weeklyRemainingPercent, 100)
+    }
+
     func testParseHookMissingRateLimitsReturnsNil() {
         // No rate_limits at all (older Claude Code / no subscription limits) → nil, callers fall through.
         XCTAssertNil(LiveUsageDataSource.parseHookRateLimits(["model": ["display_name": "Opus"]]))

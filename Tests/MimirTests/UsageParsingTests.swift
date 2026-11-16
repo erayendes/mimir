@@ -378,6 +378,23 @@ final class UsageParsingTests: XCTestCase {
                                     resetAt: next, now: now))                             // already announced
     }
 
+    /// #111: a reset pushed later moves a still-future arming, so "quota renewed" can't fire at the
+    /// old, early time — but a wobble of seconds, or a reset already due, leaves it alone.
+    func testArmingFollowsAResetPushedLater() {
+        let now = Date(timeIntervalSince1970: 1_785_000_000)
+        let armed = now.timeIntervalSince1970 + 3_600
+        XCTAssertEqual(nextArmedReset(armed: armed, announced: 0,
+                                      resetAt: Date(timeIntervalSince1970: armed + 1_800), now: now),
+                       armed + 1_800)                                                     // pushed later
+        XCTAssertNil(nextArmedReset(armed: armed, announced: 0,
+                                    resetAt: Date(timeIntervalSince1970: armed + 20), now: now))   // jitter
+        XCTAssertNil(nextArmedReset(armed: armed, announced: 0,
+                                    resetAt: Date(timeIntervalSince1970: armed - 600), now: now))  // earlier
+        XCTAssertNil(nextArmedReset(armed: armed, announced: 0,
+                                    resetAt: Date(timeIntervalSince1970: armed + 18_000),
+                                    now: Date(timeIntervalSince1970: armed + 5)))                  // refill owed
+    }
+
     /// Codex's 5-hour `reset_at` drifts forward inside one window, so the low warning must key on
     /// "has that reset actually come round" rather than on the stamp changing — otherwise the same
     /// spent window warned again on every poll.
@@ -937,6 +954,26 @@ final class ClaudeResetGrantTests: XCTestCase {
                         "scope": ["model": ["display_name": "Fable"]]]]
         let names = ds.claudeResetGrantRows(r, now: now).map(\.name)
         XCTAssertEqual(names, ["\(String(localized: "Weekly")) · 10.12.26", "Fable · 09.03.27"])
+    }
+
+    /// #111: an OAuth answer (no `cedar_ember`) refreshing the cache keeps the last known, still
+    /// unexpired grants instead of wiping them.
+    func testOAuthAnswerKeepsTheLastKnownResetGrants() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("mimir-cache-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        var desktop = root([liveGrant])
+        desktop["five_hour"] = ["utilization": 10.0]
+        ds.writeClaudeUsageCache(try JSONSerialization.data(withJSONObject: desktop), to: url, now: now)
+        let oauth = try JSONSerialization.data(withJSONObject: ["five_hour": ["utilization": 20.0]])
+        let merged = try XCTUnwrap(ds.writeClaudeUsageCache(oauth, to: url, now: now))
+        XCTAssertEqual(ds.claudeResetGrantRows(merged, now: now).count, 1)
+        XCTAssertEqual((merged["five_hour"] as? [String: Any])?["utilization"] as? Double, 20)
+        let onDisk = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
+        XCTAssertEqual(ds.claudeResetGrantRows(onDisk ?? [:], now: now).count, 1)
+        // Once every grant has lapsed, nothing is carried.
+        let later = ISO8601DateFormatter().date(from: "2026-11-01T00:00:00Z")!
+        XCTAssertNil(ds.writeClaudeUsageCache(oauth, to: url, now: later)?["cedar_ember"])
     }
 
     func testTheCLIPathHasNoSuchFieldAndGetsNoRows() {

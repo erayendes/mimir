@@ -148,8 +148,7 @@ extension LiveUsageDataSource {
             Self.desktopLog.log("desktop oauth usage failed")
             return nil
         }
-        writeClaudeUsageCache(body)
-        let status = buildClaudeStatus(from: root, note: "claude desktop oauth")
+        let status = buildClaudeStatus(from: writeClaudeUsageCache(body) ?? root, note: "claude desktop oauth")
         saveSnapshot(status)
         return status.withCooldownHint(0)
     }
