@@ -6,7 +6,8 @@ import MimirShared
 enum PaceFileWriter {
     struct Window: Codable {
         let tone: String
-        let idealPercent: Double
+        /// nil during the window's first day, as the popover shows no ideal arrow then.
+        let idealPercent: Double?
         let note: String?
         let resetAt: Double
         /// Present only for a model-scoped window; CLI stdin has no matching percentage.
@@ -16,7 +17,7 @@ enum PaceFileWriter {
     private struct Snapshot: Codable {
         struct StampedWindow: Codable {
             let tone: String
-            let idealPercent: Double
+            let idealPercent: Double?
             let note: String?
             let resetAt: Double
             let writtenAt: Double
@@ -104,7 +105,7 @@ enum PaceFileWriter {
                 case .early, nil:
                     row.remainingPercent >= 40 ? "green" : row.remainingPercent >= 10 ? "amber" : "red"
                 }
-                let ideal = pace?.idealPercent
+                let ideal: Double? = pace?.tone == .early ? nil : pace?.idealPercent
                     ?? min(100, max(0, 100 * reset.timeIntervalSince(now) / (7 * 86_400)))
                 windows["seven_day_fable"] = Window(tone: tone, idealPercent: ideal,
                     note: pace?.tone == .red ? pace?.note : nil,
