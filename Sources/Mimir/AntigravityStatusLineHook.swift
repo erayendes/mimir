@@ -12,6 +12,7 @@ struct AntigravityStatusLineHook {
     /// Symlinks (dotfile managers) are followed so an atomic write replaces the target, not the link.
     private var settingsURL: URL { directory.appendingPathComponent("settings.json").resolvingSymlinksInPath() }
     private var scriptURL: URL { directory.appendingPathComponent("mimir-statusline.sh") }
+    var usageURL: URL { directory.appendingPathComponent("mimir-usage.json") }
     private var previousURL: URL { directory.appendingPathComponent("mimir-prev-statusline.json") }
     private var backupURL: URL { directory.appendingPathComponent("settings.json.mimir-backup") }
     var hookCommand: String {
@@ -61,7 +62,18 @@ struct AntigravityStatusLineHook {
         #!/bin/bash
         # Mimir — Antigravity statusline hook (auto-generated; do not edit).
         # Unknown model families use the lowest remaining quota per window.
-        input=$(cat)
+        # Preserve trailing newlines too; command substitution alone would strip them.
+        input=$(cat; printf '.')
+        input=${input%.}
+        # Save beside this script, including when installed into an injected directory.
+        # Private and atomic: the payload can include account/session metadata.
+        (
+            umask 077
+            usage_dir=$(dirname -- "${BASH_SOURCE[0]}")
+            capture=$(mktemp "$usage_dir/.mimir-usage.XXXXXX") || exit 1
+            trap 'rm -f "$capture"' EXIT
+            printf '%s' "$input" > "$capture" && mv -f "$capture" "$usage_dir/mimir-usage.json"
+        ) 2>/dev/null
         \(render)
         """
     }
@@ -165,7 +177,7 @@ struct AntigravityStatusLineHook {
                 settings["statusLine"] = previous["statusLine"]
                 try writeObject(settings, to: settingsURL)
             }
-            for url in [scriptURL, previousURL] {
+            for url in [scriptURL, previousURL, usageURL] {
                 try? FileManager.default.removeItem(at: url)
             }
         } catch {

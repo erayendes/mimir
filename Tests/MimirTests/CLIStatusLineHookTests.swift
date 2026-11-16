@@ -30,12 +30,13 @@ struct CLIStatusLineHookTests {
         var result = ""
         try withDirectory { directory in
             try write(input, "input.json", in: directory)
+            try write(AntigravityStatusLineHook.scriptBody(chained: chained), "mimir-statusline.sh", in: directory)
             let inputHandle = try FileHandle(forReadingFrom: directory.appendingPathComponent("input.json"))
             defer { try? inputHandle.close() }
             let output = Pipe()
             let task = Process()
             task.executableURL = URL(fileURLWithPath: "/bin/bash")
-            task.arguments = ["-c", AntigravityStatusLineHook.scriptBody(chained: chained)]
+            task.arguments = [directory.appendingPathComponent("mimir-statusline.sh").path]
             var environment = ProcessInfo.processInfo.environment
             for key in ["HOME", "CLAUDE_CONFIG_DIR", "CODEX_HOME"] { environment[key] = directory.path }
             task.environment = environment
@@ -46,6 +47,10 @@ struct CLIStatusLineHookTests {
             task.waitUntilExit()
             #expect(task.terminationStatus == 0, "Rendering requires jq on PATH")
             result = String(decoding: data, as: UTF8.self)
+            #expect(try read("mimir-usage.json", in: directory) == input)
+            let mode = try FileManager.default.attributesOfItem(
+                atPath: directory.appendingPathComponent("mimir-usage.json").path)[.posixPermissions] as? NSNumber
+            #expect(mode?.intValue == 0o600)
         }
         return result
     }
@@ -99,8 +104,77 @@ struct CLIStatusLineHookTests {
     }
 
     @Test func agyChainsInputAndOutputVerbatim() throws {
-        let input = #"{"quota":{"gemini-5h":{"remaining_fraction":0.8}}}"#
+        let input = #"{"quota":{"gemini-5h":{"remaining_fraction":0.8}}}"# + "\n\n"
         #expect(try runAGY(input: input, chained: "printf 'custom status\\n'; cat") == "custom status\n" + input)
+    }
+
+    @Test func agyFreshCaptureUsesTheExistingFamiliesAndWindows() throws {
+        try withDirectory { directory in
+            let now = Date(timeIntervalSince1970: 2_000_000_000)
+            let captured = now.addingTimeInterval(-60)
+            let input = #"""
+            {"model":{"id":"gemini"},"quota":{
+              "gemini-weekly":{"remaining_fraction":0.9378,"reset_time":"2099-01-01T00:00:00Z","reset_in_seconds":1},
+              "gemini-5h":{"remaining_fraction":"0.815","reset_in_seconds":600},
+              "3p-weekly":{"remaining_fraction":0},
+              "3p-5h":{"remaining_fraction":1},
+              "argon-weekly":{"remaining_fraction":0.25}}}
+            """#
+            try write(input, "mimir-usage.json", in: directory)
+            let path = directory.appendingPathComponent("mimir-usage.json").path
+            try FileManager.default.setAttributes([.modificationDate: captured], ofItemAtPath: path)
+            let status = try #require(LiveUsageDataSource().readAntigravityHookUsage(path: path, now: now))
+            #expect(status.isAvailable)
+            #expect(status.models.map(\.name) == ["Gemini", "Gemini", "Claude", "Claude", "Gemini 4 Argon"])
+            #expect(status.models.map(\.window) == [.session, .weekly, .session, .weekly, .weekly])
+            #expect(status.models.map(\.remainingPercent) == [82, 94, 100, 0, 25])
+            #expect(status.models[0].resetAt == captured.addingTimeInterval(600))
+            #expect(status.models[1].resetAt == ISO8601DateFormatter().date(from: "2099-01-01T00:00:00Z"))
+            #expect(status.sessionResetAt == captured.addingTimeInterval(600))
+        }
+    }
+
+    @Test(arguments: [(0.0, true), (1_800.0, true), (1_801.0, false), (-60.0, false)])
+    func agyCaptureFreshness(age: TimeInterval, accepted: Bool) throws {
+        try withDirectory { directory in
+            let now = Date(timeIntervalSince1970: 2_000_000_000)
+            try write(#"{"quota":{"gemini-weekly":{"remaining_fraction":0.5}}}"#, "mimir-usage.json", in: directory)
+            let path = directory.appendingPathComponent("mimir-usage.json").path
+            try FileManager.default.setAttributes([.modificationDate: now.addingTimeInterval(-age)], ofItemAtPath: path)
+            #expect((LiveUsageDataSource().readAntigravityHookUsage(path: path, now: now) != nil) == accepted)
+        }
+    }
+
+    @Test(arguments: [
+        (#"{"quota":{"gemini-weekly":{"remaining_fraction":0.5}}}"#, [ModelWindow.weekly], [50]),
+        (#"{"quota":{"gemini-5h":{"remaining_fraction":1.2}}}"#, [ModelWindow.session], [100]),
+        (#"{"quota":{"gemini-5h":{"remaining_fraction":-0.1}}}"#, [ModelWindow.session], [0]),
+        (#"{"quota":{"gemini-weekly":{"remaining_fraction":0.5},"gemini-5h":{"remaining_fraction":null}}}"#, [ModelWindow.weekly], [50]),
+        (#"{"quota":{"gemini-5h":{"remaining_fraction":0.5,"disabled":true}}}"#, [], []),
+        (#"{"quota":{"gemini-weekly":{"remaining_amount":100,"reset_in_seconds":100}}}"#, [], []),
+        (#"{"quota":{"gemini-unknown":{"remaining_fraction":0.5,"reset_in_seconds":18000}}}"#, [], []),
+        (#"{"quota":{"unknown-weekly":{"remaining_fraction":0.5}}}"#, [], []),
+        (#"{"quota":{"gemini-weekly":{"remaining_fraction":true}}}"#, [], []),
+        (#"{"quota":{"gemini-weekly":{"remaining_fraction":"NaN"}}}"#, [], []),
+        (#"{"quota":{"gemini-weekly":{"remaining_fraction":0.5,"reset_time":"2000-01-01T00:00:00Z"}}}"#, [], []),
+        (#"{"quota":{}}"#, [], []), (#"{"quota":null}"#, [], []), ("{}", [], []), ("broken", [], []),
+    ])
+    func agyCaptureOmitsMissingOrUnusableWindows(input: String, windows: [ModelWindow], percents: [Int]) throws {
+        try withDirectory { directory in
+            try write(input, "mimir-usage.json", in: directory)
+            let status = LiveUsageDataSource().readAntigravityHookUsage(
+                path: directory.appendingPathComponent("mimir-usage.json").path)
+            #expect(status?.models.map(\.window) ?? [] == windows)
+            #expect(status?.models.map(\.remainingPercent) ?? [] == percents)
+            #expect((status == nil) == windows.isEmpty)
+        }
+    }
+
+    @Test func agyMissingCaptureFallsThrough() throws {
+        try withDirectory { directory in
+            #expect(LiveUsageDataSource().readAntigravityHookUsage(
+                path: directory.appendingPathComponent("mimir-usage.json").path) == nil)
+        }
     }
 
     @Test(arguments: [false, true])
@@ -128,12 +202,14 @@ struct CLIStatusLineHookTests {
             hook.enable()
             #expect(try read("settings.json", in: directory) == beforeRefresh)
             #expect(try read("mimir-statusline.sh", in: directory) == script)
+            try write("{}", "mimir-usage.json", in: directory)
             hook.disable()
             let restored = try settings(in: directory)
             let expected = try JSONSerialization.jsonObject(with: Data(original.utf8)) as! NSDictionary
             #expect(NSDictionary(dictionary: restored) == expected)
             #expect(!FileManager.default.fileExists(atPath: directory.appendingPathComponent("mimir-prev-statusline.json").path))
             #expect(!FileManager.default.fileExists(atPath: directory.appendingPathComponent("mimir-statusline.sh").path))
+            #expect(!FileManager.default.fileExists(atPath: directory.appendingPathComponent("mimir-usage.json").path))
             #expect(try read("settings.json.mimir-backup", in: directory) == original)
             hook.disable()
             hook.enable()
@@ -220,6 +296,54 @@ struct CLIStatusLineHookTests {
             #expect(mode?.intValue == 0o600)
             hook.disable()
             #expect(try settings(in: directory)["other"] as? Int == 1)
+        }
+    }
+
+    @Test func codexExtraAccountsKeepTheirOwnBackupAndUndoState() throws {
+        try withDirectory { directory in
+            let first = directory.appendingPathComponent(".codex-work")
+            let second = directory.appendingPathComponent(".codex-other")
+            for dir in [first, second] {
+                try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+                try write("{}", "auth.json", in: dir)
+            }
+            let original = "# work\n[tui]\nstatus_line = ['model-name', 'five-hour-limit'] # keep\n"
+            try write(original, "config.toml", in: first)
+            let accounts = ExtraAccount.find(base: ".codex", title: "Codex", marker: "auth.json", home: directory)
+            #expect(accounts.count == 2)
+            CodexStatusLineHook.wireExtraDirs(true, accounts: accounts)
+            #expect(try read("config.toml", in: first)
+                == "# work\n[tui]\nstatus_line = ['model-name', 'five-hour-limit', \"weekly-limit\"] # keep\n")
+            #expect(try read("config.toml.mimir-backup", in: first) == original)
+            #expect(try read("config.toml", in: second)
+                == "[tui]\nstatus_line = [\"model-with-reasoning\", \"current-dir\", \"thread-name\", \"five-hour-limit\", \"weekly-limit\"]\n")
+            // A user edit survives both launch refresh and undo; a duplicate primary/extra dir is harmless.
+            let changed = "[tui]\nstatus_line = ['git-branch', 'five-hour-limit']\n"
+            try write(changed, "config.toml", in: first)
+            CodexStatusLineHook.wireExtraDirs(true, accounts: accounts + accounts)
+            #expect(try read("config.toml", in: first) == changed)
+            CodexStatusLineHook.wireExtraDirs(false, accounts: accounts + accounts)
+            #expect(try read("config.toml", in: first) == changed)
+            #expect(try read("config.toml", in: second) == "[tui]\n")
+            for dir in [first, second] {
+                #expect(!FileManager.default.fileExists(atPath: dir.appendingPathComponent("mimir-statusline.json").path))
+            }
+            CodexStatusLineHook.wireExtraDirs(true, accounts: accounts)
+            CodexStatusLineHook.wireExtraDirs(false, accounts: accounts)
+            #expect(try read("config.toml.mimir-backup", in: first) == original)
+        }
+    }
+
+    @Test func codexExtraAccountsSkipUnsafeAndMissingDirectories() throws {
+        try withDirectory { directory in
+            let original = "[tui]\nstatus_line = [\n 'model-name'\n]\n"
+            try write(original, "config.toml", in: directory)
+            let missing = directory.appendingPathComponent("missing")
+            let accounts = [ExtraAccount(name: "Codex Work", dir: directory), ExtraAccount(name: "Codex Other", dir: missing)]
+            CodexStatusLineHook.wireExtraDirs(true, accounts: accounts)
+            CodexStatusLineHook.wireExtraDirs(false, accounts: accounts)
+            #expect(try read("config.toml", in: directory) == original)
+            #expect(try FileManager.default.contentsOfDirectory(atPath: directory.path) == ["config.toml"])
         }
     }
 

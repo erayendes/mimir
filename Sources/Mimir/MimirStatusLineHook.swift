@@ -208,6 +208,7 @@ enum MimirStatusLineHook {
         wireExtraDirs(true)
         AntigravityStatusLineHook().refreshScript()
         CodexStatusLineHook().refreshScript()
+        CodexStatusLineHook.wireExtraDirs(true)
     }
 
     /// Second logins (`ExtraAccount.claude`, e.g. `~/.claude-work`) point at the same script, which
@@ -256,6 +257,7 @@ enum MimirStatusLineHook {
             wireExtraDirs(true)
             AntigravityStatusLineHook().enable()
             CodexStatusLineHook().enable()
+            CodexStatusLineHook.wireExtraDirs(true)
             return .alreadyOn
         }
         let (settings, chained) = wiredSettings(from: current)
@@ -272,6 +274,7 @@ enum MimirStatusLineHook {
         wireExtraDirs(true)
         AntigravityStatusLineHook().enable()
         CodexStatusLineHook().enable()
+        CodexStatusLineHook.wireExtraDirs(true)
         return chained == nil ? .enabled : .chained
     }
 
@@ -284,6 +287,7 @@ enum MimirStatusLineHook {
         wireExtraDirs(false)
         AntigravityStatusLineHook().disable()
         CodexStatusLineHook().disable()
+        CodexStatusLineHook.wireExtraDirs(false)
         for path in [scriptPath, prevPath, usagePath] {
             try? FileManager.default.removeItem(atPath: path)
         }

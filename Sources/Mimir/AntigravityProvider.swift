@@ -13,6 +13,12 @@ extension LiveUsageDataSource {
             saveAntigravitySnapshot(summary)
             return summary
         }
+        // The interactive CLI already fetched these quotas. Prefer its fresh statusLine capture
+        // to starting another agy process, while keeping the IDE's richer summary primary.
+        if let hook = readAntigravityHookUsage()?.withAccount(known()) {
+            saveAntigravitySnapshot(hook)
+            return hook
+        }
         // No IDE running? The CLI carries the same numbers. `agy` users have no language server
         // process, no CSRF token and no Cockpit directory, so every source around this one misses
         // them entirely and their card never appears.
@@ -42,6 +48,65 @@ extension LiveUsageDataSource {
             : "antigravity auth failed"
         return unavailableService(name: "Antigravity", iconName: "antigravity", models: defaults, note: note)
     }
+    /// Prompt-free statusLine input, fresh for 30 minutes like Claude's hook. The map/field names
+    /// come from https://antigravity.google/docs/cli/statusline/; bucket-to-family mappings come
+    /// from the existing /usage fixtures (3p is the shared Claude/GPT group). No real statusLine
+    /// capture was available to verify this shape. Unknown IDs and absent fractions are omitted,
+    /// never turned into an exhausted window or guessed from the time left until reset.
+    func readAntigravityHookUsage(maxAge: TimeInterval = 30 * 60,
+                                 path: String = AntigravityStatusLineHook().usageURL.path,
+                                 now: Date = Date()) -> ServiceStatus? {
+        let url = URL(fileURLWithPath: path)
+        guard let values = try? url.resourceValues(forKeys: [.contentModificationDateKey]),
+              let captured = values.contentModificationDate,
+              now.timeIntervalSince(captured) >= 0, now.timeIntervalSince(captured) <= maxAge,
+              let data = try? Data(contentsOf: url),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let quota = root["quota"] as? [String: Any] else { return nil }
+
+        func number(_ raw: Any?) -> Double? {
+            if let value = raw as? NSNumber, CFGetTypeID(value) == CFBooleanGetTypeID() { return nil }
+            guard let value = doubleValue(raw), value.isFinite else { return nil }
+            return value
+        }
+
+        let families = [("Gemini", ["gemini"]), ("Claude", ["3p", "claude"]), ("Gemini 4 Argon", ["argon"])]
+        let windows = [("5h", ["5h", "five-hour"]), ("weekly", ["weekly", "7d", "seven-day"])]
+        var groups: [[String: Any]] = []
+        for (family, prefixes) in families {
+            var buckets: [[String: Any]] = []
+            for (window, suffixes) in windows {
+                var candidates: [(fraction: Double, reset: Date?)] = []
+                for prefix in prefixes {
+                    for suffix in suffixes {
+                        guard let bucket = quota["\(prefix)-\(suffix)"] as? [String: Any],
+                              bucket["disabled"] as? Bool != true,
+                              let fraction = number(bucket["remaining_fraction"]) else { continue }
+                        let absolute = (bucket["reset_time"] as? String).flatMap { parseISO8601($0) }
+                        // Relative resets belong to the capture time, not each later poll.
+                        let relative = number(bucket["reset_in_seconds"]).flatMap {
+                            $0 >= 0 ? captured.addingTimeInterval($0) : nil
+                        }
+                        let reset = absolute ?? relative
+                        guard reset == nil || reset! > now else { continue }
+                        candidates.append((fraction, reset))
+                    }
+                }
+                // Aliases for the same family/window must not produce duplicate rows.
+                guard let best = candidates.min(by: { $0.fraction < $1.fraction }) else { continue }
+                var bucket: [String: Any] = ["id": window, "remaining_fraction": best.fraction]
+                if let reset = best.reset { bucket["reset_time"] = ISO8601DateFormatter().string(from: reset) }
+                buckets.append(bucket)
+            }
+            groups.append(["name": family, "buckets": buckets])
+        }
+        let models = antigravityQuotaSummaryRows(groups: groups)
+        guard !models.isEmpty else { return nil }
+        return ServiceStatus(name: "Antigravity", iconName: "antigravity",
+                             sessionResetAt: models.compactMap(\.resetAt).min(), weeklyResetAt: nil,
+                             models: models, isAvailable: true, statusNote: "antigravity cli")
+    }
+
     /// Antigravity's own CLI: `agy -p /usage` prints the same grouped buckets the IDE's quota page
     /// shows. It authenticates with the token it holds in-process, so unlike every other source here
     /// there is no CSRF token to scrape, no Cockpit directory to read and no credential for Mimir to

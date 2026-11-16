@@ -16,6 +16,14 @@ struct CodexStatusLineHook {
     }
 
     static let limitItems = ["five-hour-limit", "weekly-limit"]
+    /// Each extra login owns its backup and undo state, using exactly the primary home's rules.
+    static func wireExtraDirs(_ on: Bool, accounts: [ExtraAccount] = ExtraAccount.codex) {
+        for account in accounts {
+            let hook = Self(directory: account.dir)
+            if on { hook.enable() } else { hook.disable() }
+        }
+    }
+
     // Item IDs verified in tui/src/bottom_pane/status_line_setup.rs at rust-v0.169.0;
     // the absent-setting defaults are documented in that tag's config/src/types.rs (Tui).
     // https://github.com/openai/codex/blob/rust-v0.169.0/codex-rs/config/src/types.rs
