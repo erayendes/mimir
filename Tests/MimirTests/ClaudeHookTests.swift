@@ -22,14 +22,26 @@ final class ClaudeHookTests: XCTestCase {
         XCTAssertEqual(parsed?.seven?.reset, Date(timeIntervalSince1970: 1_700_600_000))
     }
 
-    /// #111: the fresh hook has no five-hour window (Ultra loses it after verification); an older
-    /// cache's copy must not bring it back as a full window. The weekly one still refills as before.
-    func testHookWithoutFiveHourDoesNotResurrectItFromCache() {
+    /// #111: a five-hour window the fresh hook left out has reset — refilled to 100% on a normal
+    /// account, but not rebuilt from an older cache on Ultra (it loses the window after
+    /// verification). The weekly one refills either way.
+    func testHookWithoutFiveHourRefillsItUnlessUltra() {
         let cached: [String: Any] = ["five_hour": ["utilization": 40.0], "seven_day": ["utilization": 30.0]]
-        let fiveGone = LiveUsageDataSource().claudeCardFromHook((five: nil, seven: (used: 12, reset: nil)), cached: cached)
-        XCTAssertNil(fiveGone.sessionRemainingPercent)
-        XCTAssertNotNil(fiveGone.weeklyRemainingPercent)
-        let sevenGone = LiveUsageDataSource().claudeCardFromHook((five: (used: 5, reset: nil), seven: nil), cached: cached)
+        let source = LiveUsageDataSource()
+        for plan: String? in [nil, "Pro", "Max", "Team"] {
+            let card = source.claudeCardFromHook((five: nil, seven: (used: 12, reset: nil)), cached: cached, plan: plan)
+            XCTAssertEqual(card.sessionRemainingPercent, 100, "plan: \(String(describing: plan))")
+            XCTAssertNotNil(card.weeklyRemainingPercent)
+        }
+        let ultra = source.claudeCardFromHook((five: nil, seven: (used: 12, reset: nil)), cached: cached, plan: "Ultra")
+        XCTAssertNil(ultra.sessionRemainingPercent)
+        XCTAssertNotNil(ultra.weeklyRemainingPercent)
+        // A cache whose answer already had the five-hour window null never grows one back.
+        let noFive = source.claudeCardFromHook((five: nil, seven: (used: 12, reset: nil)),
+                                               cached: ["five_hour": NSNull(), "seven_day": ["utilization": 30.0]],
+                                               plan: "Max")
+        XCTAssertNil(noFive.sessionRemainingPercent)
+        let sevenGone = source.claudeCardFromHook((five: (used: 5, reset: nil), seven: nil), cached: cached, plan: "Ultra")
         XCTAssertEqual(sevenGone.weeklyRemainingPercent, 100)
     }
 

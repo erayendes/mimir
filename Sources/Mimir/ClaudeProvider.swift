@@ -185,7 +185,8 @@ extension LiveUsageDataSource {
         // any live-fetch failure) stays fresh instead of falling to "open Mimir to refresh". Fresher
         // than the 24h cache/snapshot below, so it wins.
         if let hook = readClaudeHookUsage(maxAge: 30 * 60) {
-            let card = claudeCardFromHook(hook, cached: readClaudeUsageCache(maxAge: 24 * 60 * 60) ?? [:])
+            let card = claudeCardFromHook(hook, cached: readClaudeUsageCache(maxAge: 24 * 60 * 60) ?? [:],
+                                          plan: Self.claudeAccount(configFile: MimirStatusLineHook.claudeConfigFile)?.plan)
             saveSnapshot(card)
             return card
         }
@@ -706,7 +707,7 @@ extension LiveUsageDataSource {
     /// reset-classification, so carrying it would show that percent as current. Dropped, the window
     /// reads as 0% used, which after a reset is the truth.
     func claudeCardFromHook(_ hook: (five: (used: Double, reset: Date?)?, seven: (used: Double, reset: Date?)?),
-                            cached: [String: Any]) -> ServiceStatus {
+                            cached: [String: Any], plan: String? = nil) -> ServiceStatus {
         var root = cached
         let iso = ISO8601DateFormatter()
         func windowDict(_ w: (used: Double, reset: Date?)) -> [String: Any] {
@@ -714,14 +715,16 @@ extension LiveUsageDataSource {
             if let r = w.reset { d["resets_at"] = iso.string(from: r) }
             return d
         }
-        // A weekly window the account has but the hook left out has reset: it reads as refilled. One
-        // the account never had (a Team seat without a weekly limit) stays absent. The five-hour
-        // window is never resurrected from the older cache: an account can lose it outright (Ultra,
-        // after verification), and a cached copy would bring it back as a full 100% ghost.
+        // A window the account has but the hook left out has reset: it reads as refilled. One the
+        // account never had (a Team seat without a weekly limit) stays absent. Ultra loses the
+        // five-hour window outright after verification, so there an older cache's copy would come
+        // back as a full 100% ghost: its plan keeps the window from being rebuilt.
+        let hadFive = LiveUsageDataSource.claudeHasWindow(root, "five_hour")
+            && plan?.caseInsensitiveCompare("Ultra") != .orderedSame
         let hadSeven = LiveUsageDataSource.claudeHasWindow(root, "seven_day")
         for k in root.keys where k == "five_hour" || k.hasPrefix("five_hour_")
             || k == "seven_day" || k.hasPrefix("seven_day_") { root.removeValue(forKey: k) }
-        if let five = hook.five { root["five_hour"] = windowDict(five) }
+        if let five = hook.five { root["five_hour"] = windowDict(five) } else if hadFive { root["five_hour"] = ["utilization": 0.0] }
         if let seven = hook.seven { root["seven_day"] = windowDict(seven) } else if hadSeven { root["seven_day"] = ["utilization": 0.0] }
         return buildClaudeStatus(from: root, note: "statusline hook", live: true)
     }
