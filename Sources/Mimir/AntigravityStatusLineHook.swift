@@ -70,7 +70,7 @@ struct AntigravityStatusLineHook {
               | [(window("(^|[-_])(5h|five[-_]hour)$"; "5h"; $family)),
                  (window("(^|[-_])(weekly|7d|seven[-_]day)$"; "7d"; $family))] as $windows
               | select($windows | length > 0)
-              | ("Mimir  " + (if $model != "" then $model + "  " else "" end)) as $prefix
+              | (if $model != "" then $model + "  " else "" end) as $prefix
               | render($windows; $prefix; $terminal_width)
             ' 2>/dev/null
             """#

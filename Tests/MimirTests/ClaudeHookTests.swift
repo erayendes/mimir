@@ -151,6 +151,13 @@ final class ClaudeHookTests: XCTestCase {
             + (countdown.map { " " + $0 } ?? "") + (note.map { " " + $0 } ?? "")
     }
 
+    func testScriptLeadsWithTheModelNameWithoutItsEffort() throws {
+        let input = """
+        {"model":{"display_name":"Opus 5.5 (High)"},"rate_limits":{"five_hour":{"used_percentage":30}}}
+        """
+        XCTAssertEqual(try runScript(input: input), "Opus 5.5  \(expectedWindow("5h", 70))\n")
+    }
+
     func testScriptBodyAlwaysSavesUsageAndChainsWhenGiven() {
         let chained = MimirStatusLineHook.scriptBody(chained: "bash \"/x/ponytail.sh\"")
         XCTAssertTrue(chained.contains("mimir-usage.json"))        // always saves the raw JSON
@@ -171,7 +178,7 @@ final class ClaudeHookTests: XCTestCase {
             {"rate_limits":{"five_hour":{"used_percentage":\(used)},"seven_day":{"used_percentage":81.5}}}
             """
             XCTAssertEqual(try runScript(input: input),
-                           "Mimir  \(expectedWindow("5h", remaining))  ·  \(expectedWindow("7d", 19))\n",
+                           "\(expectedWindow("5h", remaining))  ·  \(expectedWindow("7d", 19))\n",
                            "used_percentage = \(used)")
             XCTAssertEqual(source.remainingPercent(fromUsed: used), remaining)
         }
@@ -181,12 +188,12 @@ final class ClaudeHookTests: XCTestCase {
         for (remaining, color) in [(40, 32), (39, 33), (10, 33), (9, 31)] {
             let input = "{\"rate_limits\":{\"five_hour\":{\"used_percentage\":\(100 - remaining)}}}"
             let actual = try runScript(input: input)
-            let expected = "Mimir  \(expectedWindow("5h", remaining))\n"
+            let expected = "\(expectedWindow("5h", remaining))\n"
             XCTAssertEqual(Data(actual.utf8), Data(expected.utf8), "remaining = \(remaining), ANSI = \(color)")
         }
         let input = #"{"rate_limits":{"five_hour":{"used_percentage":30}}}"#
         XCTAssertEqual(Data(try runScript(input: input).utf8),
-                       Data("Mimir  5h \u{1B}[32m███████\u{1B}[0m\u{1B}[2m░░░\u{1B}[0m \u{1B}[32m70%\u{1B}[0m\n".utf8))
+                       Data("5h \u{1B}[32m███████\u{1B}[0m\u{1B}[2m░░░\u{1B}[0m \u{1B}[32m70%\u{1B}[0m\n".utf8))
     }
 
     func testScriptRoundsBarFromUnroundedRemaining() throws {
@@ -194,19 +201,19 @@ final class ClaudeHookTests: XCTestCase {
             let input = "{\"rate_limits\":{\"five_hour\":{\"used_percentage\":\(used)}}}"
             let bar = "\u{1B}[32m" + String(repeating: "█", count: filled) + "\u{1B}[0m"
                 + "\u{1B}[2m" + String(repeating: "░", count: 10 - filled) + "\u{1B}[0m"
-            let expected = "Mimir  5h \(bar) \u{1B}[32m75%\u{1B}[0m\n"
+            let expected = "5h \(bar) \u{1B}[32m75%\u{1B}[0m\n"
             XCTAssertEqual(Data(try runScript(input: input).utf8), Data(expected.utf8))
         }
     }
 
     func testScriptOmitsUnavailableWindows() throws {
         let cases = [
-            (#"{"rate_limits":{"five_hour":{"used_percentage":0}}}"#, "Mimir  \(expectedWindow("5h", 100))\n"),
-            (#"{"rate_limits":{"seven_day":{"used_percentage":100}}}"#, "Mimir  \(expectedWindow("7d", 0))\n"),
-            (#"{"rate_limits":{"five_hour":null,"seven_day":{"used_percentage":33}}}"#, "Mimir  \(expectedWindow("7d", 67))\n"),
-            (#"{"rate_limits":{"five_hour":{},"seven_day":{"used_percentage":33}}}"#, "Mimir  \(expectedWindow("7d", 67))\n"),
-            (#"{"rate_limits":{"five_hour":{"used_percentage":null},"seven_day":{"used_percentage":"12"}}}"#, "Mimir  \(expectedWindow("7d", 88))\n"),
-            (#"{"rate_limits":{"five_hour":{"used_percentage":"unknown"},"seven_day":{"used_percentage":33}}}"#, "Mimir  \(expectedWindow("7d", 67))\n"),
+            (#"{"rate_limits":{"five_hour":{"used_percentage":0}}}"#, "\(expectedWindow("5h", 100))\n"),
+            (#"{"rate_limits":{"seven_day":{"used_percentage":100}}}"#, "\(expectedWindow("7d", 0))\n"),
+            (#"{"rate_limits":{"five_hour":null,"seven_day":{"used_percentage":33}}}"#, "\(expectedWindow("7d", 67))\n"),
+            (#"{"rate_limits":{"five_hour":{},"seven_day":{"used_percentage":33}}}"#, "\(expectedWindow("7d", 67))\n"),
+            (#"{"rate_limits":{"five_hour":{"used_percentage":null},"seven_day":{"used_percentage":"12"}}}"#, "\(expectedWindow("7d", 88))\n"),
+            (#"{"rate_limits":{"five_hour":{"used_percentage":"unknown"},"seven_day":{"used_percentage":33}}}"#, "\(expectedWindow("7d", 67))\n"),
             (#"{"rate_limits":{}}"#, ""),
             (#"{"rate_limits":null}"#, ""),
             (#"{"model":{"display_name":"Opus"}}"#, ""),
@@ -231,7 +238,7 @@ final class ClaudeHookTests: XCTestCase {
             {"rate_limits":{"five_hour":{"used_percentage":30,"resets_at":\(five)},
               "seven_day":{"used_percentage":\(100 - remaining),"resets_at":\(week)}}}
             """
-            let expected = "Mimir  \(expectedWindow("5h", 70)) 2h15m  ·  "
+            let expected = "\(expectedWindow("5h", 70)) 2h15m  ·  "
                 + markedWindow("7d", remaining, marker: 4,
                                color: remaining >= 40 ? 32 : 33, countdown: "3d4h") + "\n"
             XCTAssertEqual(Data(try runScript(input: input, clock: now).utf8), Data(expected.utf8),
@@ -248,11 +255,11 @@ final class ClaudeHookTests: XCTestCase {
             """
             let input = "{\"rate_limits\":{\"seven_day\":{\"used_percentage\":50,\"resets_at\":\(reset)}}}"
             XCTAssertEqual(try runScript(input: input, pace: pace, clock: now),
-                           "Mimir  " + markedWindow("7d", 50, marker: marker, countdown: "3d") + "\n")
+                           "" + markedWindow("7d", 50, marker: marker, countdown: "3d") + "\n")
         }
         let early = now + 7 * 86400 - 3600
         let input = "{\"rate_limits\":{\"seven_day\":{\"used_percentage\":50,\"resets_at\":\(early)}}}"
-        XCTAssertEqual(try runScript(input: input, clock: now), "Mimir  \(expectedWindow("7d", 50)) 6d23h\n")
+        XCTAssertEqual(try runScript(input: input, clock: now), "\(expectedWindow("7d", 50)) 6d23h\n")
     }
 
     func testFreshPaceOverridesColorAndAppendsRedNoteButStaleFallsBack() throws {
@@ -262,10 +269,10 @@ final class ClaudeHookTests: XCTestCase {
         func pace(_ written: Int, _ resetAt: Int) -> String {
             "{\"windows\":{\"seven_day\":{\"tone\":\"red\",\"idealPercent\":80,\"note\":\"~2 gün kotasız\",\"resetAt\":\(resetAt),\"writtenAt\":\(written)}}}"
         }
-        let fresh = "Mimir  " + markedWindow("7d", 70, marker: 8, color: 31,
+        let fresh = "" + markedWindow("7d", 70, marker: 8, color: 31,
                                                countdown: "3d4h", note: "~2 gün kotasız") + "\n"
         XCTAssertEqual(Data(try runScript(input: input, pace: pace(now, reset), clock: now).utf8), Data(fresh.utf8))
-        let fallback = "Mimir  " + markedWindow("7d", 70, marker: 4, countdown: "3d4h") + "\n"
+        let fallback = "" + markedWindow("7d", 70, marker: 4, countdown: "3d4h") + "\n"
         for file in [nil, pace(now - 1801, reset), pace(now, reset + 3600)] {
             XCTAssertEqual(Data(try runScript(input: input, pace: file, clock: now).utf8), Data(fallback.utf8))
         }
@@ -275,22 +282,22 @@ final class ClaudeHookTests: XCTestCase {
         let now = 2_000_000_000
         let input = "{\"rate_limits\":{\"five_hour\":{\"used_percentage\":60,\"resets_at\":\(now + 45 * 60)},\"seven_day\":{\"used_percentage\":60,\"resets_at\":\(now - 1)}}}"
         XCTAssertEqual(try runScript(input: input, clock: now),
-                       "Mimir  \(expectedWindow("5h", 40)) 45m  ·  \(expectedWindow("7d", 40))\n")
+                       "\(expectedWindow("5h", 40)) 45m  ·  \(expectedWindow("7d", 40))\n")
     }
 
     func testClaudeWidthDropsCountdownsThenBars() throws {
         let now = 2_000_000_000
         let input = "{\"rate_limits\":{\"five_hour\":{\"used_percentage\":30,\"resets_at\":\(now + 8100)},\"seven_day\":{\"used_percentage\":60,\"resets_at\":\(now + 3 * 86400 + 4 * 3600)}}}"
-        let bare = "Mimir  5h ██████████ 70%  ·  7d ██████████ 40%"
-        let full = "Mimir  5h ██████████ 70% 2h15m  ·  7d ██████████ 40% 3d4h"
-        let bars = "Mimir  \(expectedWindow("5h", 70))  ·  "
+        let bare = "5h ██████████ 70%  ·  7d ██████████ 40%"
+        let full = "5h ██████████ 70% 2h15m  ·  7d ██████████ 40% 3d4h"
+        let bars = "\(expectedWindow("5h", 70))  ·  "
             + markedWindow("7d", 40, marker: 4) + "\n"
         XCTAssertEqual(try runScript(input: input, columns: full.count - 1, clock: now), bars)
-        let percent = "Mimir  5h \u{1B}[32m70%\u{1B}[0m  ·  7d \u{1B}[32m40%\u{1B}[0m\n"
+        let percent = "5h \u{1B}[32m70%\u{1B}[0m  ·  7d \u{1B}[32m40%\u{1B}[0m\n"
         XCTAssertEqual(Data(try runScript(input: input, columns: bare.count - 1, clock: now).utf8), Data(percent.utf8))
         let reset = now + 3 * 86400 + 4 * 3600
         let pace = "{\"windows\":{\"seven_day\":{\"tone\":\"red\",\"idealPercent\":80,\"note\":\"~2 gün kotasız\",\"resetAt\":\(reset),\"writtenAt\":\(now)}}}"
-        let withNote = "Mimir  5h \u{1B}[32m70%\u{1B}[0m  ·  7d \u{1B}[31m40%\u{1B}[0m ~2 gün kotasız\n"
+        let withNote = "5h \u{1B}[32m70%\u{1B}[0m  ·  7d \u{1B}[31m40%\u{1B}[0m ~2 gün kotasız\n"
         XCTAssertEqual(Data(try runScript(input: input, pace: pace, columns: bare.count - 1, clock: now).utf8),
                        Data(withNote.utf8))
     }

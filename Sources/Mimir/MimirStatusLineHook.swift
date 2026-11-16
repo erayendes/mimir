@@ -142,9 +142,11 @@ enum MimirStatusLineHook {
                 | {label: $label, percent: $percent, filled: $filled,
                    countdown: countdown($reset), tone: $entry.tone, note: $entry.note,
                    marker: (if $ideal == null then null else [9, ($ideal / 10 | floor)] | min | [0, .] | max end)};
-              [window(.rate_limits.five_hour; "5h"; null),
-               window(.rate_limits.seven_day; "7d"; "seven_day")]
-              | select(length > 0) | render(.; "Mimir  "; (try ($width | tonumber) catch null))
+              ((.model.display_name // .model.id // "") | sub(" \\([^()]*\\)$"; "")) as $model
+              | [window(.rate_limits.five_hour; "5h"; null),
+                 window(.rate_limits.seven_day; "7d"; "seven_day")]
+              | select(length > 0)
+              | render(.; (if $model != "" then $model + "  " else "" end); (try ($width | tonumber) catch null))
             ' 2>/dev/null
             """#
         }

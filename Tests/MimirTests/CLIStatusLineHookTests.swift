@@ -30,7 +30,7 @@ struct CLIStatusLineHookTests {
             percent.map { expectedWindow(label, $0, bars: bars) }
         }
         guard !windows.isEmpty else { return "" }
-        return "Mimir  " + (model.isEmpty ? "" : model + "  ") + windows.joined(separator: "  ·  ") + "\n"
+        return "" + (model.isEmpty ? "" : model + "  ") + windows.joined(separator: "  ·  ") + "\n"
     }
 
     private func withDirectory(_ body: (URL) throws -> Void) throws {
@@ -117,12 +117,12 @@ struct CLIStatusLineHookTests {
     @Test func agyDropsBarsOnlyWhenTerminalIsNarrow() throws {
         let quota = #""quota":{"gemini-5h":{"remaining_fraction":0.7},"gemini-weekly":{"remaining_fraction":0.4}}"#
         let prefix = "{\"model\":{\"display_name\":\"Gemini 3.8 Flash\"}," + quota
-        let fullWidth = "Mimir  Gemini 3.8 Flash  5h 70%  ·  7d 40%".count + 22
+        let fullWidth = "Gemini 3.8 Flash  5h 70%  ·  7d 40%".count + 22
         let full = try runAGY(input: prefix + ",\"terminal_width\":\(fullWidth)}")
         let narrow = try runAGY(input: prefix + ",\"terminal_width\":\(fullWidth - 1)}")
         #expect(Data(full.utf8) == Data(CLIStatusLineHookTests.expectedLine("Gemini 3.8 Flash", 70, 40).utf8))
         #expect(Data(narrow.utf8) == Data(CLIStatusLineHookTests.expectedLine("Gemini 3.8 Flash", 70, 40, bars: false).utf8))
-        #expect(Data(narrow.utf8) == Data("Mimir  Gemini 3.8 Flash  5h \u{1B}[32m70%\u{1B}[0m  ·  7d \u{1B}[32m40%\u{1B}[0m\n".utf8))
+        #expect(Data(narrow.utf8) == Data("Gemini 3.8 Flash  5h \u{1B}[32m70%\u{1B}[0m  ·  7d \u{1B}[32m40%\u{1B}[0m\n".utf8))
     }
 
     @Test func agyCountdownPaceAndWidthStages() throws {
@@ -133,24 +133,24 @@ struct CLIStatusLineHookTests {
         let input = "{" + quota + "}"
         let five = Self.expectedWindow("5h", 70)
         let week = Self.markedWeek(40, marker: 4, color: 32, countdown: " 3d4h")
-        #expect(Data(try runAGY(input: input, clock: now).utf8) == Data("Mimir  gemini  \(five) 2h15m  ·  \(week)\n".utf8))
+        #expect(Data(try runAGY(input: input, clock: now).utf8) == Data("gemini  \(five) 2h15m  ·  \(week)\n".utf8))
 
         let pace = "{\"windows\":{\"gemini\":{\"tone\":\"red\",\"idealPercent\":80,\"note\":\"~2 gün kotasız\",\"resetAt\":\(reset),\"writtenAt\":\(now)}}}"
-        let red = "Mimir  gemini  \(five) 2h15m  ·  "
+        let red = "gemini  \(five) 2h15m  ·  "
             + Self.markedWeek(40, marker: 8, color: 31, countdown: " 3d4h", note: " ~2 gün kotasız") + "\n"
         #expect(Data(try runAGY(input: input, pace: pace, clock: now).utf8) == Data(red.utf8))
         let stale = pace.replacingOccurrences(of: "\"writtenAt\":\(now)", with: "\"writtenAt\":\(now - 1801)")
         #expect(Data(try runAGY(input: input, pace: stale, clock: now).utf8)
-                == Data("Mimir  gemini  \(five) 2h15m  ·  \(week)\n".utf8))
+                == Data("gemini  \(five) 2h15m  ·  \(week)\n".utf8))
 
-        let noCountdown = "Mimir  gemini  5h ██████████ 70%  ·  7d ██████████ 40%"
-        let full = "Mimir  gemini  5h ██████████ 70% 2h15m  ·  7d ██████████ 40% 3d4h"
+        let noCountdown = "gemini  5h ██████████ 70%  ·  7d ██████████ 40%"
+        let full = "gemini  5h ██████████ 70% 2h15m  ·  7d ██████████ 40% 3d4h"
         let barsInput = "{" + quota + ",\"terminal_width\":\(full.count - 1)}"
         #expect(Data(try runAGY(input: barsInput, clock: now).utf8)
-                == Data("Mimir  gemini  \(five)  ·  \(Self.markedWeek(40, marker: 4, color: 32))\n".utf8))
+                == Data("gemini  \(five)  ·  \(Self.markedWeek(40, marker: 4, color: 32))\n".utf8))
         let narrowInput = "{" + quota + ",\"terminal_width\":\(noCountdown.count - 1)}"
         #expect(Data(try runAGY(input: narrowInput, clock: now).utf8)
-                == Data("Mimir  gemini  5h \u{1B}[32m70%\u{1B}[0m  ·  7d \u{1B}[32m40%\u{1B}[0m\n".utf8))
+                == Data("gemini  5h \u{1B}[32m70%\u{1B}[0m  ·  7d \u{1B}[32m40%\u{1B}[0m\n".utf8))
     }
 
     @Test(arguments: [(0.745, 7), (0.75, 8)])
@@ -158,7 +158,7 @@ struct CLIStatusLineHookTests {
         let input = "{\"quota\":{\"gemini-5h\":{\"remaining_fraction\":\(fraction)}}}"
         let bar = "\u{1B}[32m" + String(repeating: "█", count: filled) + "\u{1B}[0m"
             + "\u{1B}[2m" + String(repeating: "░", count: 10 - filled) + "\u{1B}[0m"
-        let expected = "Mimir  5h \(bar) \u{1B}[32m75%\u{1B}[0m\n"
+        let expected = "5h \(bar) \u{1B}[32m75%\u{1B}[0m\n"
         #expect(Data(try runAGY(input: input).utf8) == Data(expected.utf8))
     }
 
