@@ -8,7 +8,34 @@
     <description>Mimir update feed</description>
     <language>en</language>
 
-                                                                                    <item>
+                                                                                        <item>
+      <title>Mimir 3.2-beta.6</title>
+      <sparkle:channel>beta</sparkle:channel>
+      <sparkle:version>300199006</sparkle:version>
+      <sparkle:shortVersionString>3.2-beta.6</sparkle:shortVersionString>
+      <pubDate>Mon, 16 Nov 2026 05:53:17 +0000</pubDate>
+      <description><![CDATA[
+<p>Antigravity's CLI status line now names the selected model, for example "Mimir  Gemini 3.8 Flash  5h 99%  ·  7d 99%". Gemini 4 Argon shows its own quota, and Claude and GPT-OSS models show the shared one.</p>
+<p>The agy status line also feeds the Antigravity card: while its data is under 30 minutes old, Mimir doesn't start another agy process. Codex's limit items are added to extra Codex accounts too.</p>
+<p>Antigravity: an empty model list no longer shows fake 0% rows; a missing group such as Argon is filled in from another source; an unfinished agy run is stopped after 45 seconds.</p>
+<p>Claude: a keychain entry with only an MCP login or an empty token no longer hides the valid login; reset rights are kept when Mimir falls back to another source; Ultra accounts no longer show a stray five-hour bar.</p>
+<p>When a reset is pushed later, the "quota renewed" notification moves with it instead of arriving early.</p>
+<hr>
+<p>Antigravity CLI'ının durum satırı artık seçili modelin adını gösteriyor; örneğin "Mimir  Gemini 3.8 Flash  5h 99%  ·  7d 99%". Gemini 4 Argon kendi kotasını, Claude ve GPT-OSS modelleri ortak kotayı gösteriyor.</p>
+<p>agy'nin durum satırı Antigravity kartını da besliyor: verisi 30 dakikadan yeniyken Mimir ayrıca agy çalıştırmıyor. Codex'in limit öğeleri ek Codex hesaplarına da ekleniyor.</p>
+<p>Antigravity: boş model listesi artık sahte %0 satırları göstermiyor; Argon gibi eksik bir grup başka kaynaktan tamamlanıyor; bitmeyen bir agy çalışması 45 saniye sonra durduruluyor.</p>
+<p>Claude: yalnızca MCP girişi ya da boş token içeren keychain kaydı artık geçerli girişi gizlemiyor; Mimir başka kaynağa geçtiğinde sıfırlama hakları korunuyor; Ultra hesaplarda fazladan beş saatlik çubuk görünmüyor.</p>
+<p>Sıfırlama ileri kayarsa "kota yenilendi" bildirimi de onunla birlikte kayıyor, erken gelmiyor.</p>
+      ]]></description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v3.2-beta.6/Mimir.zip"
+        sparkle:edSignature="prtR1V4QjI0oLDvhyOzOpPo7pH8NAookIS2PiJA/5GDUmAgsTYWJMzQ4ijUssyVpGsSTKjgbHrczGxlU2CA8AA=="
+        length="7134185"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 3.2-beta.5</title>
       <sparkle:channel>beta</sparkle:channel>
       <sparkle:version>300199005</sparkle:version>
