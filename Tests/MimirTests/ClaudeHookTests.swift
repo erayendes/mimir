@@ -306,6 +306,12 @@ final class ClaudeHookTests: XCTestCase {
         let unchanged = "Opus 5.5  \(five)  ·  "
             + markedWindow("7d", 80, marker: 6, color: 33, countdown: "3d4h") + "\n"
         XCTAssertEqual(try runScript(input: opus, pace: file(now), clock: now), unchanged)
+
+        // First day of Fable's window: its own numbers, no ideal mark.
+        let early = "{\"windows\":{\"seven_day_fable\":{\"remainingPercent\":100,\"tone\":\"green\",\"resetAt\":\(fableReset),\"writtenAt\":\(now)}}}"
+        let fable = "{\"model\":{\"id\":\"claude-fable-5-2\",\"display_name\":\"Fable 5.2\"},\(limits)}"
+        XCTAssertEqual(try runScript(input: fable, pace: early, clock: now),
+                       "Fable 5.2  \(five)  ·  \(expectedWindow("7d", 100)) 2d\n")
     }
 
     func testMinuteCountdownAndExpiredReset() throws {

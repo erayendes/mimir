@@ -22,7 +22,7 @@ enum StatusLineRendering {
              and $item.writtenAt <= $now and $now - $item.writtenAt < 1800
              and ($item.resetAt | type) == "number"
              and (["green", "amber", "red"] | index($item.tone)) != null
-             and ($item.idealPercent | type) == "number";
+             and (($item.idealPercent | type) == "number" or $item.idealPercent == null);
       def pace($key; $reset):
         ($pace | try fromjson catch {}) as $file
         | ($file.windows[$key] // null) as $item

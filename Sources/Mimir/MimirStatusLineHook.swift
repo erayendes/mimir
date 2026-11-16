@@ -149,7 +149,7 @@ enum MimirStatusLineHook {
                     | {label: "7d", percent: $percent,
                        filled: (($percent / 10 + 0.5) | floor),
                        countdown: countdown($entry.resetAt), tone: $entry.tone, note: $entry.note,
-                       marker: ([9, ($entry.idealPercent / 10 | floor)] | min | [0, .] | max)}
+                       marker: (if $entry.idealPercent == null then null else [9, ($entry.idealPercent / 10 | floor)] | min | [0, .] | max end)}
                   end;
               ((.model.display_name // .model.id // "") | sub(" \\([^()]*\\)$"; "")) as $model
               | ((.model.id // "" | tostring | ascii_downcase | contains("fable"))
