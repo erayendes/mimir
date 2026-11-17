@@ -8,7 +8,32 @@
     <description>Mimir update feed</description>
     <language>en</language>
 
-                                                                                        <item>
+                                                                                            <item>
+      <title>Mimir 3.2-beta.7</title>
+      <sparkle:channel>beta</sparkle:channel>
+      <sparkle:version>300199007</sparkle:version>
+      <sparkle:shortVersionString>3.2-beta.7</sparkle:shortVersionString>
+      <pubDate>Tue, 17 Nov 2026 16:08:59 +0000</pubDate>
+      <description><![CDATA[
+<p>The status line in Claude Code and Antigravity's `agy` now draws a coloured 10-cell bar for each window, with the time left until it resets: `Opus 5.5  5h ███████░░░ 70% 2h15m  ·  7d ███░░│░░░░ 25% 3d4h`. The line starts with the selected model's name instead of "Mimir".</p>
+<p>The weekly part follows Mimir's own pace: green, amber or red, a red note saying how long you'd go without quota, and a thin white mark where you should be at an even pace (not in the window's first day). In a narrow terminal the countdowns go first, then the bars.</p>
+<p>With Fable selected in Claude Code, the 7-day part shows Fable's own weekly quota instead of the all-models one.</p>
+<p>Opening Mimir no longer runs `claude doctor` for a grey Claude card. Claude Code renewed its login there and dropped Mimir's keychain access with it, so the macOS keychain password prompt came back several times a day. A grey Claude card now refreshes the next time you use Claude Code.</p>
+<hr>
+<p>Claude Code'un ve Antigravity'nin `agy`'sinin durum satırı artık her pencere için renkli, 10 hücrelik bir çubuk ve sıfırlanmaya kalan süreyi gösteriyor: `Opus 5.5  5h ███████░░░ 70% 2h15m  ·  7d ███░░│░░░░ 25% 3d4h`. Satır "Mimir" yerine seçili modelin adıyla başlıyor.</p>
+<p>Haftalık kısım Mimir'in temposuna uyuyor: yeşil, amber ya da kırmızı; kırmızıda ne kadar kotasız kalınacağını söyleyen bir not; eşit tempoda olmanız gereken yerde ince beyaz bir çizgi (pencerenin ilk gününde yok). Dar terminalde önce geri sayımlar, sonra çubuklar kalkıyor.</p>
+<p>Claude Code'da Fable seçiliyken 7 günlük kısım, tüm modellerinki yerine Fable'ın kendi haftalık kotasını gösteriyor.</p>
+<p>Mimir açılınca gri bir Claude kartı için artık `claude doctor` çalıştırmıyor. Claude Code orada girişini yeniliyor, Mimir'in anahtar zinciri iznini de siliyordu; bu yüzden macOS'in anahtar zinciri parola penceresi günde birkaç kez geri geliyordu. Gri Claude kartı artık Claude Code'u bir sonraki kullanışınızda yenileniyor.</p>
+      ]]></description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v3.2-beta.7/Mimir.zip"
+        sparkle:edSignature="NQLO3c8GlLM4JoczJ6w4dewngCnhOOVG+KtezTPvE0mZ/XwmzWC77xEBOiBsWPPMfgLMhtBM0zrg1olSlosyDA=="
+        length="7201772"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 3.2-beta.6</title>
       <sparkle:channel>beta</sparkle:channel>
       <sparkle:version>300199006</sparkle:version>
