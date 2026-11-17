@@ -54,7 +54,7 @@
 "out of date" = "out of date";
 "token expired — open Claude Code" = "token expired — open Claude Code";
 "claude token missing" = "claude token missing";
-"open Mimir to refresh Claude" = "open Mimir to refresh Claude";
+"open Claude Code to refresh Claude" = "open Claude Code to refresh Claude";
 "open Antigravity or Cockpit" = "open Antigravity or Cockpit";
 "no local source" = "no local source";
 

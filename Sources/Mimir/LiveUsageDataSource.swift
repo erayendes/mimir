@@ -24,31 +24,33 @@ final class UsageStore: ObservableObject {
 
     private static let dismissedKey = "popover.dismissedUnavailable"
 
-    /// When each card's login was last renewed, so a card that stays grey (no network, say, where
+    /// When each Codex login was last renewed, so a card that stays grey (no network, say, where
     /// renewing can't help) isn't renewed on every open.
     private var lastRenewal: [String: Date] = [:]
 
-    /// Opening Mimir renews any grey Claude/Codex card's login itself — the CLI's own `doctor`, at
-    /// most every 10 minutes per card — and reads again, the logo spinning throughout. Claude
-    /// Desktop's card is another account's claude.ai session: there is no CLI login to renew for it.
+    /// Opening Mimir renews grey Codex logins through the CLI's own `doctor`, at most every 10
+    /// minutes per card, then reads again with the logo spinning throughout.
+    static func loginsDueForRenewal(_ services: [ServiceStatus], lastRenewal: [String: Date],
+                                    now: Date) -> [ServiceStatus] {
+        services.filter { service in
+            service.isStale && service.providerTitle == "Codex"
+                && now.timeIntervalSince(lastRenewal[service.name] ?? .distantPast) >= 10 * 60
+        }
+    }
+
     private func renewStaleLogins(_ services: [ServiceStatus]) {
         let now = Date()
-        let due = services.filter { s in
-            s.isStale && ["Claude", "Codex"].contains(s.providerTitle)
-                && s.name != LiveUsageDataSource.claudeDesktopCardName
-                && now.timeIntervalSince(lastRenewal[s.name] ?? .distantPast) >= 10 * 60
-        }
+        let due = Self.loginsDueForRenewal(services, lastRenewal: lastRenewal, now: now)
         guard !due.isEmpty else { return }
-        let jobs = due.map { s -> (provider: String, dir: URL?) in
-            lastRenewal[s.name] = now
-            let extras = s.providerTitle == "Codex" ? ExtraAccount.codex : ExtraAccount.claude
-            return (s.providerTitle, extras.first { $0.name == s.name }?.dir)
+        let dirs = due.map { service -> URL? in
+            lastRenewal[service.name] = now
+            return ExtraAccount.codex.first { $0.name == service.name }?.dir
         }
         isRefreshing = true
         let source = source
         Task {
             await Task.detached(priority: .userInitiated) {
-                for job in jobs { source.renewLogin(provider: job.provider, dir: job.dir) }
+                for dir in dirs { source.renewCodexLogin(dir: dir) }
             }.value
             isRefreshing = false
             refresh(userInitiated: true)
@@ -590,17 +592,13 @@ struct LiveUsageDataSource {
         return ns.substring(with: m.range(at: 1))
     }
 
-    /// Mimir never refreshes a CLI's token itself — Claude Code's and Codex's refresh tokens are
-    /// single-use, and rotating one would log the CLI out. Their own `doctor` does: its auth check
-    /// renews an expired login and stores it where the CLI reads it (Codex's `auth.json`, Claude
-    /// Code's keychain item), so nothing is left holding the old token. Only when Mimir is opened,
+    /// Codex's own `doctor` renews an expired login in its `auth.json` when Mimir is opened,
     /// never on the timer. `dir` is a second login's config dir; nil is the main one.
-    func renewLogin(provider: String, dir: URL?) {
-        let (tool, variable) = provider == "Codex" ? ("codex", "CODEX_HOME") : ("claude", "CLAUDE_CONFIG_DIR")
-        let env = dir.map { "\(variable)='\($0.path.replacingOccurrences(of: "'", with: "'\\''"))' " } ?? ""
+    func renewCodexLogin(dir: URL?) {
+        let env = dir.map { "CODEX_HOME='\($0.path.replacingOccurrences(of: "'", with: "'\\''"))' " } ?? ""
         // `exec`, so the time limit stops doctor itself rather than only its shell. Without a limit
         // a doctor stuck on the network held `isRefreshing`, and no card refreshed until a relaunch.
-        _ = runShell("\(env)exec \(tool) doctor </dev/null >/dev/null 2>&1", timeout: 20)
+        _ = runShell("\(env)exec codex doctor </dev/null >/dev/null 2>&1", timeout: 20)
     }
 
     func runShell(_ script: String, timeout: TimeInterval? = nil) -> String {

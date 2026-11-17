@@ -27,7 +27,7 @@ public struct ProviderPayload: Codable, Equatable {
     // `fiveHour` labels are still carried so the rows know what to render.
     public var unavailable: Bool
     // Last-known reading shown while the live source is briefly unusable — e.g. Claude's access token
-    // expired and only a user-initiated refresh can renew it (Mimir won't rotate Claude Code's token).
+    // expired and Claude Code must renew it (Mimir won't rotate Claude Code's token).
     // The widget dims such rows and makes them tappable so a tap triggers that refresh in the host.
     public var isStale: Bool
     // The provider's own name ("Claude" for the second login stored as "Claude Work"), and the login

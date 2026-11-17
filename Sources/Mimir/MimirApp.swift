@@ -75,7 +75,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
                 AppTarget.open(provider)
             case .openSelfAndRefresh:
                 // A stale Claude/Codex widget was tapped: open our panel with a user-initiated
-                // refresh — the only path allowed to read Claude Code's keychain and renew the token.
+                // refresh, which may read Claude Code's keychain and renew stale Codex logins.
                 // Force the resulting payload write to reload the widget at once, so the tapped widget
                 // visibly refreshes even if the numbers come back unchanged.
                 WidgetBridge.forceReloadOnNextUpdate()

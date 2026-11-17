@@ -52,9 +52,9 @@
 
 /* Status notes */
 "out of date" = "güncel değil";
-"token expired — open Claude Code" = "token süresi doldu — Claude Code'u aç";
+"token expired — open Claude Code" = "token süresi doldu — Claude Code'u açın";
 "claude token missing" = "Claude token'ı bulunamadı";
-"open Mimir to refresh Claude" = "Claude'u yenilemek için Mimir'i aç";
+"open Claude Code to refresh Claude" = "Claude'u yenilemek için Claude Code'u açın";
 "open Antigravity or Cockpit" = "Antigravity veya Cockpit'i aç";
 "no local source" = "yerel kaynak yok";
 

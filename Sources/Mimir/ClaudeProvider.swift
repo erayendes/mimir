@@ -103,10 +103,10 @@ extension LiveUsageDataSource {
         if needsKeychain {
             guard let read = readClaudeTokenInfo(userInitiated: userInitiated && !hookFresh) else {
                 // No prompt-free source had a usable token. We deliberately did NOT read Claude
-                // Code's keychain item in the background; opening Mimir (a user action) will.
+                // Code's keychain item in the background; opening Mimir (a user action) may read it.
                 let note = userInitiated
                     ? String(localized: "claude token missing")
-                    : String(localized: "open Mimir to refresh Claude")
+                    : String(localized: "open Claude Code to refresh Claude")
                 return claudeFailure(note: note)
             }
             tokenInfo = read
@@ -182,7 +182,7 @@ extension LiveUsageDataSource {
                                expired: Bool = false) -> ServiceStatus {
         // Prompt-free statusLine hook first — the live session/weekly numbers Claude Code itself
         // renders, available without a token, so a background tick whose Mimir token cache expired (or
-        // any live-fetch failure) stays fresh instead of falling to "open Mimir to refresh". Fresher
+        // any live-fetch failure) stays fresh instead of showing the Claude Code prompt. Fresher
         // than the 24h cache/snapshot below, so it wins.
         if let hook = readClaudeHookUsage(maxAge: 30 * 60) {
             let card = claudeCardFromHook(hook, cached: readClaudeUsageCache(maxAge: 24 * 60 * 60) ?? [:],
@@ -191,8 +191,8 @@ extension LiveUsageDataSource {
             return card
         }
         let card = claudeLastKnown(note: note, staleNote: staleNote)
-        // An expired login can't refresh these numbers until it is renewed: grey, so opening Mimir
-        // renews it, however much of the windows is still left.
+        // An expired login can't refresh these numbers until Claude Code renews it: grey, however
+        // much of the windows is still left.
         return expired && card.isAvailable ? card.markedStale(staleNote) : card
     }
 
@@ -639,7 +639,7 @@ extension LiveUsageDataSource {
         }
         let note = expired ? String(localized: "token expired — open Claude Code") : String(localized: "out of date")
         let snapshot = loadSnapshot(for: name, iconName: "claude", staleNote: note)
-        // An expired login can't refresh these numbers: grey, so opening Mimir renews it.
+        // An expired login can't refresh these numbers: grey until Claude Code renews it.
         return (expired ? snapshot?.markedStale(note) : snapshot)
             ?? unavailableService(name: name, iconName: "claude", models: [])
     }
