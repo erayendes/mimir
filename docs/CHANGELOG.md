@@ -9,6 +9,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [3.2-beta.7] - 2026-11-17
+
+The status line in Claude Code and Antigravity's `agy` now draws a coloured 10-cell bar for each window, with the time left until it resets: `Opus 5.5  5h ███████░░░ 70% 2h15m  ·  7d ███░░│░░░░ 25% 3d4h`. The line starts with the selected model's name instead of "Mimir".
+
+The weekly part follows Mimir's own pace: green, amber or red, a red note saying how long you'd go without quota, and a thin white mark where you should be at an even pace (not in the window's first day). In a narrow terminal the countdowns go first, then the bars.
+
+With Fable selected in Claude Code, the 7-day part shows Fable's own weekly quota instead of the all-models one.
+
+Opening Mimir no longer runs `claude doctor` for a grey Claude card. Claude Code renewed its login there and dropped Mimir's keychain access with it, so the macOS keychain password prompt came back several times a day. A grey Claude card now refreshes the next time you use Claude Code.
+
 ### [3.2-beta.6] - 2026-11-16
 
 Antigravity's CLI status line now names the selected model, for example "Mimir  Gemini 3.8 Flash  5h 99%  ·  7d 99%". Gemini 4 Argon shows its own quota, and Claude and GPT-OSS models show the shared one.
@@ -730,6 +740,16 @@ Bu projedeki tüm önemli değişiklikler bu dosyada belgelenecektir.
 
 Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
+
+### [3.2-beta.7] - 2026-11-17
+
+Claude Code'un ve Antigravity'nin `agy`'sinin durum satırı artık her pencere için renkli, 10 hücrelik bir çubuk ve sıfırlanmaya kalan süreyi gösteriyor: `Opus 5.5  5h ███████░░░ 70% 2h15m  ·  7d ███░░│░░░░ 25% 3d4h`. Satır "Mimir" yerine seçili modelin adıyla başlıyor.
+
+Haftalık kısım Mimir'in temposuna uyuyor: yeşil, amber ya da kırmızı; kırmızıda ne kadar kotasız kalınacağını söyleyen bir not; eşit tempoda olmanız gereken yerde ince beyaz bir çizgi (pencerenin ilk gününde yok). Dar terminalde önce geri sayımlar, sonra çubuklar kalkıyor.
+
+Claude Code'da Fable seçiliyken 7 günlük kısım, tüm modellerinki yerine Fable'ın kendi haftalık kotasını gösteriyor.
+
+Mimir açılınca gri bir Claude kartı için artık `claude doctor` çalıştırmıyor. Claude Code orada girişini yeniliyor, Mimir'in anahtar zinciri iznini de siliyordu; bu yüzden macOS'in anahtar zinciri parola penceresi günde birkaç kez geri geliyordu. Gri Claude kartı artık Claude Code'u bir sonraki kullanışınızda yenileniyor.
 
 ### [3.2-beta.6] - 2026-11-16
 

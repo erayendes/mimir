@@ -206,10 +206,10 @@ Mimir shows group-based quotas for **Antigravity**. Antigravity no longer manage
 One right-click toggle, **Prompt-free Claude tracking**, wires your quota into each CLI's status line and removes it again when turned off. Every file Mimir edits is backed up before its first write.
 
 ```
-Mimir  5h 77%  ·  7d 41%
+Opus 5.5  5h ███████░░░ 70% 2h15m  ·  7d ███░░│░░░░ 25% 3d4h ~2 days without quota
 ```
 
-The numbers are **remaining** percentages; a window the session doesn't report is left out.
+The line starts with the selected model's name. Each window shows a 10-cell bar, the **remaining** percentage and the time until it resets; a window the session doesn't report is left out. Colours follow the app: green, amber, red by the weekly pace Mimir computes, with the red note saying how long you'd go without quota. The thin white mark on the weekly bar is where you should be at an even pace; it is left out in a window's first day. In a narrow terminal the countdowns go first, then the bars. With Fable selected in Claude Code, the 7-day part shows Fable's own weekly quota.
 
 - **Claude Code** — the hook in `settings.json` ([data source 3](#claude)) prints this line and saves the session JSON. Extra Claude accounts (e.g. `~/.claude-work`) get it too. The visible line needs `jq`; saving works without it.
 - **Antigravity (`agy`)** — a `statusLine` command in `~/.gemini/antigravity-cli/settings.json` prints the same line for the current model's family and saves `agy`'s quota JSON to `mimir-usage.json` next to it (a private file), which then [feeds the Antigravity card](#antigravity). An existing `statusLine` command is chained, not replaced; the original settings come back when you turn it off.
@@ -483,10 +483,10 @@ Mimir, **Antigravity** için grup bazlı kotaları gösterir. Antigravity kotay�
 Sağ tık menüsündeki tek anahtar, **Parolasız Claude takibi**, kotanızı her CLI'ın durum satırına bağlar; kapatınca geri alır. Mimir'in düzenlediği her dosya ilk yazımdan önce yedeklenir.
 
 ```
-Mimir  5h 77%  ·  7d 41%
+Opus 5.5  5h ███████░░░ 70% 2h15m  ·  7d ███░░│░░░░ 25% 3d4h ~2 gün kotasız
 ```
 
-Sayılar **kalan** yüzdelerdir; oturumun bildirmediği pencere satıra konmaz.
+Satır seçili modelin adıyla başlar. Her pencerede 10 hücrelik bir çubuk, **kalan** yüzde ve sıfırlanmaya kalan süre yer alır; oturumun bildirmediği pencere satıra konmaz. Renkler uygulamadakiyle aynıdır: Mimir'in hesapladığı haftalık tempoya göre yeşil, amber, kırmızı; kırmızıda not, ne kadar kotasız kalınacağını söyler. Haftalık çubuktaki ince beyaz çizgi, eşit tempoda olmanız gereken yerdir; pencerenin ilk gününde gösterilmez. Dar terminalde önce geri sayımlar, sonra çubuklar kalkar. Claude Code'da Fable seçiliyken 7 günlük kısım Fable'ın kendi haftalık kotasını gösterir.
 
 - **Claude Code** — `settings.json` içindeki kanca ([3. veri kaynağı](#claude-1)) bu satırı basar ve oturum JSON'unu kaydeder. Ek Claude hesaplarına (örn. `~/.claude-work`) da kurulur. Görünen satır için `jq` gerekir; kayıt onsuz da çalışır.
 - **Antigravity (`agy`)** — `~/.gemini/antigravity-cli/settings.json` içindeki bir `statusLine` komutu aynı satırı o anki modelin ailesi için basar ve `agy`'nin kota JSON'unu yanındaki `mimir-usage.json` dosyasına (yalnızca sizin okuyabileceğiniz bir dosya) kaydeder; bu kayıt [Antigravity kartını besler](#antigravity-1). Mevcut bir `statusLine` komutu silinmez, zincire eklenir; anahtarı kapatınca eski ayarlar geri gelir.
