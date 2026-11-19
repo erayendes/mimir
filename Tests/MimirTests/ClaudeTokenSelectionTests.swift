@@ -2,15 +2,34 @@ import XCTest
 @testable import Mimir
 
 /// `selectClaudeToken` encodes the prompt-free-first sourcing rules: file → Mimir's own (still-valid)
-/// cache → a SILENT keychain read (no dialog; works only once Mimir has been granted) → the one-time
-/// GRANT keychain read (may show the dialog, so user-action only). The load-bearing checks are the
-/// laziness ones: a prompt-free source short-circuits the rest, and the *prompting* keychain is never
-/// reached in the background.
+/// cache → a silent keychain read → a user-action keychain read (only its in-process fallback may
+/// show the dialog). The load-bearing checks are the laziness ones: earlier sources short-circuit
+/// the rest, and the interactive fallback is never reached in the background.
 final class ClaudeTokenSelectionTests: XCTestCase {
     private typealias Token = LiveUsageDataSource.ClaudeToken
     private let now = Date(timeIntervalSince1970: 1_000_000)
     private func token(_ id: String, expiresInSeconds: TimeInterval?) -> Token {
         Token(accessToken: id, expiresAt: expiresInSeconds.map { now.addingTimeInterval($0) })
+    }
+
+    func testSecurityDataSkipsFallbackAndTrimsOnlyTrailingNewline() {
+        var fallbackCalled = false
+        let value = LiveUsageDataSource.claudeKeychainData(securityOutput: " secret \n") {
+            fallbackCalled = true
+            return "fallback"
+        }
+        XCTAssertEqual(value, " secret ")
+        XCTAssertFalse(fallbackCalled)
+    }
+
+    func testEmptySecurityDataUsesFallback() {
+        var fallbackCalled = false
+        let value = LiveUsageDataSource.claudeKeychainData(securityOutput: "\n") {
+            fallbackCalled = true
+            return "fallback"
+        }
+        XCTAssertEqual(value, "fallback")
+        XCTAssertTrue(fallbackCalled)
     }
 
     /// The file is the top prompt-free source and wins outright — no other source is invoked.
@@ -41,8 +60,7 @@ final class ClaudeTokenSelectionTests: XCTestCase {
         XCTAssertFalse(keychainCalled)
     }
 
-    /// Once granted, the SILENT read supplies a token even in the background — and the prompting
-    /// keychain is never reached, so the live card stays fresh without ever popping the dialog.
+    /// A silent read can supply a token in the background without reaching the interactive path.
     func testBackgroundUsesSilentKeychainAndNeverPrompts() {
         var keychainCalled = false
         let result = LiveUsageDataSource.selectClaudeToken(
@@ -54,8 +72,8 @@ final class ClaudeTokenSelectionTests: XCTestCase {
         XCTAssertFalse(keychainCalled)
     }
 
-    /// THE prompt guarantee: in the background with no file/cache and no silent grant, we return nil
-    /// and never invoke the *prompting* keychain — a background tick can't pop the macOS dialog.
+    /// With no file, cache or silent result, a background tick returns nil without trying the
+    /// interactive fallback.
     func testBackgroundWithoutGrantReturnsNilAndNeverPrompts() {
         var keychainCalled = false
         let result = LiveUsageDataSource.selectClaudeToken(
@@ -68,7 +86,7 @@ final class ClaudeTokenSelectionTests: XCTestCase {
     }
 
     /// A cached token within 5 minutes of expiry isn't trustworthy (no refresh token to renew it), so
-    /// on a user action with no silent grant we fall through to the prompting keychain.
+    /// on a user action with no silent result we fall through to the interactive keychain path.
     func testNearExpiryCacheFallsThroughToKeychainWhenUserInitiated() {
         let result = LiveUsageDataSource.selectClaudeToken(
             file: nil, userInitiated: true, now: now,
@@ -99,8 +117,8 @@ final class ClaudeTokenSelectionTests: XCTestCase {
         XCTAssertNil(result)
     }
 
-    /// A user action (opening Mimir) with no prompt-free source and no silent grant may read the
-    /// prompting keychain as the last resort — the one-time grant.
+    /// A user action (opening Mimir) with no earlier token source may read the
+    /// keychain path as the last resort, where only the fallback may prompt.
     func testUserInitiatedReadsGrantKeychainAsLastResort() {
         let result = LiveUsageDataSource.selectClaudeToken(
             file: nil, userInitiated: true, now: now,

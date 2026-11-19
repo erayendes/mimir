@@ -608,8 +608,9 @@ struct LiveUsageDataSource {
     /// `stdin`, when set, is written to the process's standard input. Used to feed
     /// secrets (e.g. a curl `--config -` block) without exposing them in `arguments`,
     /// which are world-readable via the process table (`ps aux`).
+    /// `requireSuccess` discards stdout on a nonzero exit status.
     func runCommand(_ launchPath: String, _ args: [String], stdin: String? = nil,
-                    timeout: TimeInterval? = nil) -> String {
+                    timeout: TimeInterval? = nil, requireSuccess: Bool = false) -> String {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: launchPath)
         p.arguments = args
@@ -637,6 +638,7 @@ struct LiveUsageDataSource {
                 }
             }
             p.waitUntilExit()
+            if requireSuccess && p.terminationStatus != 0 { return "" }
             let data = out.fileHandleForReading.readDataToEndOfFile()
             return String(data: data, encoding: .utf8) ?? ""
         } catch {
