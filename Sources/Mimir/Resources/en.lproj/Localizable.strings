@@ -84,6 +84,12 @@
 "Quit Mimir" = "Quit Mimir";
 
 /* Prompt-free Claude hook */
+"Claude Code already has a status line." = "Claude Code already has a status line.";
+"Antigravity's agy already has a status line." = "Antigravity's agy already has a status line.";
+"How should Mimir's line appear? Turning this off brings your line back." = "How should Mimir's line appear? Turning this off brings your line back.";
+"Show Both" = "Show Both";
+"Use Mimir's" = "Use Mimir's";
+"Keep Current" = "Keep Current";
 "Prompt-free Claude tracking" = "Prompt-free Claude tracking";
 "Couldn't update Claude tracking" = "Couldn't update Claude tracking";
 "Track Claude without the keychain prompt?" = "Track Claude without the keychain prompt?";

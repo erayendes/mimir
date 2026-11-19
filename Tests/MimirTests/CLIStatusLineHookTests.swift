@@ -54,12 +54,14 @@ struct CLIStatusLineHookTests {
             as? [String: Any])
     }
 
-    private func runAGY(input: String, chained: String? = nil, pace: String? = nil,
+    private func runAGY(input: String, chained: String? = nil,
+                        displayMode: StatusLineDisplayMode = .keepCurrent, expectChainedRun: Bool? = nil,
+                        pace: String? = nil,
                         clock: Int? = nil) throws -> String {
         var result = ""
         try withDirectory { directory in
             try write(input, "input.json", in: directory)
-            try write(AntigravityStatusLineHook.scriptBody(chained: chained), "mimir-statusline.sh", in: directory)
+            try write(AntigravityStatusLineHook.scriptBody(chained: chained, displayMode: displayMode), "mimir-statusline.sh", in: directory)
             if let pace { try write(pace, "mimir-pace.json", in: directory) }
             if let clock {
                 let bin = directory.appendingPathComponent("bin")
@@ -84,6 +86,10 @@ struct CLIStatusLineHookTests {
             try task.run()
             let data = output.fileHandleForReading.readDataToEndOfFile()
             task.waitUntilExit()
+            if let expectChainedRun {
+                #expect(FileManager.default.fileExists(atPath: directory.appendingPathComponent("chained-input").path) == expectChainedRun)
+                if expectChainedRun { #expect(try read("chained-input", in: directory) == input) }
+            }
             #expect(task.terminationStatus == 0, "Rendering requires jq on PATH")
             result = String(decoding: data, as: UTF8.self)
             #expect(try read("mimir-usage.json", in: directory) == input)
@@ -234,6 +240,45 @@ struct CLIStatusLineHookTests {
         #expect(try runAGY(input: input, chained: "printf 'custom status\\n'; cat") == "custom status\n" + input)
     }
 
+    @Test(arguments: StatusLineDisplayMode.allCases)
+    func agyScriptDisplayChoices(displayMode: StatusLineDisplayMode) throws {
+        let input = #"{"model":{"id":"gemini"},"quota":{"gemini-5h":{"remaining_fraction":0.7}}}"# + "\n\n"
+        let mimir = try runAGY(input: input)
+        for suffix in ["", "\n", "\n\n"] {
+            let user = "custom status" + suffix
+            let command = "cat > \"$HOME/chained-input\"; printf '%s' '\(user)'"
+            let expected: String
+            switch displayMode {
+            case .showBoth: expected = user + (suffix.isEmpty ? "\n" : "") + mimir
+            case .useMimir: expected = mimir
+            case .keepCurrent: expected = user
+            }
+            #expect(try runAGY(input: input, chained: command, displayMode: displayMode,
+                               expectChainedRun: displayMode != .useMimir) == expected)
+        }
+        #expect(try runAGY(input: input, displayMode: displayMode) == mimir)
+    }
+
+    @Test func agyLegacySidecarKeepsCurrentLine() throws {
+        try withDirectory { directory in
+            let original = #"{"statusLine":{"type":"command","command":"printf 'old status'","padding":2}}"#
+            try write(original, "settings.json", in: directory)
+            let hook = AntigravityStatusLineHook(directory: directory)
+            hook.enable(displayMode: .showBoth)
+            let legacy = #"{"version":1,"statusLine":{"type":"command","command":"printf 'old status'","padding":2}}"#
+            try write(legacy, "mimir-prev-statusline.json", in: directory)
+            let wired = try read("settings.json", in: directory)
+            AntigravityStatusLineHook(directory: directory).refreshScript()
+            #expect(try read("mimir-statusline.sh", in: directory)
+                == AntigravityStatusLineHook.scriptBody(chained: "printf 'old status'", displayMode: .keepCurrent))
+            #expect(try read("settings.json", in: directory) == wired)
+            #expect(try read("mimir-prev-statusline.json", in: directory) == legacy)
+            hook.disable()
+            #expect(try settings(in: directory) as NSDictionary
+                == JSONSerialization.jsonObject(with: Data(original.utf8)) as? NSDictionary)
+        }
+    }
+
     @Test func agyFreshCaptureUsesTheExistingFamiliesAndWindows() throws {
         try withDirectory { directory in
             let now = Date(timeIntervalSince1970: 2_000_000_000)
@@ -303,15 +348,19 @@ struct CLIStatusLineHookTests {
         }
     }
 
-    @Test(arguments: [false, true])
-    func agyWireAndRestore(existing: Bool) throws {
+    @Test(arguments: [false, true], StatusLineDisplayMode.allCases)
+    func agyWireAndRestore(existing: Bool, displayMode: StatusLineDisplayMode) throws {
         try withDirectory { directory in
             let original = existing
                 ? #"{"statusLine":{"type":"command","command":"printf 'old status'","enabled":true,"padding":2},"other":42}"#
                 : #"{"other":42}"#
             try write(original, "settings.json", in: directory)
             let hook = AntigravityStatusLineHook(directory: directory)
-            hook.enable()
+            #expect(hook.hasExistingStatusLine == existing)
+            hook.enable(displayMode: displayMode)
+            #expect(!hook.hasExistingStatusLine)
+            let sidecar = try #require(JSONSerialization.jsonObject(with: Data(read("mimir-prev-statusline.json", in: directory).utf8)) as? [String: Any])
+            #expect(sidecar["displayMode"] as? String == displayMode.rawValue)
             let wired = try settings(in: directory)
             let status = try #require(wired["statusLine"] as? [String: Any])
             #expect(status["command"] as? String == hook.hookCommand)
@@ -319,12 +368,12 @@ struct CLIStatusLineHookTests {
             #expect(wired["other"] as? Int == 42)
             #expect(try read("settings.json.mimir-backup", in: directory) == original)
             let script = try read("mimir-statusline.sh", in: directory)
-            #expect(script == AntigravityStatusLineHook.scriptBody(chained: existing ? "printf 'old status'" : nil))
+            #expect(script == AntigravityStatusLineHook.scriptBody(chained: existing ? "printf 'old status'" : nil, displayMode: displayMode))
             let permissions = try FileManager.default.attributesOfItem(atPath: directory.appendingPathComponent("mimir-statusline.sh").path)
             #expect((permissions[.posixPermissions] as? NSNumber)?.intValue == 0o755)
             let beforeRefresh = try read("settings.json", in: directory)
             try write("old script", "mimir-statusline.sh", in: directory)
-            hook.refreshScript()
+            AntigravityStatusLineHook(directory: directory).refreshScript()
             hook.enable()
             #expect(try read("settings.json", in: directory) == beforeRefresh)
             #expect(try read("mimir-statusline.sh", in: directory) == script)

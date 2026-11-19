@@ -28,13 +28,8 @@ struct AntigravityStatusLineHook {
     /// 3p-{5h,weekly} and gemini-argon-wtu-weekly also occur in real payloads. 3p is shared by
     /// Claude and GPT models. When model-to-bucket matching is ambiguous, take the minimum per
     /// named window. Never infer window length from reset_in_seconds (time left, not duration).
-    static func scriptBody(chained: String?) -> String {
-        let render: String
-        if let cmd = chained, !cmd.isEmpty {
-            let escaped = cmd.replacingOccurrences(of: "'", with: "'\\''")
-            render = "printf '%s' \"$input\" | bash -c '\(escaped)'"
-        } else {
-            render = #"""
+    static func scriptBody(chained: String?, displayMode: StatusLineDisplayMode = .keepCurrent) -> String {
+        let render = displayMode.render(chained: chained, mimir: #"""
             command -v jq >/dev/null 2>&1 && printf '%s' "$input" | jq -r --argjson now "$(date +%s)" --arg pace "$pace" --arg columns "${COLUMNS:-}" '
               \#(StatusLineRendering.jq)
               def family:
@@ -73,8 +68,7 @@ struct AntigravityStatusLineHook {
               | (if $model != "" then $model + "  " else "" end) as $prefix
               | render($windows; $prefix; $terminal_width)
             ' 2>/dev/null
-            """#
-        }
+            """#)
         return """
         #!/bin/bash
         # Mimir — Antigravity statusline hook (auto-generated; do not edit).
@@ -136,6 +130,12 @@ struct AntigravityStatusLineHook {
         return command
     }
 
+    var hasExistingStatusLine: Bool {
+        guard !FileManager.default.fileExists(atPath: previousURL.path),
+              let settings = try? readSettings() else { return false }
+        return chained(settings)?.isEmpty == false
+    }
+
     private func writeObject(_ object: [String: Any], to url: URL) throws {
         let data = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys])
         let mode = try? FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions]
@@ -144,12 +144,13 @@ struct AntigravityStatusLineHook {
     }
 
     private func writeScript(previous: [String: Any]) throws {
-        try Self.scriptBody(chained: chained(previous))
+        let displayMode = StatusLineDisplayMode(rawValue: previous["displayMode"] as? String ?? "") ?? .keepCurrent
+        try Self.scriptBody(chained: chained(previous), displayMode: displayMode)
             .write(to: scriptURL, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptURL.path)
     }
 
-    func enable() {
+    func enable(displayMode: StatusLineDisplayMode = .keepCurrent) {
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: directory.path, isDirectory: &isDirectory),
               isDirectory.boolValue else { return } // do not install agy for the user
@@ -162,7 +163,7 @@ struct AntigravityStatusLineHook {
             // A previous install that the user has since replaced is theirs to keep. Do not lose
             // its restore record or re-enable it on launch behind their back.
             guard !FileManager.default.fileExists(atPath: previousURL.path) else { return }
-            var previous: [String: Any] = ["version": 1]
+            var previous: [String: Any] = ["version": 1, "displayMode": displayMode.rawValue]
             previous["statusLine"] = settings["statusLine"]
             if FileManager.default.fileExists(atPath: settingsURL.path),
                !FileManager.default.fileExists(atPath: backupURL.path) {

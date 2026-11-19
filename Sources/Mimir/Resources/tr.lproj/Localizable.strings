@@ -84,6 +84,12 @@
 "Quit Mimir" = "Mimir'den Çık";
 
 /* Prompt-free Claude hook */
+"Claude Code already has a status line." = "Claude Code'da zaten bir durum satırı var.";
+"Antigravity's agy already has a status line." = "Antigravity'nin agy'sinde zaten bir durum satırı var.";
+"How should Mimir's line appear? Turning this off brings your line back." = "Mimir'in satırı nasıl görünsün? Anahtarı kapatınca eski satırınız geri gelir.";
+"Show Both" = "İkisini de Göster";
+"Use Mimir's" = "Mimir'inkini Kullan";
+"Keep Current" = "Mevcut Satırı Koru";
 "Prompt-free Claude tracking" = "Parolasız Claude takibi";
 "Couldn't update Claude tracking" = "Claude takibi güncellenemedi";
 "Track Claude without the keychain prompt?" = "Claude'u parola sormadan takip et?";

@@ -500,9 +500,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     /// modifies ~/.claude/settings.json, so it's a deliberate user action here; disabling restores it.
     /// After wiring, kick a refresh so Claude's card can pick up the hook file on the next tick.
     @objc func toggleClaudeHook() {
-        let outcome = MimirStatusLineHook.isWired()
-            ? MimirStatusLineHook.disable()
-            : MimirStatusLineHook.enable()
+        let outcome: MimirStatusLineHook.Outcome
+        if MimirStatusLineHook.isWired() {
+            outcome = MimirStatusLineHook.disable()
+        } else {
+            let claudeMode = MimirStatusLineHook.hasExistingStatusLine()
+                ? statusLineDisplayMode(title: String(localized: "Claude Code already has a status line."))
+                : .keepCurrent
+            let agyMode = AntigravityStatusLineHook().hasExistingStatusLine
+                ? statusLineDisplayMode(title: String(localized: "Antigravity's agy already has a status line."))
+                : .keepCurrent
+            outcome = MimirStatusLineHook.enable(displayMode: claudeMode, antigravityDisplayMode: agyMode)
+        }
         switch outcome {
         case .failed(let why):
             let alert = NSAlert()
@@ -516,6 +525,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         case .disabled:
             Telemetry.signal("claudeHook.disabled")
             store.refresh()
+        }
+    }
+
+    private func statusLineDisplayMode(title: String) -> StatusLineDisplayMode {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = String(localized: "How should Mimir's line appear? Turning this off brings your line back.")
+        alert.addButton(withTitle: String(localized: "Show Both"))
+        alert.addButton(withTitle: String(localized: "Use Mimir's"))
+        alert.addButton(withTitle: String(localized: "Keep Current"))
+        NSApp.activate(ignoringOtherApps: true)
+        switch alert.runModal() {
+        case .alertFirstButtonReturn: return .showBoth
+        case .alertSecondButtonReturn: return .useMimir
+        default: return .keepCurrent
         }
     }
 

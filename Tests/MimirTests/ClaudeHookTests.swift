@@ -87,7 +87,7 @@ final class ClaudeHookTests: XCTestCase {
             "statusLine": ["type": "command", "command": "bash \"/Users/x/.claude/ponytail.sh\""],
             "otherKey": 42,
         ]
-        let (settings, chained) = MimirStatusLineHook.wiredSettings(from: current)
+        let (settings, chained, _) = MimirStatusLineHook.wiredSettings(from: current)
         XCTAssertEqual(chained, "bash \"/Users/x/.claude/ponytail.sh\"")   // preserved for passthrough
         let cmd = (settings["statusLine"] as? [String: Any])?["command"] as? String
         XCTAssertTrue(MimirStatusLineHook.isOurCommand(cmd))               // now points at our hook
@@ -95,7 +95,7 @@ final class ClaudeHookTests: XCTestCase {
     }
 
     func testWireFromNoStatusLine() {
-        let (settings, chained) = MimirStatusLineHook.wiredSettings(from: [:])
+        let (settings, chained, _) = MimirStatusLineHook.wiredSettings(from: [:])
         XCTAssertNil(chained)
         XCTAssertTrue(MimirStatusLineHook.isOurCommand(
             (settings["statusLine"] as? [String: Any])?["command"] as? String))
@@ -103,11 +103,39 @@ final class ClaudeHookTests: XCTestCase {
 
     func testWireWhenAlreadyOursDoesntSelfChain() {
         let current: [String: Any] = ["statusLine": ["type": "command", "command": MimirStatusLineHook.hookCommand]]
-        let (_, chained) = MimirStatusLineHook.wiredSettings(from: current)
+        let (_, chained, _) = MimirStatusLineHook.wiredSettings(from: current)
         XCTAssertNil(chained)   // never chain our own hook into itself (would recurse)
     }
 
     // MARK: - statusLine unwiring (pure)
+
+    func testSidecarRoundTripsDisplayChoicesAndOriginalCommand() throws {
+        let command = "printf 'my status\\n'\n"
+        for mode in StatusLineDisplayMode.allCases {
+            let wired = MimirStatusLineHook.wiredSettings(
+                from: ["statusLine": ["type": "command", "command": command]], displayMode: mode)
+            let data = try JSONSerialization.data(withJSONObject: wired.sidecar)
+            let saved = MimirStatusLineHook.savedChain(from: data)
+            XCTAssertEqual(saved.command, command)
+            XCTAssertEqual(saved.displayMode, mode)
+            let restored = MimirStatusLineHook.unwiredSettings(from: wired.settings, chained: saved.command)
+            XCTAssertEqual((restored["statusLine"] as? [String: Any])?["command"] as? String, command)
+        }
+    }
+
+    func testLegacySidecarKeepsCurrentLine() throws {
+        let command = "printf 'old status'"
+        let legacy = MimirStatusLineHook.savedChain(from: Data((command + "\n").utf8))
+        let withoutChoice = MimirStatusLineHook.savedChain(
+            from: try JSONSerialization.data(withJSONObject: ["command": command]))
+        for saved in [legacy, withoutChoice] {
+            XCTAssertEqual(saved.command, command)
+            XCTAssertEqual(saved.displayMode, .keepCurrent)
+            XCTAssertEqual(try runScript(input: "{}", chained: saved.command, displayMode: saved.displayMode), "old status")
+        }
+        XCTAssertNil(MimirStatusLineHook.savedChain(from: Data()).command)
+        XCTAssertNil(MimirStatusLineHook.savedChain(from: nil).command)
+    }
 
     func testUnwireRestoresChainedCommand() {
         let current: [String: Any] = ["statusLine": ["type": "command", "command": MimirStatusLineHook.hookCommand]]
@@ -130,6 +158,26 @@ final class ClaudeHookTests: XCTestCase {
     }
 
     // MARK: - script body
+
+    func testScriptDisplayChoices() throws {
+        let input = #"{"model":{"display_name":"Opus"},"rate_limits":{"five_hour":{"used_percentage":30}}}"#
+        let mimir = try runScript(input: input)
+        for mode in StatusLineDisplayMode.allCases {
+            for suffix in ["", "\n", "\n\n"] {
+                let user = "custom status" + suffix
+                let command = "cat > \"$CLAUDE_CONFIG_DIR/chained-input\"; printf '%s' '\(user)'"
+                let expected: String
+                switch mode {
+                case .showBoth: expected = user + (suffix.isEmpty ? "\n" : "") + mimir
+                case .useMimir: expected = mimir
+                case .keepCurrent: expected = user
+                }
+                XCTAssertEqual(try runScript(input: input, chained: command, displayMode: mode,
+                                             expectChainedRun: mode != .useMimir), expected)
+            }
+            XCTAssertEqual(try runScript(input: input, displayMode: mode), mimir)
+        }
+    }
 
     private func expectedWindow(_ label: String, _ percent: Int) -> String {
         let color = percent >= 40 ? 32 : (percent >= 10 ? 33 : 31)
@@ -339,7 +387,9 @@ final class ClaudeHookTests: XCTestCase {
     }
 
     /// Run the generated hook in an isolated Claude config directory; never touch the user's hook.
-    private func runScript(input: String, chained: String? = nil, pace: String? = nil,
+    private func runScript(input: String, chained: String? = nil,
+                           displayMode: StatusLineDisplayMode = .keepCurrent, expectChainedRun: Bool? = nil,
+                           pace: String? = nil,
                            columns: Int? = nil, clock: Int? = nil) throws -> String {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("mimir-test-statusline-\(UUID().uuidString)")
@@ -361,7 +411,7 @@ final class ClaudeHookTests: XCTestCase {
         let output = Pipe()
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/bin/bash")
-        task.arguments = ["-c", MimirStatusLineHook.scriptBody(chained: chained)]
+        task.arguments = ["-c", MimirStatusLineHook.scriptBody(chained: chained, displayMode: displayMode)]
         var environment = ProcessInfo.processInfo.environment
         environment["CLAUDE_CONFIG_DIR"] = directory.path
         if let columns { environment["COLUMNS"] = String(columns) } else { environment.removeValue(forKey: "COLUMNS") }
@@ -373,6 +423,11 @@ final class ClaudeHookTests: XCTestCase {
         let data = output.fileHandleForReading.readDataToEndOfFile()
         task.waitUntilExit()
 
+        if let expectChainedRun {
+            let captured = directory.appendingPathComponent("chained-input")
+            XCTAssertEqual(FileManager.default.fileExists(atPath: captured.path), expectChainedRun)
+            if expectChainedRun { XCTAssertEqual(try String(contentsOf: captured, encoding: .utf8), input) }
+        }
         XCTAssertEqual(task.terminationStatus, 0, "Hook failed; rendering requires jq on PATH")
         XCTAssertEqual(try String(contentsOf: directory.appendingPathComponent("mimir-usage.json"),
                                   encoding: .utf8), input)

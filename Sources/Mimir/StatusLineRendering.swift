@@ -1,5 +1,27 @@
 import Foundation
 
+/// Stored alongside the original command; older sidecars default to keepCurrent.
+enum StatusLineDisplayMode: String, CaseIterable {
+    case showBoth, useMimir, keepCurrent
+
+    func render(chained: String?, mimir: String) -> String {
+        guard let chained, !chained.isEmpty, self != .useMimir else { return mimir }
+        let escaped = chained.replacingOccurrences(of: "'", with: "'\\''")
+        let command = "printf '%s' \"$input\" | bash -c '\(escaped)'"
+        guard self == .showBoth else { return command }
+        return """
+        # Preserve the user's output, adding a separator only when it has no final newline.
+        chained_output=$(\(command); printf '.')
+        chained_output=${chained_output%.}
+        printf '%s' "$chained_output"
+        if [[ -n "$chained_output" && "$chained_output" != *$'\\n' ]]; then
+            printf '\\n'
+        fi
+        \(mimir)
+        """
+    }
+}
+
 /// jq helpers shared by Claude Code and Antigravity's generated status lines.
 enum StatusLineRendering {
     static let jq = #"""
