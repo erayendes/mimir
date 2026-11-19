@@ -54,6 +54,94 @@ struct CLIStatusLineHookTests {
             as? [String: Any])
     }
 
+    @Test(arguments: [
+        (nil, false), ("", false), (" \n\t", false),
+        ("printf 'old status'\n", true),
+        (#"{"command":"printf old"}"#, true),
+        (#"{}"#, false), (#"{"command":""}"#, false), (#"{"command":"  "}"#, false),
+        (#"{"command":"printf old","displayMode":"showBoth"}"#, false),
+        (#"{"command":"printf old","displayMode":"useMimir"}"#, false),
+        (#"{"command":"printf old","displayMode":"keepCurrent"}"#, false),
+    ] as [(String?, Bool)])
+    func claudeNeedsDisplayChoice(sidecar: String?, expected: Bool) {
+        #expect(MimirStatusLineHook.needsDisplayChoice(from: sidecar.map { Data($0.utf8) }) == expected)
+    }
+
+    @Test(arguments: [
+        (#"{"version":1,"statusLine":{"command":"printf old"}}"#, true),
+        (#"{"version":1}"#, false),
+        (#"{"version":1,"statusLine":{}}"#, false),
+        (#"{"version":1,"statusLine":{"command":""}}"#, false),
+        (#"{"version":1,"statusLine":{"command":"  "}}"#, false),
+        (#"{"version":1,"statusLine":{"command":"printf old","enabled":false}}"#, false),
+        (#"{"version":1,"statusLine":{"command":"bash mimir-statusline.sh"}}"#, false),
+        (#"{"version":1,"statusLine":{"command":"printf old"},"displayMode":"showBoth"}"#, false),
+        (#"{"version":1,"statusLine":{"command":"printf old"},"displayMode":"useMimir"}"#, false),
+        (#"{"version":1,"statusLine":{"command":"printf old"},"displayMode":"keepCurrent"}"#, false),
+    ])
+    func agyNeedsDisplayChoice(sidecar: String, expected: Bool) throws {
+        let previous = try #require(JSONSerialization.jsonObject(with: Data(sidecar.utf8)) as? [String: Any])
+        #expect(AntigravityStatusLineHook.needsDisplayChoice(from: previous) == expected)
+    }
+
+    @Test(arguments: StatusLineDisplayMode.allCases, [false, true])
+    func claudeSavesLegacyDisplayChoice(mode: StatusLineDisplayMode, jsonSidecar: Bool) throws {
+        try withDirectory { directory in
+            let command = "printf 'old status'"
+            let previousURL = directory.appendingPathComponent("mimir-prev-statusline")
+            let scriptURL = directory.appendingPathComponent("mimir-statusline.sh")
+            let legacy = jsonSidecar
+                ? try JSONSerialization.data(withJSONObject: ["command": command])
+                : Data((command + "\n").utf8)
+            try legacy.write(to: previousURL)
+            try write(MimirStatusLineHook.scriptBody(chained: command), "mimir-statusline.sh", in: directory)
+            #expect(MimirStatusLineHook.needsDisplayChoice(from: legacy))
+
+            #expect(MimirStatusLineHook.setDisplayMode(mode, prevPath: previousURL.path, scriptPath: scriptURL.path))
+            let data = try Data(contentsOf: previousURL)
+            let saved = MimirStatusLineHook.savedChain(from: data)
+            #expect(saved.command == command)
+            #expect(saved.displayMode == mode)
+            #expect(!MimirStatusLineHook.needsDisplayChoice(from: data))
+            #expect(try read("mimir-statusline.sh", in: directory)
+                == MimirStatusLineHook.scriptBody(chained: command, displayMode: mode))
+        }
+    }
+
+    @Test(arguments: StatusLineDisplayMode.allCases)
+    func agySavesLegacyDisplayChoice(mode: StatusLineDisplayMode) throws {
+        try withDirectory { directory in
+            let hook = AntigravityStatusLineHook(directory: directory)
+            let command = "printf 'old status'"
+            let previous: [String: Any] = [
+                "version": 1, "statusLine": ["type": "command", "command": command, "padding": 2],
+            ]
+            let previousURL = directory.appendingPathComponent("mimir-prev-statusline.json")
+            try JSONSerialization.data(withJSONObject: previous).write(to: previousURL)
+            // An unwired hook with a leftover sidecar must not prompt.
+            #expect(!hook.needsDisplayChoice)
+            let wired = try JSONSerialization.data(withJSONObject: [
+                "statusLine": ["type": "command", "command": hook.hookCommand], "other": true,
+            ])
+            try wired.write(to: directory.appendingPathComponent("settings.json"))
+            hook.refreshScript()
+            #expect(hook.needsDisplayChoice)
+
+            hook.setDisplayMode(mode)
+            let saved = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: previousURL)) as? [String: Any])
+            var expected = previous
+            expected["displayMode"] = mode.rawValue
+            #expect(NSDictionary(dictionary: saved).isEqual(to: expected))
+            #expect(!hook.needsDisplayChoice)
+            let script = AntigravityStatusLineHook.scriptBody(chained: command, displayMode: mode)
+            #expect(try read("mimir-statusline.sh", in: directory) == script)
+            hook.refreshScript()
+            #expect(!hook.needsDisplayChoice)
+            #expect(try read("mimir-statusline.sh", in: directory) == script)
+            #expect(try Data(contentsOf: directory.appendingPathComponent("settings.json")) == wired)
+        }
+    }
+
     private func runAGY(input: String, chained: String? = nil,
                         displayMode: StatusLineDisplayMode = .keepCurrent, expectChainedRun: Bool? = nil,
                         pace: String? = nil,

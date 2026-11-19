@@ -118,12 +118,12 @@ struct AntigravityStatusLineHook {
 
     /// Same test as MimirStatusLineHook.isOurCommand: any command running a Mimir hook script is
     /// ours, even under another spelling of the path. Chaining it would make the script run itself.
-    private func isOurs(_ command: String?) -> Bool {
+    private static func isOurs(_ command: String?) -> Bool {
         command?.contains("mimir-statusline.sh") ?? false
     }
 
     /// The previous command worth running: never our own script, never one the user had disabled.
-    private func chained(_ previous: [String: Any]) -> String? {
+    private static func chained(_ previous: [String: Any]) -> String? {
         guard let status = previous["statusLine"] as? [String: Any],
               status["enabled"] as? Bool != false,
               let command = status["command"] as? String, !isOurs(command) else { return nil }
@@ -133,7 +133,30 @@ struct AntigravityStatusLineHook {
     var hasExistingStatusLine: Bool {
         guard !FileManager.default.fileExists(atPath: previousURL.path),
               let settings = try? readSettings() else { return false }
-        return chained(settings)?.isEmpty == false
+        return Self.chained(settings)?.isEmpty == false
+    }
+
+    /// Missing displayMode means the old implicit keepCurrent, not a saved choice. Pure.
+    static func needsDisplayChoice(from previous: [String: Any]) -> Bool {
+        previous["displayMode"] == nil
+            && chained(previous)?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+    }
+
+    var needsDisplayChoice: Bool {
+        guard let settings = try? readSettings(), Self.isOurs(command(in: settings)),
+              let previous = try? savedPrevious() else { return false }
+        return Self.needsDisplayChoice(from: previous)
+    }
+
+    func setDisplayMode(_ displayMode: StatusLineDisplayMode) {
+        do {
+            var previous = try savedPrevious()
+            previous["displayMode"] = displayMode.rawValue
+            try writeScript(previous: previous)
+            try writeObject(previous, to: previousURL)
+        } catch {
+            Self.log.error("Skipping Antigravity statusLine display choice: \(error.localizedDescription)")
+        }
     }
 
     private func writeObject(_ object: [String: Any], to url: URL) throws {
@@ -145,7 +168,7 @@ struct AntigravityStatusLineHook {
 
     private func writeScript(previous: [String: Any]) throws {
         let displayMode = StatusLineDisplayMode(rawValue: previous["displayMode"] as? String ?? "") ?? .keepCurrent
-        try Self.scriptBody(chained: chained(previous), displayMode: displayMode)
+        try Self.scriptBody(chained: Self.chained(previous), displayMode: displayMode)
             .write(to: scriptURL, atomically: true, encoding: .utf8)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptURL.path)
     }
@@ -156,7 +179,7 @@ struct AntigravityStatusLineHook {
               isDirectory.boolValue else { return } // do not install agy for the user
         do {
             var settings = try readSettings()
-            if isOurs(command(in: settings)) {
+            if Self.isOurs(command(in: settings)) {
                 try writeScript(previous: savedPrevious())
                 return
             }
@@ -191,7 +214,7 @@ struct AntigravityStatusLineHook {
         guard FileManager.default.fileExists(atPath: previousURL.path) else { return }
         do {
             var settings = try readSettings()
-            if isOurs(command(in: settings)) {
+            if Self.isOurs(command(in: settings)) {
                 let previous = try savedPrevious()
                 settings["statusLine"] = previous["statusLine"]
                 try writeObject(settings, to: settingsURL)

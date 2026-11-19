@@ -203,12 +203,14 @@ enum MimirStatusLineHook {
         } catch { return false }
     }
 
-    private static func writeScript(chained: String?, displayMode: StatusLineDisplayMode) -> Bool {
+    private static func writeScript(chained: String?, displayMode: StatusLineDisplayMode,
+                                    to path: String = scriptPath) -> Bool {
         do {
-            try FileManager.default.createDirectory(atPath: claudePath(""), withIntermediateDirectories: true)
+            try FileManager.default.createDirectory(atPath: (path as NSString).deletingLastPathComponent,
+                                                    withIntermediateDirectories: true)
             try scriptBody(chained: chained, displayMode: displayMode)
-                .write(toFile: scriptPath, atomically: true, encoding: .utf8)
-            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptPath)
+                .write(toFile: path, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: path)
             return true
         } catch { return false }
     }
@@ -226,6 +228,31 @@ enum MimirStatusLineHook {
 
     private static func savedChain() -> (command: String?, displayMode: StatusLineDisplayMode) {
         savedChain(from: FileManager.default.contents(atPath: prevPath))
+    }
+
+    /// A legacy default is not a choice; even keepCurrent must be saved explicitly. Pure.
+    static func needsDisplayChoice(from data: Data?) -> Bool {
+        guard savedChain(from: data).command?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
+            return false
+        }
+        if let data, let saved = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            return saved["displayMode"] == nil
+        }
+        return true
+    }
+
+    static func needsDisplayChoice() -> Bool {
+        isWired() && needsDisplayChoice(from: FileManager.default.contents(atPath: prevPath))
+    }
+
+    /// Only the main hook's script and sidecar change; injectable paths keep tests isolated.
+    @discardableResult static func setDisplayMode(_ displayMode: StatusLineDisplayMode,
+                                                 prevPath: String = prevPath,
+                                                 scriptPath: String = scriptPath) -> Bool {
+        let saved = savedChain(from: FileManager.default.contents(atPath: prevPath))
+        guard let command = saved.command, !command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              writeScript(chained: command, displayMode: displayMode, to: scriptPath) else { return false }
+        return writeSettings(["command": command, "displayMode": displayMode.rawValue], to: prevPath)
     }
 
     /// Rewrite the script in place from current code, preserving any chained command — cheap, touches

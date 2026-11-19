@@ -256,6 +256,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
 
         maybePromptLaunchAtLogin()
         maybeOfferClaudeHook()
+        maybeAskStatusLineDisplayChoices()
     }
 
     // MARK: - Prompt-free Claude offer
@@ -525,6 +526,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         case .disabled:
             Telemetry.signal("claudeHook.disabled")
             store.refresh()
+        }
+    }
+
+    /// Ask legacy installs after startup, waiting for any other launch prompt to finish.
+    private func maybeAskStatusLineDisplayChoices() {
+        guard MimirStatusLineHook.isWired() else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            guard let self, MimirStatusLineHook.isWired() else { return }
+            guard NSApp.modalWindow == nil else {
+                self.maybeAskStatusLineDisplayChoices()
+                return
+            }
+            if MimirStatusLineHook.needsDisplayChoice() {
+                let mode = self.statusLineDisplayMode(title: String(localized: "Claude Code already has a status line."))
+                MimirStatusLineHook.setDisplayMode(mode)
+            }
+            let agy = AntigravityStatusLineHook()
+            if MimirStatusLineHook.isWired(), agy.needsDisplayChoice {
+                let mode = self.statusLineDisplayMode(title: String(localized: "Antigravity's agy already has a status line."))
+                agy.setDisplayMode(mode)
+            }
         }
     }
 
