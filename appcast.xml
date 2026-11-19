@@ -8,7 +8,28 @@
     <description>Mimir update feed</description>
     <language>en</language>
 
-                                                                                            <item>
+                                                                                                <item>
+      <title>Mimir 3.2-beta.8</title>
+      <sparkle:channel>beta</sparkle:channel>
+      <sparkle:version>300199008</sparkle:version>
+      <sparkle:shortVersionString>3.2-beta.8</sparkle:shortVersionString>
+      <pubDate>Thu, 19 Nov 2026 11:16:38 +0000</pubDate>
+      <description><![CDATA[
+<p>The keychain password prompt for Claude Code's login should no longer come back. Claude Code rewrites its keychain item each time it renews its token, and macOS dropped Mimir's "Always Allow" with it. Mimir now reads the item through macOS's `security` tool, the way Claude Code itself does, which needs no permission. This covers second Claude accounts too.</p>
+<p>If Claude Code or agy already had a status line of yours, turning on Prompt-free Claude tracking asks how to show it: both lines (yours, then Mimir's), only Mimir's, or only yours as before. Earlier installs are asked once on the next launch. Turning it off still brings your line back.</p>
+<hr>
+<p>Claude Code girişi için anahtar zinciri parola penceresi artık geri gelmemeli. Claude Code token'ını her yenilediğinde anahtar zinciri kaydını yeniden yazıyor, macOS da Mimir'in "Her Zaman İzin Ver" iznini bununla birlikte siliyordu. Mimir artık kaydı, Claude Code'un kendisi gibi, izin gerektirmeyen macOS `security` aracıyla okuyor. İkinci Claude hesapları da buna dahil.</p>
+<p>Claude Code'da ya da agy'de kendi durum satırınız varsa, Parolasız Claude takibini açınca nasıl görüneceği soruluyor: ikisi birden (önce sizinki, altında Mimir'inki), yalnızca Mimir'inki ya da eskisi gibi yalnızca sizinki. Önceden kuranlara bir sonraki açılışta bir kez soruluyor. Takibi kapatınca satırınız yine geri geliyor.</p>
+      ]]></description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v3.2-beta.8/Mimir.zip"
+        sparkle:edSignature="8EagCaIuh8o0ZZpWOPeX6cB9OUILIcfet0ZgX78OjMAAURrsKbBHye3qgrpdX5qUYgx6UMfd3/fFMEcOdCW3DQ=="
+        length="7208960"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 3.2-beta.7</title>
       <sparkle:channel>beta</sparkle:channel>
       <sparkle:version>300199007</sparkle:version>
