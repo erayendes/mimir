@@ -9,6 +9,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [3.2-beta.8] - 2026-11-19
+
+The keychain password prompt for Claude Code's login should no longer come back. Claude Code rewrites its keychain item each time it renews its token, and macOS dropped Mimir's "Always Allow" with it. Mimir now reads the item through macOS's `security` tool, the way Claude Code itself does, which needs no permission. This covers second Claude accounts too.
+
+If Claude Code or agy already had a status line of yours, turning on Prompt-free Claude tracking asks how to show it: both lines (yours, then Mimir's), only Mimir's, or only yours as before. Earlier installs are asked once on the next launch. Turning it off still brings your line back.
+
 ### [3.2-beta.7] - 2026-11-17
 
 The status line in Claude Code and Antigravity's `agy` now draws a coloured 10-cell bar for each window, with the time left until it resets: `Opus 5.5  5h ███████░░░ 70% 2h15m  ·  7d ███░░│░░░░ 25% 3d4h`. The line starts with the selected model's name instead of "Mimir".
@@ -740,6 +746,12 @@ Bu projedeki tüm önemli değişiklikler bu dosyada belgelenecektir.
 
 Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
+
+### [3.2-beta.8] - 2026-11-19
+
+Claude Code girişi için anahtar zinciri parola penceresi artık geri gelmemeli. Claude Code token'ını her yenilediğinde anahtar zinciri kaydını yeniden yazıyor, macOS da Mimir'in "Her Zaman İzin Ver" iznini bununla birlikte siliyordu. Mimir artık kaydı, Claude Code'un kendisi gibi, izin gerektirmeyen macOS `security` aracıyla okuyor. İkinci Claude hesapları da buna dahil.
+
+Claude Code'da ya da agy'de kendi durum satırınız varsa, Parolasız Claude takibini açınca nasıl görüneceği soruluyor: ikisi birden (önce sizinki, altında Mimir'inki), yalnızca Mimir'inki ya da eskisi gibi yalnızca sizinki. Önceden kuranlara bir sonraki açılışta bir kez soruluyor. Takibi kapatınca satırınız yine geri geliyor.
 
 ### [3.2-beta.7] - 2026-11-17
 

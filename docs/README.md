@@ -131,7 +131,7 @@ GET https://api.anthropic.com/api/oauth/usage
 - The token is read from Claude Code's records under `~/.claude` / the macOS **Keychain**.
 - The response is **cached for 5 minutes**, so the Keychain (and its permission prompt) is touched only at launch and around token expiry.
 
-3. **Claude Code's status line** — with **Prompt-free Claude tracking** on (right-click menu). A small hook in `~/.claude/settings.json` receives the session JSON Claude Code already fetched, with its official 5-hour and 7-day numbers, and saves it to `~/.claude/mimir-usage.json`; it also prints Mimir's line in Claude Code's status line (see [Status line](#status-line)). No Keychain, no token, no network, no prompt. While the hook is fresh (Claude Code rendered a status line in the last 30 minutes) a background refresh never touches the Keychain, and it fills the card whenever the token is expired or can't be read silently. An existing `statusLine` command is chained through, not replaced; `settings.json` is backed up before the first write.
+3. **Claude Code's status line** — with **Prompt-free Claude tracking** on (right-click menu). A small hook in `~/.claude/settings.json` receives the session JSON Claude Code already fetched, with its official 5-hour and 7-day numbers, and saves it to `~/.claude/mimir-usage.json`; it also prints Mimir's line in Claude Code's status line (see [Status line](#status-line)). No Keychain, no token, no network, no prompt. While the hook is fresh (Claude Code rendered a status line in the last 30 minutes) a background refresh never touches the Keychain, and it fills the card whenever the token is expired or can't be read silently. An existing `statusLine` command is kept, not replaced: Mimir asks once whether to show both lines, only Mimir's, or only yours; `settings.json` is backed up before the first write.
 
 **Tokens are read, never refreshed.** Anthropic rotates the refresh token single-use, so a refresh from outside would sign Claude Code out. Mimir only reads the token Claude Code currently holds and uses it while valid; once it has expired, the card shows **token expired — open Claude Code** and Claude Code refreshes it on its own next use.
 
@@ -142,7 +142,7 @@ GET https://api.anthropic.com/api/oauth/usage
 | No Claude card | Claude Code may never have been signed in — open it once and sign in |
 | "token expired" note | Open Claude Code; it resolves once the token refreshes |
 | "open Mimir to refresh Claude" note | The token couldn't be read without a prompt; opening the popover is the user action that allows it |
-| Repeated Keychain prompts | Claude Code rewrites its Keychain item on every token refresh, so *Always Allow* doesn't stick — turn on **Prompt-free Claude tracking** |
+| Repeated Keychain prompts | Claude Code rewrites its Keychain item on every token refresh, which drops *Always Allow*; Mimir reads the item through macOS's `security` tool, as Claude Code does, so it shouldn't ask. If it still does, turn on **Prompt-free Claude tracking** |
 | Frozen / dimmed data | Temporary error or rate limit; Mimir shows last-known data and refreshes shortly |
 
 #### Codex
@@ -408,7 +408,7 @@ GET https://api.anthropic.com/api/oauth/usage
 - Token, Claude Code'un `~/.claude` altındaki kayıtlarından / macOS **Keychain**'den okunur.
 - Yanıt 5 dakikalık bir **önbelleğe** alınır; böylece Keychain'e yalnızca uygulama başlarken ve token süresi dolmaya yakınken dokunulur.
 
-3. **Claude Code'un durum satırı** — sağ tık menüsündeki **Parolasız Claude takibi** açıkken. `~/.claude/settings.json` içine konan küçük bir kanca, Claude Code'un zaten çektiği oturum JSON'unu — resmî 5 saatlik ve 7 günlük sayılarıyla — alır ve `~/.claude/mimir-usage.json` dosyasına yazar; Claude Code'un durum satırına da Mimir satırını basar (bkz. [Durum satırı](#durum-satırı)). Keychain yok, token yok, ağ yok, izin penceresi yok. Kanca tazeyken (Claude Code son 30 dakikada bir durum satırı çizmişse) arka plan yenilemesi Keychain'e hiç dokunmaz; token süresi dolmuş ya da sessizce okunamıyorsa kartı bu kanca doldurur. Mevcut bir `statusLine` komutu silinmez, zincire eklenir; ilk yazımdan önce `settings.json` yedeklenir.
+3. **Claude Code'un durum satırı** — sağ tık menüsündeki **Parolasız Claude takibi** açıkken. `~/.claude/settings.json` içine konan küçük bir kanca, Claude Code'un zaten çektiği oturum JSON'unu — resmî 5 saatlik ve 7 günlük sayılarıyla — alır ve `~/.claude/mimir-usage.json` dosyasına yazar; Claude Code'un durum satırına da Mimir satırını basar (bkz. [Durum satırı](#durum-satırı)). Keychain yok, token yok, ağ yok, izin penceresi yok. Kanca tazeyken (Claude Code son 30 dakikada bir durum satırı çizmişse) arka plan yenilemesi Keychain'e hiç dokunmaz; token süresi dolmuş ya da sessizce okunamıyorsa kartı bu kanca doldurur. Mevcut bir `statusLine` komutu silinmez: Mimir ikisinin de mi, yalnızca kendisinin mi, yalnızca sizinkinin mi görüneceğini bir kez sorar; ilk yazımdan önce `settings.json` yedeklenir.
 
 **Token okunur, yenilenmez.** Anthropic refresh token'ı tek kullanımlık döndürür; dışarıdan yapılan bir yenileme Claude Code'un oturumunu düşürür. Mimir yalnızca Claude Code'un elindeki token'ı okur ve geçerli olduğu sürece kullanır; süresi dolunca kart **token süresi doldu — Claude Code'u aç** der ve Claude Code bir sonraki kullanımında token'ı kendisi yeniler.
 
@@ -419,7 +419,7 @@ GET https://api.anthropic.com/api/oauth/usage
 | Claude kartı yok | Claude Code'a hiç giriş yapılmamış olabilir — bir kez açıp giriş yapın |
 | "token süresi doldu" notu | Claude Code'u açın; token yenilenince düzelir |
 | "open Mimir to refresh Claude" notu | Token izin penceresi olmadan okunamadı; popover'ı açmak bunu sağlayan kullanıcı eylemidir |
-| Tekrarlayan Keychain izin pencereleri | Claude Code her token yenilemesinde Keychain kaydını yeniden yazdığı için *Her Zaman İzin Ver* kalıcı olmaz — **Parolasız Claude takibi**'ni açın |
+| Tekrarlayan Keychain izin pencereleri | Claude Code her token yenilemesinde Keychain kaydını yeniden yazar ve *Her Zaman İzin Ver* düşer; Mimir kaydı Claude Code gibi macOS'in `security` aracıyla okuduğu için izin istememesi gerekir. Yine de isterse **Parolasız Claude takibi**'ni açın |
 | Veri donuk / soluk | Geçici hata ya da hız sınırı; Mimir son bilinen veriyi gösterir, kısa süre sonra yeniler |
 
 #### Codex
@@ -489,7 +489,7 @@ Opus 5.5  5h ███████░░░ 70% 2h15m  ·  7d ███░░│
 Satır seçili modelin adıyla başlar. Her pencerede 10 hücrelik bir çubuk, **kalan** yüzde ve sıfırlanmaya kalan süre yer alır; oturumun bildirmediği pencere satıra konmaz. Renkler uygulamadakiyle aynıdır: Mimir'in hesapladığı haftalık tempoya göre yeşil, amber, kırmızı; kırmızıda not, ne kadar kotasız kalınacağını söyler. Haftalık çubuktaki ince beyaz çizgi, eşit tempoda olmanız gereken yerdir; pencerenin ilk gününde gösterilmez. Dar terminalde önce geri sayımlar, sonra çubuklar kalkar. Claude Code'da Fable seçiliyken 7 günlük kısım Fable'ın kendi haftalık kotasını gösterir.
 
 - **Claude Code** — `settings.json` içindeki kanca ([3. veri kaynağı](#claude-1)) bu satırı basar ve oturum JSON'unu kaydeder. Ek Claude hesaplarına (örn. `~/.claude-work`) da kurulur. Görünen satır için `jq` gerekir; kayıt onsuz da çalışır.
-- **Antigravity (`agy`)** — `~/.gemini/antigravity-cli/settings.json` içindeki bir `statusLine` komutu aynı satırı o anki modelin ailesi için basar ve `agy`'nin kota JSON'unu yanındaki `mimir-usage.json` dosyasına (yalnızca sizin okuyabileceğiniz bir dosya) kaydeder; bu kayıt [Antigravity kartını besler](#antigravity-1). Mevcut bir `statusLine` komutu silinmez, zincire eklenir; anahtarı kapatınca eski ayarlar geri gelir.
+- **Antigravity (`agy`)** — `~/.gemini/antigravity-cli/settings.json` içindeki bir `statusLine` komutu aynı satırı o anki modelin ailesi için basar ve `agy`'nin kota JSON'unu yanındaki `mimir-usage.json` dosyasına (yalnızca sizin okuyabileceğiniz bir dosya) kaydeder; bu kayıt [Antigravity kartını besler](#antigravity-1). Mevcut bir `statusLine` komutu silinmez; nasıl görüneceği bir kez sorulur, anahtarı kapatınca eski ayarlar geri gelir.
 - **Codex** — Codex durum satırında özel komut çalıştıramadığı için Mimir, `config.toml` dosyasındaki `[tui] status_line` listesine Codex'in kendi `five-hour-limit` ve `weekly-limit` öğelerini ekler (`~/.codex-work` gibi ek hesaplara da). Öğeler bir kez eklenir: sonradan kaldırdığınız öğe kaldırılmış kalır, anahtarı kapatmak yalnızca Mimir'in eklediklerini siler, Mimir'in güvenle düzenleyemeyeceği biçimdeki bir `status_line` olduğu gibi bırakılır.
 
 ### Gizlilik ve Güvenlik
