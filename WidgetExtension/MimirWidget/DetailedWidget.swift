@@ -1,5 +1,6 @@
 import WidgetKit
 import SwiftUI
+import AppKit
 
 /// The 5-hour session window length — the reset fallback shown when a provider reports no `resetAt`
 /// (Claude does this while its 5h window is inactive/full), so the row reads "5h" instead of blank.
@@ -48,8 +49,14 @@ private extension WindowMetric {
     /// reset (the countdown falls back to the window length) instead of a spent number beside "1m".
     func live(at now: Date) -> WindowMetric {
         var m = self
-        if let r = resetAt, r <= now { m.percent = 100; m.resetAt = nil }
-        if let r = weeklyResetAt, r <= now { m.weeklyPercent = 100; m.weeklyResetAt = nil }
+        if let r = resetAt, r <= now {
+            m.percent = 100; m.resetAt = nil
+            if isWeekly { m.tone = nil; m.idealPercent = nil; m.note = nil }
+        }
+        if let r = weeklyResetAt, r <= now {
+            m.weeklyPercent = 100; m.weeklyResetAt = nil
+            m.tone = nil; m.idealPercent = nil; m.note = nil
+        }
         return m
     }
 }
@@ -81,10 +88,14 @@ struct DetailedWidgetView: View {
         // 5h metric yet (e.g. right at launch before the first quota read). Empty → EmptyState,
         // never an out-of-range crash.
         if let payload = entry.payload, case let flat = payload.fiveHourFlat(at: entry.date), !flat.isEmpty {
-            if family == .systemMedium {
-                MediumView(metric: smallMetric(flat), now: entry.date)
+            if let metric = smallMetric(flat) {
+                if family == .systemMedium {
+                    MediumView(metric: metric, now: entry.date)
+                } else {
+                    SmallView(metric: metric, now: entry.date)
+                }
             } else {
-                SmallView(metric: smallMetric(flat), now: entry.date)
+                EmptyStateView(message: String(localized: "widget.choose"))
             }
         } else {
             EmptyStateView()
@@ -92,13 +103,13 @@ struct DetailedWidgetView: View {
     }
 
     /// Small and Medium show a single model: the one chosen in the widget config, else the most
-    /// critical (lowest remaining) one. Caller guarantees `flat` is non-empty.
-    private func smallMetric(_ flat: [FlatMetric]) -> FlatMetric {
-        if let id = entry.selectedLabel,
-           let chosen = flat.first(where: { ProviderPayload.option(id, matches: $0.providerName, label: $0.metric.label) }) {
-            return chosen
+    /// critical (lowest remaining) one. A choice the snapshot no longer carries (a login that is
+    /// gone) is nil — never another account's numbers under the chosen one's name.
+    private func smallMetric(_ flat: [FlatMetric]) -> FlatMetric? {
+        if let id = entry.selectedLabel {
+            return flat.first { ProviderPayload.option(id, matches: $0.providerName, label: $0.metric.label) }
         }
-        return flat.min { $0.metric.percent < $1.metric.percent } ?? flat[0]
+        return flat.min { $0.metric.percent < $1.metric.percent } ?? flat.first
     }
 }
 
@@ -166,7 +177,9 @@ private struct SmallView: View {
     }
     // A spent weekly quota locks the model, and a last-known reading isn't live: grey the face
     // either way, so neither can read as usable.
-    private var faceColor: Color { metric.isStale || weekly?.percent == 0 ? Tok.passive : statusColor(m.percent) }
+    private var faceColor: Color {
+        metric.isStale || weekly?.percent == 0 ? Tok.passive : statusColor(m.percent, tone: m.isWeekly ? m.tone : nil)
+    }
 
     var body: some View {
         GeometryReader { geo in
@@ -196,7 +209,13 @@ private struct SmallView: View {
                             }
                             Spacer(minLength: 0)
                             if let weekly {
-                                WeeklyBar(percent: weekly.percent, resetAt: weekly.resetAt, now: now, height: 18, compact: true, passive: metric.isStale)
+                                WeeklyBar(percent: weekly.percent, resetAt: weekly.resetAt, now: now,
+                                          tone: m.tone, note: m.note,
+                                          height: 18, compact: true, passive: metric.isStale)
+                            } else if m.isWeekly, m.tone == .red, !metric.isStale, let note = m.note,
+                                      WeeklyBar.textWidth(note) <= geo.size.width - 32 {
+                                Text(note).font(.system(size: 10.5, weight: .semibold))
+                                    .foregroundStyle(faceColor).lineLimit(1)
                             }
                         }
                         .opacity(metric.isStale ? 0.55 : 1)
@@ -271,14 +290,18 @@ private struct ResetColumn: View {
     }
 }
 
-/// The weekly capsule: track + fill, the percent on the fill (white in full colour; punched out in
-/// the vibrant/accented modes, which flatten every colour to white), and the reset row underneath.
-/// Too little fill to hold the label → just past the fill, in label colour.
+/// The weekly capsule, drawn like the popover's: track + fill, and the percent always at the left
+/// end, white where it sits over the fill and in label colour where a narrow fill ends under it
+/// (in the vibrant/accented modes, which flatten every colour to white, the part over the fill is
+/// punched out instead). Font and inset scale with the bar as the popover's 10.5pt on 18pt; the
+/// reset row sits underneath.
 private struct WeeklyBar: View {
     @Environment(\.widgetRenderingMode) private var renderingMode
     let percent: Int
     let resetAt: Date?
     let now: Date
+    var tone: QuotaTone? = nil
+    var note: String? = nil
     var height: CGFloat = 22
     var compact = false
     /// Grey instead of the status colour: the reading is last-known, not live.
@@ -287,27 +310,47 @@ private struct WeeklyBar: View {
         VStack(alignment: .leading, spacing: 6) {
             GeometryReader { geo in
                 let barW = max(height, geo.size.width * CGFloat(clampPct(percent)) / 100)
-                let label = Text("\(min(99, percent))%").font(.system(size: 12, weight: .semibold)).monospacedDigit()
+                let fontSize = height * 10.5 / 18
+                let inset = height / 2
+                let text = "\(clampPct(percent))%"
+                let label = Text(text).font(.system(size: fontSize, weight: .semibold).monospacedDigit())
+                let numberEnd = inset + Self.textWidth(text, size: fontSize)
+                let noteWidth = note.map { Self.textWidth($0) }
+                let trackX = noteWidth.map { geo.size.width - 8 - $0 } ?? 0
+                let fillX = noteWidth.map { barW - 8 - $0 } ?? 0
+                let noteOnTrack = tone == .red && !passive && noteWidth != nil
+                    && trackX >= max(barW + 6, numberEnd + 6)
+                let noteOnFill = tone == .red && !passive && !noteOnTrack && noteWidth != nil
+                    && fillX >= numberEnd + 6
                 ZStack(alignment: .leading) {
                     Capsule().fill(Tok.track)
+                    // The part of the label past a narrow fill's end, in label colour.
+                    label.foregroundStyle(Tok.primary).fixedSize().padding(.leading, inset)
+                        .mask(alignment: .leading) {
+                            HStack(spacing: 0) { Color.clear.frame(width: barW); Rectangle() }
+                        }
                     ZStack(alignment: .leading) {
-                        Capsule().fill(passive ? Tok.passive : statusColor(percent))
-                        if barW >= 48 {
-                            // Full colour: painted white, which reads on every status colour. The
-                            // vibrant/accented modes flatten colours to white, so there the label is
-                            // punched out instead (a hole shows the backdrop); the hole is too pale
-                            // to read over a light face, hence not used in full colour.
-                            if renderingMode == .fullColor {
-                                label.foregroundStyle(.white.opacity(0.92)).padding(.leading, 10)
-                            } else {
-                                label.padding(.leading, 10).blendMode(.destinationOut)
-                            }
+                        Capsule().fill(passive ? Tok.passive : statusColor(percent, tone: tone))
+                        // Full colour: painted white, which reads on every status colour. The
+                        // vibrant/accented modes flatten colours to white, so there the label is
+                        // punched out instead (a hole shows the track); the hole is too pale to
+                        // read over a light face, hence not used in full colour.
+                        if renderingMode == .fullColor {
+                            label.foregroundStyle(.white.opacity(0.92)).fixedSize().padding(.leading, inset)
+                        } else {
+                            label.fixedSize().padding(.leading, inset).blendMode(.destinationOut)
                         }
                     }
+                    .frame(width: barW, alignment: .leading)
+                    .clipped()
                     .compositingGroup()
-                    .frame(width: barW)
-                    if barW < 48 { label.foregroundStyle(Tok.primary).padding(.leading, barW + 6) }
+                    if let note, noteOnTrack || noteOnFill {
+                        Text(note).font(.system(size: 10.5, weight: .semibold)).monospacedDigit()
+                            .foregroundStyle(noteOnFill ? Color.white.opacity(0.92) : statusColor(0))
+                            .lineLimit(1).fixedSize().offset(x: noteOnFill ? fillX : trackX)
+                    }
                 }
+                .clipShape(Capsule())
             }
             .frame(height: height)
             HStack(spacing: compact ? 8 : 10) {
@@ -318,6 +361,11 @@ private struct WeeklyBar: View {
             .foregroundStyle(Tok.tertiary)
             .padding(.horizontal, compact ? 2 : 6)
         }
+    }
+
+    static func textWidth(_ text: String, size: CGFloat = 10.5) -> CGFloat {
+        let font = NSFont.monospacedDigitSystemFont(ofSize: size, weight: .semibold)
+        return ceil((text as NSString).size(withAttributes: [.font: font]).width)
     }
 }
 
@@ -338,7 +386,9 @@ private struct MediumView: View {
     }
     // A spent weekly quota locks the model, and a last-known reading isn't live: grey the face
     // either way, so neither can read as usable.
-    private var faceColor: Color { metric.isStale || weekly?.percent == 0 ? Tok.passive : statusColor(m.percent) }
+    private var faceColor: Color {
+        metric.isStale || weekly?.percent == 0 ? Tok.passive : statusColor(m.percent, tone: m.isWeekly ? m.tone : nil)
+    }
 
     var body: some View {
         GeometryReader { geo in
@@ -373,11 +423,19 @@ private struct MediumView: View {
                     }
                     .padding(16).padding(.top, 34)
                 } else if let weekly {
-                    WeeklyBar(percent: weekly.percent, resetAt: weekly.resetAt, now: now, height: 22, passive: metric.isStale)
+                    WeeklyBar(percent: weekly.percent, resetAt: weekly.resetAt, now: now,
+                              tone: m.tone, note: m.note,
+                              height: 22, passive: metric.isStale)
                         .padding(.horizontal, 16)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                         .padding(.bottom, 12)
                         .opacity(metric.isStale ? 0.55 : 1)
+                } else if m.isWeekly, m.tone == .red, !metric.isStale, let note = m.note,
+                          WeeklyBar.textWidth(note) <= geo.size.width - 32 {
+                    Text(note).font(.system(size: 10.5, weight: .semibold))
+                        .foregroundStyle(faceColor).lineLimit(1)
+                        .padding(.horizontal, 16).padding(.bottom, 16)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                 }
             }
         }
@@ -386,10 +444,11 @@ private struct MediumView: View {
 }
 
 private struct EmptyStateView: View {
+    var message = String(localized: "widget.empty")
     var body: some View {
         VStack(spacing: 6) {
             Text("mimir").font(.system(size: 12, weight: .medium)).foregroundStyle(Tok.brand)
-            Text(String(localized: "widget.empty")).font(.system(size: 11)).foregroundStyle(Tok.tertiary)
+            Text(message).font(.system(size: 11)).foregroundStyle(Tok.tertiary)
                 .multilineTextAlignment(.center)
         }
         .padding()

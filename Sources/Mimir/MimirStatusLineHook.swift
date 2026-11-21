@@ -8,9 +8,11 @@ import Foundation
 /// no token, no network, no prompt.
 ///
 /// The wiring mirrors the prompt-free-first, don't-break-the-user's-setup posture: any existing
-/// statusLine command is chained through (its output is preserved), remembered in a sidecar so
+/// statusLine command is remembered with its display choice in a sidecar so
 /// disable/upgrade can reconstruct or restore it, and `settings.json` is backed up before the first
 /// write and never clobbered when it doesn't parse.
+/// The existing toggle also owns Antigravity's command hook and Codex's built-in limit items;
+/// companion failures are logged locally, without changing the Claude toggle's UI or outcome.
 enum MimirStatusLineHook {
     /// Claude Code's config directory. `CLAUDE_CONFIG_DIR` is Anthropic's own override and points
     /// every Claude path — credentials, settings, our hook's output — somewhere other than
@@ -89,15 +91,16 @@ enum MimirStatusLineHook {
         cmd?.contains("mimir-statusline.sh") ?? false
     }
 
-    /// Compute the settings after wiring our hook, plus the command to chain through (the user's
-    /// previous statusLine command, if any and not already ours). Pure.
-    static func wiredSettings(from current: [String: Any]?)
-        -> (settings: [String: Any], chained: String?) {
+    /// Compute the settings, original command and sidecar with its display choice. Pure.
+    static func wiredSettings(from current: [String: Any]?, displayMode: StatusLineDisplayMode = .keepCurrent)
+        -> (settings: [String: Any], chained: String?, sidecar: [String: Any]) {
         var settings = current ?? [:]
         let prevCmd = (settings["statusLine"] as? [String: Any])?["command"] as? String
         let chained = isOurCommand(prevCmd) ? nil : prevCmd
         settings["statusLine"] = ["type": "command", "command": hookCommand]
-        return (settings, chained)
+        var sidecar: [String: Any] = ["displayMode": displayMode.rawValue]
+        sidecar["command"] = chained
+        return (settings, chained, sidecar)
     }
 
     /// Compute the settings after unwiring: restore the chained command if there was one, else drop
@@ -115,17 +118,45 @@ enum MimirStatusLineHook {
     }
 
     /// The hook script. Saves Claude Code's raw stdin JSON for Mimir (no jq needed for the save —
-    /// just `cat` + redirect), then renders a status line: the chained command's output when we're
-    /// preserving one, otherwise a compact Mimir 5h/7d line when `jq` is available (else nothing).
+    /// just `cat` + redirect), then renders the chosen combination of the chained command's output
+    /// and a compact Mimir 5h/7d remaining-percent line when `jq` is available
+    /// (else nothing). Missing windows are omitted, just like the app's cards.
     /// No backslashes leak into the script — jq builds its string with `+`, not Swift interpolation.
-    static func scriptBody(chained: String?) -> String {
-        let render: String
-        if let cmd = chained, !cmd.isEmpty {
-            let escaped = cmd.replacingOccurrences(of: "'", with: "'\\''")
-            render = "printf '%s' \"$input\" | bash -c '\(escaped)'"
-        } else {
-            render = "command -v jq >/dev/null 2>&1 && printf '%s' \"$input\" | jq -r '\"Mimir  5h \" + ((.rate_limits.five_hour.used_percentage // 0) | floor | tostring) + \"%  ·  7d \" + ((.rate_limits.seven_day.used_percentage // 0) | floor | tostring) + \"%\"' 2>/dev/null"
-        }
+    static func scriptBody(chained: String?, displayMode: StatusLineDisplayMode = .keepCurrent) -> String {
+        let render = displayMode.render(chained: chained, mimir: #"""
+            command -v jq >/dev/null 2>&1 && printf '%s' "$input" | jq -r --argjson now "$(date +%s)" --arg pace "$pace" --arg width "${COLUMNS:-}" '
+              \#(StatusLineRendering.jq)
+              def window($obj; $label; $key):
+                ($obj.used_percentage | tonumber?) as $used
+                | (try ($obj.resets_at | tonumber) catch null) as $reset
+                | (100 - $used) | ([0, .] | max) | ([100, .] | min)
+                | . as $remaining
+                | ($remaining + 0.5 | floor) as $percent
+                | ($remaining / 10 + 0.5 | floor) as $filled
+                | (if $key == null then null else pace($key; $reset) end) as $entry
+                | (if $key == null then null else ideal($reset; $entry) end) as $ideal
+                | {label: $label, percent: $percent, filled: $filled,
+                   countdown: countdown($reset), tone: $entry.tone, note: $entry.note,
+                   marker: (if $ideal == null then null else [9, ($ideal / 10 | floor)] | min | [0, .] | max end)};
+              def fable_window:
+                model_pace("seven_day_fable") as $entry
+                | if $entry == null then null else
+                    ($entry.remainingPercent | floor) as $percent
+                    | {label: "7d", percent: $percent,
+                       filled: (($percent / 10 + 0.5) | floor),
+                       countdown: countdown($entry.resetAt), tone: $entry.tone, note: $entry.note,
+                       marker: (if $entry.idealPercent == null then null else [9, ($entry.idealPercent / 10 | floor)] | min | [0, .] | max end)}
+                  end;
+              ((.model.display_name // .model.id // "") | sub(" \\([^()]*\\)$"; "")) as $model
+              | ((.model.id // "" | tostring | ascii_downcase | contains("fable"))
+                 or (.model.display_name // "" | tostring | startswith("Fable"))) as $isFable
+              | [window(.rate_limits.five_hour; "5h"; null),
+                 (if $isFable then (fable_window // window(.rate_limits.seven_day; "7d"; "seven_day"))
+                  else window(.rate_limits.seven_day; "7d"; "seven_day") end)]
+              | select(length > 0)
+              | render(.; (if $model != "" then $model + "  " else "" end); (try ($width | tonumber) catch null))
+            ' 2>/dev/null
+            """#)
         return """
         #!/bin/bash
         # Mimir — Claude Code statusline hook (auto-generated; do not edit).
@@ -133,6 +164,7 @@ enum MimirStatusLineHook {
         # no API, no token, no keychain prompt. Toggle it from Mimir's menu.
         input=$(cat)
         printf '%s' "$input" > "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/mimir-usage.json"
+        pace=$(cat "${CLAUDE_CONFIG_DIR:-$HOME/.claude}/mimir-pace.json" 2>/dev/null)
         \(render)
         """
     }
@@ -141,6 +173,10 @@ enum MimirStatusLineHook {
 
     static func isWired() -> Bool {
         isOurCommand((readSettings()?["statusLine"] as? [String: Any])?["command"] as? String)
+    }
+
+    static func hasExistingStatusLine() -> Bool {
+        wiredSettings(from: readSettings()).chained?.isEmpty == false
     }
 
     private static func readSettings() -> [String: Any]? {
@@ -167,27 +203,70 @@ enum MimirStatusLineHook {
         } catch { return false }
     }
 
-    private static func writeScript(chained: String?) -> Bool {
+    private static func writeScript(chained: String?, displayMode: StatusLineDisplayMode,
+                                    to path: String = scriptPath) -> Bool {
         do {
-            try FileManager.default.createDirectory(atPath: claudePath(""), withIntermediateDirectories: true)
-            try scriptBody(chained: chained).write(toFile: scriptPath, atomically: true, encoding: .utf8)
-            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptPath)
+            try FileManager.default.createDirectory(atPath: (path as NSString).deletingLastPathComponent,
+                                                    withIntermediateDirectories: true)
+            try scriptBody(chained: chained, displayMode: displayMode)
+                .write(toFile: path, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: path)
             return true
         } catch { return false }
     }
 
-    private static func savedChain() -> String? {
-        let s = (try? String(contentsOfFile: prevPath, encoding: .utf8))?
+    /// JSON stores new choices; the original plain-command sidecar remains readable.
+    static func savedChain(from data: Data?) -> (command: String?, displayMode: StatusLineDisplayMode) {
+        if let data, let saved = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            return (saved["command"] as? String,
+                    StatusLineDisplayMode(rawValue: saved["displayMode"] as? String ?? "") ?? .keepCurrent)
+        }
+        let s = data.flatMap { String(data: $0, encoding: .utf8) }?
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        return (s?.isEmpty == false) ? s : nil
+        return ((s?.isEmpty == false) ? s : nil, .keepCurrent)
+    }
+
+    private static func savedChain() -> (command: String?, displayMode: StatusLineDisplayMode) {
+        savedChain(from: FileManager.default.contents(atPath: prevPath))
+    }
+
+    /// A legacy default is not a choice; even keepCurrent must be saved explicitly. Pure.
+    static func needsDisplayChoice(from data: Data?) -> Bool {
+        guard savedChain(from: data).command?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
+            return false
+        }
+        if let data, let saved = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            return saved["displayMode"] == nil
+        }
+        return true
+    }
+
+    static func needsDisplayChoice() -> Bool {
+        isWired() && needsDisplayChoice(from: FileManager.default.contents(atPath: prevPath))
+    }
+
+    /// Only the main hook's script and sidecar change; injectable paths keep tests isolated.
+    @discardableResult static func setDisplayMode(_ displayMode: StatusLineDisplayMode,
+                                                 prevPath: String = prevPath,
+                                                 scriptPath: String = scriptPath) -> Bool {
+        let saved = savedChain(from: FileManager.default.contents(atPath: prevPath))
+        guard let command = saved.command, !command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              writeScript(chained: command, displayMode: displayMode, to: scriptPath) else { return false }
+        return writeSettings(["command": command, "displayMode": displayMode.rawValue], to: prevPath)
     }
 
     /// Rewrite the script in place from current code, preserving any chained command — cheap, touches
-    /// no settings. Call on launch when wired so app upgrades take effect.
+    /// no settings. Called on every launch when wired so app upgrades take effect without a version
+    /// marker. The extra dirs' `mimir-wired` marker only guards settings, not this script refresh.
+    /// Companion CLIs are adopted on this same launch path for users who already enabled Claude.
     static func refreshScript() {
         guard isWired() else { return }
-        _ = writeScript(chained: savedChain())
+        let saved = savedChain()
+        _ = writeScript(chained: saved.command, displayMode: saved.displayMode)
         wireExtraDirs(true)
+        AntigravityStatusLineHook().refreshScript()
+        CodexStatusLineHook().refreshScript()
+        CodexStatusLineHook.wireExtraDirs(true)
     }
 
     /// Second logins (`ExtraAccount.claude`, e.g. `~/.claude-work`) point at the same script, which
@@ -228,26 +307,36 @@ enum MimirStatusLineHook {
     /// Wire the hook: chain any existing statusLine, back up settings.json (once), write the script,
     /// point settings at it. Idempotent. Aborts without touching anything if settings.json is present
     /// but unparseable.
-    @discardableResult static func enable() -> Outcome {
+    @discardableResult static func enable(displayMode: StatusLineDisplayMode = .keepCurrent,
+                                         antigravityDisplayMode: StatusLineDisplayMode = .keepCurrent) -> Outcome {
         if settingsIsCorrupt() { return .failed(String(localized: "~/.claude/settings.json is not valid JSON")) }
         let current = readSettings()
         if isOurCommand((current?["statusLine"] as? [String: Any])?["command"] as? String) {
-            _ = writeScript(chained: savedChain())   // still refresh the script body
+            let saved = savedChain()
+            _ = writeScript(chained: saved.command, displayMode: saved.displayMode)
             wireExtraDirs(true)
+            AntigravityStatusLineHook().enable(displayMode: antigravityDisplayMode)
+            CodexStatusLineHook().enable()
+            CodexStatusLineHook.wireExtraDirs(true)
             return .alreadyOn
         }
-        let (settings, chained) = wiredSettings(from: current)
+        let (settings, chained, sidecar) = wiredSettings(from: current, displayMode: displayMode)
         // Remember the chain so disable/upgrade can restore or preserve it.
-        try? (chained ?? "").write(toFile: prevPath, atomically: true, encoding: .utf8)
+        guard writeSettings(sidecar, to: prevPath) else {
+            return .failed(String(localized: "couldn't write to ~/.claude"))
+        }
         // Back up the user's settings once, before our first write.
         if FileManager.default.fileExists(atPath: settingsPath),
            !FileManager.default.fileExists(atPath: backupPath) {
             try? FileManager.default.copyItem(atPath: settingsPath, toPath: backupPath)
         }
-        guard writeScript(chained: chained), writeSettings(settings) else {
+        guard writeScript(chained: chained, displayMode: displayMode), writeSettings(settings) else {
             return .failed(String(localized: "couldn't write to ~/.claude"))
         }
         wireExtraDirs(true)
+        AntigravityStatusLineHook().enable(displayMode: antigravityDisplayMode)
+        CodexStatusLineHook().enable()
+        CodexStatusLineHook.wireExtraDirs(true)
         return chained == nil ? .enabled : .chained
     }
 
@@ -255,9 +344,12 @@ enum MimirStatusLineHook {
     /// usage file. Leaves a non-Mimir statusLine untouched.
     @discardableResult static func disable() -> Outcome {
         if settingsIsCorrupt() { return .failed(String(localized: "~/.claude/settings.json is not valid JSON")) }
-        let settings = unwiredSettings(from: readSettings(), chained: savedChain())
+        let settings = unwiredSettings(from: readSettings(), chained: savedChain().command)
         guard writeSettings(settings) else { return .failed(String(localized: "couldn't write to ~/.claude")) }
         wireExtraDirs(false)
+        AntigravityStatusLineHook().disable()
+        CodexStatusLineHook().disable()
+        CodexStatusLineHook.wireExtraDirs(false)
         for path in [scriptPath, prevPath, usagePath] {
             try? FileManager.default.removeItem(atPath: path)
         }

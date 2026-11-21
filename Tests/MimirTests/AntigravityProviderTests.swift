@@ -12,6 +12,103 @@ import XCTest
 final class AntigravityProviderTests: XCTestCase {
     private let ds = LiveUsageDataSource()
 
+    func testEmptyModelListsProduceNoQuotaRows() {
+        let roots: [[String: Any]] = [
+            [:],
+            ["models": [String: Any]()],
+            ["payload": ["models": [String: Any]()]],
+            ["userStatus": ["cascadeModelConfigData": ["clientModelConfigs": [[String: Any]]()]]],
+        ]
+        for root in roots {
+            XCTAssertTrue(ds.normalizeAntigravityModels(root).isEmpty,
+                          "an empty model list must let the next source or snapshot take over")
+        }
+    }
+
+    func testExplicitWeeklyWindowWhenBucketIDHasNoDuration() {
+        for window in ["7d", "weekly", "seven-day", "WEEKLY"] {
+            let rows = ds.antigravityQuotaSummaryRows(groups: [[
+                "name": "Gemini", "buckets": [bucket("bucket-1", fraction: 0.6, window: window)],
+            ]])
+            XCTAssertEqual(rows.first?.window, .weekly, window)
+        }
+    }
+
+    func testShellTimeoutStopsACommandThatIgnoresTermination() {
+        XCTAssertEqual(ds.runShell("printf complete"), "complete")
+        XCTAssertEqual(ds.runShell("printf complete", timeout: 2), "complete")
+        let start = Date()
+        let output = ds.runShell(
+            "exec /bin/zsh -c 'trap \"\" TERM; printf partial; SECONDS=0; while (( SECONDS < 4 )); do :; done'",
+            timeout: 0.2)
+        XCTAssertLessThan(Date().timeIntervalSince(start), 2)
+        XCTAssertEqual(output, "", "a timed-out CLI response must not be used as quota data")
+    }
+
+    func testRealStatusLineKeysKeepArgonSeparateFromGemini() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let path = directory.appendingPathComponent("usage.json")
+        let reset = "2099-01-01T00:00:00Z"
+        let quota: [String: [String: Any]] = [
+            "3p-5h": ["remaining_fraction": 1, "reset_time": reset, "reset_in_seconds": 300],
+            "3p-weekly": ["remaining_fraction": 0.6, "reset_time": reset, "reset_in_seconds": 300],
+            "gemini-5h": ["remaining_fraction": 0.8, "reset_time": reset, "reset_in_seconds": 300],
+            "gemini-weekly": ["remaining_fraction": 0.7, "reset_time": reset, "reset_in_seconds": 300],
+            "gemini-argon-wtu-weekly": ["remaining_fraction": 0.2, "reset_time": reset, "reset_in_seconds": 300],
+        ]
+        try JSONSerialization.data(withJSONObject: ["quota": quota]).write(to: path)
+        let now = Date()
+        let status = try XCTUnwrap(ds.readAntigravityHookUsage(path: path.path, now: now))
+        XCTAssertEqual(status.models.count, 5)
+        XCTAssertEqual(status.models.filter { $0.name == "Gemini" && $0.window == .weekly }.map(\.remainingPercent), [70])
+        XCTAssertEqual(status.models.filter { $0.name == "Gemini 4 Argon" && $0.window == .weekly }.map(\.remainingPercent), [20])
+    }
+
+    func testSummaryFillsOnlyMissingGroupFromHook() {
+        let reset = Date().addingTimeInterval(3_600)
+        let summary = service([
+            ModelStatus(name: "Gemini", remainingPercent: 70, resetAt: reset, window: .weekly),
+            ModelStatus(name: "Claude", remainingPercent: 60, resetAt: reset, window: .weekly),
+        ])
+        let hook = service([
+            ModelStatus(name: "Gemini", remainingPercent: 10, resetAt: reset, window: .weekly),
+            ModelStatus(name: "Gemini 4 Argon", remainingPercent: 20, resetAt: reset, window: .weekly),
+        ])
+        let result = ds.completeAntigravityWindows(summary, hook: hook, snapshotRows: [])
+        XCTAssertEqual(result.models.map(\.name), ["Gemini", "Claude", "Gemini 4 Argon"])
+        XCTAssertEqual(result.models.map(\.remainingPercent), [70, 60, 20])
+    }
+
+    func testNarrowFallbackKeepsOnlyUnexpiredMissingSnapshotWindow() {
+        let now = Date()
+        let current = service([ModelStatus(name: "Gemini", remainingPercent: 80,
+                                           resetAt: now.addingTimeInterval(600), window: .session)])
+        let saved = [
+            ModelStatus(name: "Gemini", remainingPercent: 40,
+                        resetAt: now.addingTimeInterval(3_600), window: .weekly),
+            ModelStatus(name: "Claude", remainingPercent: 20,
+                        resetAt: now.addingTimeInterval(-60), window: .weekly),
+        ]
+        let result = ds.completeAntigravityWindows(current, snapshotRows: saved, now: now)
+        XCTAssertEqual(result.models.map(\.name), ["Gemini", "Gemini"])
+        XCTAssertEqual(result.models.map(\.window), [.session, .weekly])
+        XCTAssertEqual(result.models.map(\.remainingPercent), [80, 40])
+    }
+
+    private func service(_ models: [ModelStatus]) -> ServiceStatus {
+        ServiceStatus(name: "Antigravity", iconName: "antigravity", sessionResetAt: nil,
+                      weeklyResetAt: nil, models: models, isAvailable: true, statusNote: nil)
+    }
+
+    /// The CLI is retried every minute for the first five after launch, every five after that.
+    func testCLIRetriesEveryMinuteRightAfterLaunch() {
+        XCTAssertEqual(LiveUsageDataSource.antigravityCLIInterval(sinceLaunch: 0), 50)
+        XCTAssertEqual(LiveUsageDataSource.antigravityCLIInterval(sinceLaunch: 4 * 60 + 59), 50)
+        XCTAssertEqual(LiveUsageDataSource.antigravityCLIInterval(sinceLaunch: 5 * 60), 5 * 60)
+    }
+
     private func bucket(_ id: String, fraction: Double, window: String? = nil) -> [String: Any] {
         var b: [String: Any] = ["bucketId": id, "remainingFraction": fraction]
         if let window { b["window"] = window }
@@ -74,6 +171,67 @@ final class AntigravityProviderTests: XCTestCase {
         XCTAssertEqual(rows.count, 2, "both the 5h and weekly bucket must survive as distinct rows")
         XCTAssertEqual(rows.first { $0.window == .session }?.remainingPercent, 80)
         XCTAssertEqual(rows.first { $0.window == .weekly }?.remainingPercent, 40)
+    }
+
+    func testMissingFractionKeepsExistingWindowsAtZero() {
+        let resetTime = "2099-01-01T00:00:00Z"
+        let reset = ISO8601DateFormatter().date(from: resetTime)!
+        for (idKey, resetKey) in [("bucketId", "resetTime"), ("id", "reset_time")] {
+            let groups: [[String: Any]] = [[
+                "displayName": "Gemini",
+                "buckets": [
+                    [idKey: "gemini-5h", resetKey: resetTime],
+                    [idKey: "gemini-weekly", resetKey: resetTime],
+                ],
+            ]]
+            let rows = ds.antigravityQuotaSummaryRows(groups: groups)
+            XCTAssertEqual(rows.map(\.name), ["Gemini", "Gemini"])
+            XCTAssertEqual(rows.map(\.window), [.session, .weekly])
+            XCTAssertEqual(rows.map(\.remainingPercent), [0, 0])
+            XCTAssertEqual(rows.compactMap(\.resetAt), [reset, reset])
+        }
+    }
+
+    func testMissingFractionRequiresAnExistingWindow() {
+        let groups: [[String: Any]] = [[
+            "displayName": "Gemini",
+            "buckets": [
+                [:],
+                ["bucketId": ""],
+                ["resetTime": "invalid"],
+                ["bucketId": "gemini-weekly"],
+                ["reset_time": "2099-01-01T00:00:00Z"],
+            ],
+        ]]
+        let rows = ds.antigravityQuotaSummaryRows(groups: groups)
+        XCTAssertEqual(rows.map(\.remainingPercent), [0, 0])
+        XCTAssertEqual(rows.map(\.window), [.session, .weekly])
+        XCTAssertNotNil(rows.first?.resetAt)
+        XCTAssertNil(rows.last?.resetAt)
+    }
+
+    func testNewModelNamesUseExistingFallbackFamilies() {
+        let cases: [(String, String?)] = [
+            ("Gemini 4 Argon", nil),
+            ("Gemini 4 Hydrogen", "Gemini"),
+            ("Orchestrator (Argon)", nil),
+            ("Gemini 3.8 Flash", "Gemini"),
+            ("Claude Opus 5.5", "Claude"),
+            ("Claude Sonnet 5.5", "Claude"),
+            ("GPT-OSS 120B (Medium)", "Claude"),
+            ("Gemini 4 Carbon", "Gemini"),
+        ]
+        for (name, family) in cases {
+            let root: [String: Any] = ["models": ["model": [
+                "displayName": name,
+                "quotaInfo": ["remainingFraction": 0.4, "resetTime": "2099-01-01T00:00:00Z"],
+            ]]]
+            let rows = ds.normalizeAntigravityModels(root)
+            XCTAssertEqual(rows.map(\.name), family.map { [$0] } ?? [], name)
+        }
+        XCTAssertTrue(ds.normalizeAntigravityModels([
+            "models": ["gemini-4-carbon": ["displayName": "Gemini 4 Carbon"]],
+        ]).isEmpty, "an unavailable model without quota must not create a row")
     }
 }
 

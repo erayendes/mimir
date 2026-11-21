@@ -9,6 +9,96 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [3.2] - 2026-11-21
+
+**Pace, not just percentage.** Weekly and 30-day bars are coloured by whether your current pace lasts until the reset. A mark in the bar shows where you should be with even use, and red bars say how long you'd go without quota. Click a card to turn it over: the account's e-mail, when the quota runs out at this pace, or how much will go unused. The widget shows the same colours. The idea and the method behind the forecast come from the script [@ilkerutlu](https://github.com/ilkerutlu) shared, thank you.
+
+**Your quota in the terminal.** With Prompt-free Claude tracking on, Claude Code and Antigravity's `agy` show a line with the model's name, a coloured bar per window, the remaining percentage and the time until reset, following Mimir's pace. With Fable selected, the weekly part is Fable's own quota. Codex gets its own five-hour and weekly limit items. If you already had a status line, Mimir asks whether to show both, only its own, or only yours.
+
+**Fewer keychain prompts.** Mimir reads Claude Code's login through macOS's `security` tool, the way Claude Code does, so the keychain password prompt shouldn't come back after each token renewal. Opening Mimir no longer runs `claude doctor` for a grey Claude card.
+
+Also: Claude's renewal credits say what they renew (Weekly or Fable), Claude's $200 plan shows as Ultra, Codex plans show their package (Pro 100, Pro 200). Antigravity quotas show up sooner after the Mac starts, are found when Gemini.app installed it, and a used-up quota shows 0% instead of disappearing. The menu bar icon dims on an inactive display.
+
+### [3.2-beta.8] - 2026-11-19
+
+The keychain password prompt for Claude Code's login should no longer come back. Claude Code rewrites its keychain item each time it renews its token, and macOS dropped Mimir's "Always Allow" with it. Mimir now reads the item through macOS's `security` tool, the way Claude Code itself does, which needs no permission. This covers second Claude accounts too.
+
+If Claude Code or agy already had a status line of yours, turning on Prompt-free Claude tracking asks how to show it: both lines (yours, then Mimir's), only Mimir's, or only yours as before. Earlier installs are asked once on the next launch. Turning it off still brings your line back.
+
+### [3.2-beta.7] - 2026-11-17
+
+The status line in Claude Code and Antigravity's `agy` now draws a coloured 10-cell bar for each window, with the time left until it resets: `Opus 5.5  5h ███████░░░ 70% 2h15m  ·  7d ███░░│░░░░ 25% 3d4h`. The line starts with the selected model's name instead of "Mimir".
+
+The weekly part follows Mimir's own pace: green, amber or red, a red note saying how long you'd go without quota, and a thin white mark where you should be at an even pace (not in the window's first day). In a narrow terminal the countdowns go first, then the bars.
+
+With Fable selected in Claude Code, the 7-day part shows Fable's own weekly quota instead of the all-models one.
+
+Opening Mimir no longer runs `claude doctor` for a grey Claude card. Claude Code renewed its login there and dropped Mimir's keychain access with it, so the macOS keychain password prompt came back several times a day. A grey Claude card now refreshes the next time you use Claude Code.
+
+### [3.2-beta.6] - 2026-11-16
+
+Antigravity's CLI status line now names the selected model, for example "Mimir  Gemini 3.8 Flash  5h 99%  ·  7d 99%". Gemini 4 Argon shows its own quota, and Claude and GPT-OSS models show the shared one.
+
+The agy status line also feeds the Antigravity card: while its data is under 30 minutes old, Mimir doesn't start another agy process. Codex's limit items are added to extra Codex accounts too.
+
+Antigravity: an empty model list no longer shows fake 0% rows; a missing group such as Argon is filled in from another source; an unfinished agy run is stopped after 45 seconds.
+
+Claude: a keychain entry with only an MCP login or an empty token no longer hides the valid login; reset rights are kept when Mimir falls back to another source; Ultra accounts no longer show a stray five-hour bar.
+
+When a reset is pushed later, the "quota renewed" notification moves with it instead of arriving early.
+
+### [3.2-beta.5] - 2026-11-14
+
+The card front is quieter: the bar shows only its percentage, on the left and white over the fill. The arrow and the "short" note are gone, in the widget too.
+
+Click a card to turn it over: it shows the account's e-mail and where the current pace leads, how long the quota lasts and how long you'd be left without it, or how much will go unused. Another click turns it back.
+
+The pace now follows the last day of use once about a day of readings is in, so slowing down also softens the forecast.
+
+The status line of Claude Code now shows the remaining percentage, like the rest of Mimir. Antigravity's CLI (agy) gets the same Mimir line, and Codex's status line gets its own five-hour and weekly limits. All three follow the "Prompt-free Claude tracking" setting.
+
+The menu bar icon now dims on an inactive display like the other icons.
+
+### [3.2-beta.4] - 2026-11-13
+
+Antigravity quotas show up sooner after the Mac starts: in the first five minutes Mimir retries about every minute instead of waiting five.
+
+Antigravity is now found when Gemini.app installed it.
+
+An Antigravity quota that has run out now shows 0% instead of disappearing from the card.
+
+### [3.2-beta.3] - 2026-11-12
+
+Weekly and 30-day quota bars are now colored by whether your current pace will last until the reset, not by the percentage left. (Quotas that would run out only slightly early get leeway of about 2% of the window.)
+
+The arrow inside the bar shows where the quota should be with even use.
+
+Only red bars say how long you'll be without quota, for example, “≈2d short”.
+
+Click the bar to open a bubble with when the quota is expected to run out or how much will be left at the reset. (During the first 24 hours, 36 hours for a 30-day window, it says when the forecast starts instead.)
+
+The widget now shows the same colors and the same arrow.
+
+Five-hour quotas and notifications are unchanged.
+
+Both the idea of forecasting when the quota runs out and the method behind it come from the forecast script [@ilkerutlu](https://github.com/ilkerutlu) shared, thank you for both.
+
+### [3.2-beta.2] - 2026-11-11
+
+The type of Claude's renewal credits (Weekly or Fable) now shows on the card.
+
+### [3.2-beta.1] - 2026-11-11
+
+Notification texts have been streamlined.
+
+Fixes to how Antigravity is shown.
+
+Codex plan names now show the package: Pro → Pro 100, Pro 200 and so on.
+
+Claude's $200 plan now shows as Ultra.
+
+Claude's renewal credits say what they renew: Weekly or Fable.
+
 ### [3.1] - 2026-10-27
 
 If you have more than one account for the same model, you now see each one on its own card and widget. That's why every card also shows the model's plan. Click the plan and you'll see which account it belongs to.
@@ -666,6 +756,96 @@ Bu projedeki tüm önemli değişiklikler bu dosyada belgelenecektir.
 
 Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
+
+### [3.2] - 2026-11-21
+
+**Yüzde değil, tempo.** Haftalık ve 30 günlük çubuklar artık mevcut temponuzun sıfırlanmaya kadar yetip yetmeyeceğine göre renkleniyor. Çubuktaki işaret, eşit kullanımda olmanız gereken yeri gösteriyor; kırmızı çubuklar ne kadar kotasız kalacağınızı söylüyor. Karta tıklayınca kart dönüyor: hesabın e-postası, bu tempoyla kotanın ne zaman biteceği ya da ne kadarının kullanılmadan kalacağı. Widget da aynı renkleri gösteriyor. Tahmin fikri ve yöntemi [@ilkerutlu](https://github.com/ilkerutlu)'nun paylaştığı betikten geliyor, teşekkürler.
+
+**Kotanız terminalde.** Parolasız Claude takibi açıkken Claude Code'da ve Antigravity'nin `agy`'sinde bir satır çıkıyor: modelin adı, her pencere için renkli bir çubuk, kalan yüzde ve sıfırlanmaya kalan süre, Mimir'in temposuna göre. Fable seçiliyken haftalık kısım Fable'ın kendi kotası. Codex'e kendi beş saatlik ve haftalık limit öğeleri ekleniyor. Önceden bir durum satırınız varsa Mimir ikisini birden mi, yalnızca kendisininkini mi, yalnızca sizinkini mi göstereceğini soruyor.
+
+**Daha az anahtar zinciri penceresi.** Mimir, Claude Code girişini Claude Code gibi macOS'in `security` aracıyla okuyor; böylece her token yenilemesinden sonra parola penceresi geri gelmemeli. Mimir açılınca gri Claude kartı için artık `claude doctor` çalıştırmıyor.
+
+Ayrıca: Claude'un yenileme hakları neyi yenilediğini söylüyor (Haftalık ya da Fable), Claude'un 200 dolarlık planı Ultra olarak görünüyor, Codex planları paketini gösteriyor (Pro 100, Pro 200). Antigravity kotaları Mac açıldıktan sonra daha erken geliyor, Gemini.app'in kurduğu Antigravity de bulunuyor ve biten kota karttan kaybolmak yerine %0 gösteriyor. Menü çubuğu simgesi etkin olmayan ekranda soluklaşıyor.
+
+### [3.2-beta.8] - 2026-11-19
+
+Claude Code girişi için anahtar zinciri parola penceresi artık geri gelmemeli. Claude Code token'ını her yenilediğinde anahtar zinciri kaydını yeniden yazıyor, macOS da Mimir'in "Her Zaman İzin Ver" iznini bununla birlikte siliyordu. Mimir artık kaydı, Claude Code'un kendisi gibi, izin gerektirmeyen macOS `security` aracıyla okuyor. İkinci Claude hesapları da buna dahil.
+
+Claude Code'da ya da agy'de kendi durum satırınız varsa, Parolasız Claude takibini açınca nasıl görüneceği soruluyor: ikisi birden (önce sizinki, altında Mimir'inki), yalnızca Mimir'inki ya da eskisi gibi yalnızca sizinki. Önceden kuranlara bir sonraki açılışta bir kez soruluyor. Takibi kapatınca satırınız yine geri geliyor.
+
+### [3.2-beta.7] - 2026-11-17
+
+Claude Code'un ve Antigravity'nin `agy`'sinin durum satırı artık her pencere için renkli, 10 hücrelik bir çubuk ve sıfırlanmaya kalan süreyi gösteriyor: `Opus 5.5  5h ███████░░░ 70% 2h15m  ·  7d ███░░│░░░░ 25% 3d4h`. Satır "Mimir" yerine seçili modelin adıyla başlıyor.
+
+Haftalık kısım Mimir'in temposuna uyuyor: yeşil, amber ya da kırmızı; kırmızıda ne kadar kotasız kalınacağını söyleyen bir not; eşit tempoda olmanız gereken yerde ince beyaz bir çizgi (pencerenin ilk gününde yok). Dar terminalde önce geri sayımlar, sonra çubuklar kalkıyor.
+
+Claude Code'da Fable seçiliyken 7 günlük kısım, tüm modellerinki yerine Fable'ın kendi haftalık kotasını gösteriyor.
+
+Mimir açılınca gri bir Claude kartı için artık `claude doctor` çalıştırmıyor. Claude Code orada girişini yeniliyor, Mimir'in anahtar zinciri iznini de siliyordu; bu yüzden macOS'in anahtar zinciri parola penceresi günde birkaç kez geri geliyordu. Gri Claude kartı artık Claude Code'u bir sonraki kullanışınızda yenileniyor.
+
+### [3.2-beta.6] - 2026-11-16
+
+Antigravity CLI'ının durum satırı artık seçili modelin adını gösteriyor; örneğin "Mimir  Gemini 3.8 Flash  5h 99%  ·  7d 99%". Gemini 4 Argon kendi kotasını, Claude ve GPT-OSS modelleri ortak kotayı gösteriyor.
+
+agy'nin durum satırı Antigravity kartını da besliyor: verisi 30 dakikadan yeniyken Mimir ayrıca agy çalıştırmıyor. Codex'in limit öğeleri ek Codex hesaplarına da ekleniyor.
+
+Antigravity: boş model listesi artık sahte %0 satırları göstermiyor; Argon gibi eksik bir grup başka kaynaktan tamamlanıyor; bitmeyen bir agy çalışması 45 saniye sonra durduruluyor.
+
+Claude: yalnızca MCP girişi ya da boş token içeren keychain kaydı artık geçerli girişi gizlemiyor; Mimir başka kaynağa geçtiğinde sıfırlama hakları korunuyor; Ultra hesaplarda fazladan beş saatlik çubuk görünmüyor.
+
+Sıfırlama ileri kayarsa "kota yenilendi" bildirimi de onunla birlikte kayıyor, erken gelmiyor.
+
+### [3.2-beta.5] - 2026-11-14
+
+Kartın ön yüzü sadeleşti: çubukta yalnızca yüzde var, solda ve dolgunun üstünde beyaz. Ok ve "kotasız" notu kalktı, widget'ta da.
+
+Karta tıklayınca arka yüzü açılıyor: hesabın e-postası ve mevcut tempoyla kotanın ne kadar süreceği, ardından ne kadar kotasız kalınacağı ya da ne kadarının kullanılmayacağı yazıyor. Bir tıklama daha ön yüze döndürüyor.
+
+Tempo artık yaklaşık bir günlük veri birikince son günün kullanımına göre hesaplanıyor; yavaşlayınca tahmin de yumuşuyor.
+
+Claude Code'un status line'ı artık Mimir'in geri kalanı gibi kalan yüzdeyi gösteriyor. Antigravity'nin CLI'ı (agy) aynı Mimir satırını, Codex'in status line'ı da kendi beş saatlik ve haftalık limitlerini gösteriyor. Üçü de "Parolasız Claude takibi" ayarına bağlı.
+
+Menü çubuğu simgesi, etkin olmayan ekranda diğer simgeler gibi soluklaşıyor.
+
+### [3.2-beta.4] - 2026-11-13
+
+Mac açıldıktan sonra Antigravity kotaları daha erken görünüyor: ilk beş dakikada Mimir beş dakika beklemek yerine yaklaşık her dakika yeniden deniyor.
+
+Gemini.app ile kurulan Antigravity artık bulunuyor.
+
+Biten Antigravity kotası artık karttan kaybolmuyor, %0 olarak görünüyor.
+
+### [3.2-beta.3] - 2026-11-12
+
+Haftalık ve 30 günlük kota çubukları artık kalan yüzdeye göre değil, mevcut kullanım hızıyla kotanın sıfırlanmaya yetip yetmeyeceğine göre renkleniyor. (Az farkla erken bitecek kotalar için pencere süresinin yaklaşık %2'si kadar pay var.)
+
+Çubuğun içindeki ok, dengeli kullanımda kotanın nerede olması gerektiğini gösteriyor.
+
+Yalnızca kırmızı çubuklarda kotasız kalınacak süre yazıyor; örneğin “≈2 gün kotasız”.
+
+Çubuğa tıkladığınızda açılan baloncuk, kotanın tahmini bitiş zamanını veya sıfırlandığında kalacak oranı gösteriyor. (İlk 24 saatte, 30 günlük kotada ilk 36 saatte, bunun yerine tahminin ne zaman başlayacağı yazıyor.)
+
+Widget de artık aynı renkleri ve aynı oku gösteriyor.
+
+Beş saatlik kotalar ve bildirimler değişmedi.
+
+Kotanın ne zaman biteceğini tahmin etme fikri de bunu hesaplama yöntemi de [@ilkerutlu](https://github.com/ilkerutlu)'nun paylaştığı tahmin betiğinden geliyor, ikisi için de teşekkürler.
+
+### [3.2-beta.2] - 2026-11-11
+
+Claude yenileme haklarının türü (Haftalık ya da Fable) artık kartta görünüyor.
+
+### [3.2-beta.1] - 2026-11-11
+
+Bildirim metinleri optimize edildi.
+
+Antigravity gösterimlerinde düzeltmeler yapıldı.
+
+Codex plan isimlerinde paket gösterimi eklendi. Pro → Pro 100, Pro 200 gibi.
+
+Claude'un 200 dolarlık planı artık Ultra adıyla görünüyor.
+
+Claude yenileme haklarında hakkın türü yazıyor: Haftalık ya da Fable.
 
 ### [3.1] - 2026-10-27
 

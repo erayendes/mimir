@@ -32,6 +32,7 @@ enum WidgetBridge {
     static func update(_ services: [ServiceStatus]) {
         let now = Date()
         let payload = makePayload(services, generatedAt: now)
+        PaceFileWriter.update(services: services, payload: payload, now: now)
         let forced = pendingForceReload
         pendingForceReload = false
 
@@ -76,7 +77,7 @@ enum WidgetBridge {
                 name: svc.name,
                 iconName: svc.iconName,
                 isAvailable: svc.isAvailable || svc.isStale,
-                fiveHour: fiveHourMetrics(svc),
+                fiveHour: fiveHourMetrics(svc, now: generatedAt),
                 unavailable: svc.dataUnavailable,
                 isStale: svc.isStale,
                 title: svc.providerTitle,
@@ -90,20 +91,38 @@ enum WidgetBridge {
     /// The prominent window per session, each paired with the weekly (7g) quota that gates it. Reuses
     /// the shared `ServiceStatus.sessionWindows` pairing (Antigravity per `.session` model matched to its
     /// weekly by name; Claude/Codex the account session). Prefers the 5-hour reading; when a service has
-    /// no active 5h window (Codex since OpenAI's July 2026 removal) it falls back to the weekly reading
+    /// no active 5h window (Codex Go, or Codex while OpenAI had it removed in July 2026) it falls back to the weekly reading
     /// tagged `isWeekly` so the widget shows the real binding limit with a "7g" pill instead of dropping
     /// the row. Only windows with neither reading are dropped.
-    private static func fiveHourMetrics(_ svc: ServiceStatus) -> [WindowMetric] {
+    private static func fiveHourMetrics(_ svc: ServiceStatus, now: Date) -> [WindowMetric] {
         svc.sessionWindows.compactMap { w in
+            let window = w.label == svc.name ? "weekly" : w.label
+            let pace: QuotaPace? = {
+                guard !svc.isStale, !QuotaPace.gated(weekly: w.weeklyPercent, session: w.sessionPercent),
+                      let percent = w.weeklyPercent, let resetAt = w.weeklyResetAt else { return nil }
+                return QuotaPace.compute(remaining: percent, resetAt: resetAt,
+                                         window: w.weeklyWindowSeconds ?? 7 * 86_400, now: now,
+                                         history: QuotaHistory.shared.readings(QuotaHistory.key(svc.name, window),
+                                                                               resetAt: resetAt))
+            }()
+            let tone: QuotaTone? = switch pace?.tone {
+            case .green: .green
+            case .amber: .amber
+            case .red: .red
+            case .early, nil: nil
+            }
             if let pct = w.sessionPercent {
                 return WindowMetric(label: w.label, percent: pct, resetAt: w.sessionResetAt,
                                     weeklyPercent: w.weeklyPercent, weeklyResetAt: w.weeklyResetAt,
-                                    isWeekly: false)
+                                    isWeekly: false, tone: tone, idealPercent: tone == nil ? nil : pace?.idealPercent,
+                                    note: tone == .red ? pace?.note : nil)
             }
             if let weeklyPct = w.weeklyPercent {
                 return WindowMetric(label: w.label, percent: weeklyPct, resetAt: w.weeklyResetAt,
                                     weeklyPercent: w.weeklyPercent, weeklyResetAt: w.weeklyResetAt,
-                                    isWeekly: true, windowSeconds: w.weeklyWindowSeconds)
+                                    isWeekly: true, windowSeconds: w.weeklyWindowSeconds,
+                                    tone: tone, idealPercent: tone == nil ? nil : pace?.idealPercent,
+                                    note: tone == .red ? pace?.note : nil)
             }
             return nil
         }

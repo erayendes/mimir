@@ -43,6 +43,26 @@ final class WidgetBridgeTests: XCTestCase {
         XCTAssertEqual(p.fiveHour.map(\.weeklyPercent), [88, nil])
     }
 
+    /// A weekly cap at 0% gates its session: like the popover, the widget shows no pace for it
+    /// (no tone, no ideal arrow, no note), even mid-window where a red pace would otherwise show.
+    func testExhaustedWeeklyGatesSessionWithoutPace() {
+        let ag = ServiceStatus(
+            name: "Antigravity", iconName: "antigravity",
+            sessionResetAt: nil, weeklyResetAt: nil,
+            sessionRemainingPercent: nil, weeklyRemainingPercent: nil,
+            models: [ModelStatus(name: "Gemini", remainingPercent: 100, resetAt: now.addingTimeInterval(3600),
+                                 window: .session),
+                     ModelStatus(name: "Gemini", remainingPercent: 0, resetAt: now.addingTimeInterval(3.5 * 86_400),
+                                 window: .weekly)],
+            isAvailable: true, statusNote: nil)
+
+        let m = WidgetBridge.makePayload([ag], generatedAt: now).providers[0].fiveHour[0]
+        XCTAssertEqual(m.weeklyPercent, 0)
+        XCTAssertNil(m.tone)
+        XCTAssertNil(m.idealPercent)
+        XCTAssertNil(m.note)
+    }
+
     /// Codex since OpenAI's July 2026 5-hour removal: no session reading, only a weekly one. The widget
     /// falls back to the weekly quota as the headline metric (tagged `isWeekly`) instead of dropping the
     /// row, so the "7g" pill and real binding limit still render.
@@ -88,6 +108,69 @@ final class WidgetBridgeTests: XCTestCase {
         XCTAssertEqual(m.percent, 72)
         XCTAssertTrue(m.isWeekly)
         XCTAssertNil(m.windowSeconds)
+        XCTAssertNil(m.tone)
+        XCTAssertNil(m.idealPercent)
+        XCTAssertNil(m.note)
+    }
+
+    func testPaceFieldsRoundTripAndLegacyPayload() throws {
+        let metric = WindowMetric(label: "Codex", percent: 30, resetAt: now,
+                                  isWeekly: true, tone: .red, idealPercent: 50,
+                                  note: "≈2 days without quota")
+        let payload = WidgetPayload(generatedAt: now, providers: [
+            ProviderPayload(name: "Codex", iconName: "codex", isAvailable: true, fiveHour: [metric])
+        ])
+        let decoded = try JSONDecoder().decode(WidgetPayload.self, from: JSONEncoder().encode(payload))
+        XCTAssertEqual(decoded.providers[0].fiveHour[0], metric)
+
+        let legacyJSON = #"{"generatedAt":0,"providers":[{"name":"Codex","iconName":"codex","isAvailable":true,"fiveHour":[{"label":"Codex","percent":30}]}]}"#
+        let legacy = try JSONDecoder().decode(WidgetPayload.self, from: Data(legacyJSON.utf8))
+            .providers[0].fiveHour[0]
+        XCTAssertNil(legacy.tone)
+        XCTAssertNil(legacy.idealPercent)
+        XCTAssertNil(legacy.note)
+    }
+
+    func testLongWindowPaceToneMappingAndExclusions() {
+        let week: TimeInterval = 7 * 86_400
+        func metric(_ remaining: Int, elapsed: TimeInterval = 3.5 * 86_400,
+                    stale: Bool = false, session: Int? = nil) -> WindowMetric {
+            let svc = ServiceStatus(name: "Codex", iconName: "codex",
+                                    sessionResetAt: session == nil ? nil : now.addingTimeInterval(3600),
+                                    weeklyResetAt: now.addingTimeInterval(week - elapsed),
+                                    sessionRemainingPercent: session, weeklyRemainingPercent: remaining,
+                                    models: [], isAvailable: true, statusNote: nil, isStale: stale)
+            return WidgetBridge.makePayload([svc], generatedAt: now).providers[0].fiveHour[0]
+        }
+
+        let green = metric(80)
+        XCTAssertEqual(green.tone, .green)
+        XCTAssertEqual(green.idealPercent, 50)
+        XCTAssertNil(green.note)
+
+        let amber = metric(45)
+        XCTAssertEqual(amber.tone, .amber)
+        XCTAssertNil(amber.note)
+
+        let red = metric(30)
+        XCTAssertEqual(red.tone, .red)
+        XCTAssertNotNil(red.note)
+        XCTAssertEqual(red.idealPercent, 50)
+
+        let paired = metric(30, session: 90)
+        XCTAssertFalse(paired.isWeekly)
+        XCTAssertEqual(paired.percent, 90) // 5h remains a static-threshold face
+        XCTAssertEqual(paired.tone, .red)  // its paired long bar carries the pace
+
+        let early = metric(30, elapsed: 12 * 3600)
+        XCTAssertNil(early.tone)
+        XCTAssertNil(early.idealPercent)
+        XCTAssertNil(early.note)
+
+        let stale = metric(30, stale: true)
+        XCTAssertNil(stale.tone)
+        XCTAssertNil(stale.idealPercent)
+        XCTAssertNil(stale.note)
     }
 
     /// A service with neither a session nor a weekly reading produces no metric (dropped, not a zero row).
@@ -174,5 +257,53 @@ final class WidgetBridgeTests: XCTestCase {
             isAvailable: true, statusNote: nil)
         XCTAssertEqual(codex.sessionWindows.map(\.label), ["Codex"])
         XCTAssertEqual(codex.sessionWindows.first?.sessionPercent, 70)
+    }
+
+    /// Claude.app's last-known card comes back only while it provably names another organization.
+    /// A snapshot saved without one, or of the CLI's own, was the picker's second "Claude · Team"
+    /// with no e-mail, showing the first one's numbers.
+    func testClaudeDesktopSnapshotOnlyForAnotherOrganization() {
+        func desktop(org: String?) -> ServiceStatus {
+            ServiceStatus(name: LiveUsageDataSource.claudeDesktopCardName, iconName: "claude",
+                          sessionResetAt: now, weeklyResetAt: now,
+                          sessionRemainingPercent: 40, weeklyRemainingPercent: 60,
+                          models: [], isAvailable: true, statusNote: nil,
+                          account: AccountInfo(plan: "Team", org: org))
+        }
+        XCTAssertNil(LiveUsageDataSource.otherAccountCard(desktop(org: nil), cliOrg: "org-a"))
+        XCTAssertNil(LiveUsageDataSource.otherAccountCard(desktop(org: "org-a"), cliOrg: "org-a"))
+        XCTAssertNil(LiveUsageDataSource.otherAccountCard(desktop(org: "org-b"), cliOrg: nil))
+        XCTAssertNil(LiveUsageDataSource.otherAccountCard(nil, cliOrg: "org-a"))
+        XCTAssertEqual(LiveUsageDataSource.otherAccountCard(desktop(org: "org-b"), cliOrg: "org-a")?.account?.org, "org-b")
+    }
+
+    /// Every picker option names its login: the e-mail when there is one, else the card's own name,
+    /// so two Claude logins on one plan are never the same-looking choice.
+    func testPickerSubtitleNamesTheLogin() {
+        let metric = { (label: String) in WindowMetric(label: label, percent: 50, resetAt: nil) }
+        let cli = ProviderPayload(name: "Claude", iconName: "claude", isAvailable: true, fiveHour: [metric("Claude")],
+                                  title: "Claude", plan: "Team", email: "a@b.c")
+        let desktop = ProviderPayload(name: "Claude Desktop", iconName: "claude", isAvailable: true,
+                                      fiveHour: [metric("Claude Desktop")], title: "Claude", plan: "Team")
+        let ag = ProviderPayload(name: "Antigravity", iconName: "antigravity", isAvailable: true,
+                                 fiveHour: [metric("Claude")], title: "Antigravity", plan: "Pro", email: "x@y.z")
+        let bare = ProviderPayload(name: "Codex", iconName: "codex", isAvailable: true, fiveHour: [metric("Codex")])
+        XCTAssertEqual(cli.optionSubtitle(cli.fiveHour[0]), "Team · a@b.c")
+        XCTAssertEqual(desktop.optionSubtitle(desktop.fiveHour[0]), "Team · Claude Desktop")
+        XCTAssertEqual(ag.optionSubtitle(ag.fiveHour[0]), "Antigravity · Pro · x@y.z")
+        XCTAssertNil(bare.optionSubtitle(bare.fiveHour[0]))
+    }
+
+    /// A real Claude.app card on another account reaches the picker under its own name.
+    func testDesktopCardPayloadKeepsItsName() {
+        let desktop = ServiceStatus(name: LiveUsageDataSource.claudeDesktopCardName, iconName: "claude",
+                                    sessionResetAt: now, weeklyResetAt: now,
+                                    sessionRemainingPercent: 40, weeklyRemainingPercent: 60,
+                                    models: [], isAvailable: true, statusNote: nil,
+                                    account: AccountInfo(plan: "Team", org: "org-b"))
+        let p = WidgetBridge.makePayload([desktop], generatedAt: now).providers[0]
+        XCTAssertEqual(p.title, "Claude")
+        XCTAssertNil(p.email)
+        XCTAssertEqual(p.optionSubtitle(p.fiveHour[0]), "Team · Claude Desktop")
     }
 }

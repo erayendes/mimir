@@ -14,6 +14,7 @@ import os
 /// "Always Allow" for it sticks — after which every read is silent.
 extension LiveUsageDataSource {
     private static let desktopLog = Logger(subsystem: "com.erayendes.mimir.desktop", category: "claude")
+    nonisolated(unsafe) private static var desktopUsageBackoffUntil = Date.distantPast
 
     /// The card name for Claude.app's session when it is signed in to a different account than
     /// Claude Code — its own card beside the CLI's.
@@ -26,6 +27,9 @@ extension LiveUsageDataSource {
     /// (`cliOrg` nil) the app's session is simply the Claude card. nil when the app isn't installed
     /// or signed in, the session can't be read, the request fails, or the answer carries no quota.
     func fetchClaudeDesktopWebUsage(userInitiated: Bool, cliOrg: String?) async -> (status: ServiceStatus, sameAccount: Bool)? {
+        let startedAt = Date()
+        // After a 429 the OAuth path answers instead, rather than asking claude.ai again every minute.
+        guard Date() >= Self.desktopUsageBackoffUntil else { return nil }
         guard let sessionKey = readClaudeDesktopSessionKey(userInitiated: userInitiated) else {
             Self.desktopLog.log("no desktop sessionKey (silent read failed / not granted / not logged in)")
             return nil
@@ -59,6 +63,9 @@ extension LiveUsageDataSource {
             // which Mimir will not impersonate — so this is the one path that can carry it.
             let (usageData, usageResp) = try await URLSession.shared.data(for: request("https://claude.ai/api/organizations/\(uuid)/usage?cedar_ember=1"))
             let usageCode = (usageResp as? HTTPURLResponse)?.statusCode ?? -1
+            if usageCode == 429 {
+                Self.desktopUsageBackoffUntil = Date() + ((usageResp as? HTTPURLResponse).flatMap(retryAfterSeconds) ?? 15 * 60)
+            }
             guard usageCode == 200,
                   let root = try? JSONSerialization.jsonObject(with: usageData) as? [String: Any],
                   Self.claudeHasQuota(root) else {
@@ -66,10 +73,27 @@ extension LiveUsageDataSource {
                 return nil
             }
 
+            var email: String?
+            if cliOrg == nil || !sameAccount {
+                let snapshotName = sameAccount ? "Claude" : Self.claudeDesktopCardName
+                let previous = loadSnapshot(for: snapshotName, iconName: "claude")?.account
+                email = previous?.org == uuid ? previous?.email : nil
+                // Leave time for the usage result to return before fetchAll's 8-second limit.
+                let emailTimeout = min(2, 7 - Date().timeIntervalSince(startedAt))
+                if email == nil, emailTimeout > 0 {
+                    let bootstrapRequest = request("https://claude.ai/api/bootstrap")
+                    email = await withTimeout(seconds: emailTimeout) { () async -> String? in
+                        guard let (data, response) = try? await URLSession.shared.data(for: bootstrapRequest),
+                              (response as? HTTPURLResponse)?.statusCode == 200 else { return nil }
+                        return Self.claudeBootstrapEmail(data)
+                    } ?? nil
+                }
+            }
+
             guard sameAccount else {
                 // Another account's numbers: its own card and snapshot, never the CLI card's cache.
                 let status = buildClaudeStatus(from: root, note: "claude.ai desktop", name: Self.claudeDesktopCardName)
-                    .withAccount(AccountInfo(plan: Self.claudeOrgPlan(org), org: uuid))
+                    .withAccount(AccountInfo(plan: Self.claudeOrgPlan(org), email: email, org: uuid))
                 saveSnapshot(status)
                 return (status.withCooldownHint(0), false)
             }
@@ -77,9 +101,8 @@ extension LiveUsageDataSource {
             noteClaudeAccount(uuid)
             writeClaudeUsageCache(usageData)
             var status = buildClaudeStatus(from: root, note: "claude.ai desktop")
-            // With a CLI login, its profile names the account (e-mail included); without one the
-            // organization's plan is all there is.
-            if cliOrg == nil { status = status.withAccount(AccountInfo(plan: Self.claudeOrgPlan(org), org: uuid)) }
+            // With a CLI login, its profile names the account; without one use the desktop session.
+            if cliOrg == nil { status = status.withAccount(AccountInfo(plan: Self.claudeOrgPlan(org), email: email, org: uuid)) }
             saveSnapshot(status)
             Self.desktopLog.log("OK session=\(status.sessionRemainingPercent ?? -1) weekly=\(status.weeklyRemainingPercent ?? -1)")
             return (status.withCooldownHint(0), true)
@@ -87,6 +110,12 @@ extension LiveUsageDataSource {
             Self.desktopLog.log("request threw: \(error.localizedDescription, privacy: .public)")
             return nil
         }
+    }
+
+    static func claudeBootstrapEmail(_ data: Data) -> String? {
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let account = root["account"] as? [String: Any] else { return nil }
+        return (account["email_address"] as? String) ?? (account["email"] as? String)
     }
 
     /// Cloudflare's "Just a moment" page: claude.ai sits behind it, and some networks (VPNs,
@@ -119,8 +148,7 @@ extension LiveUsageDataSource {
             Self.desktopLog.log("desktop oauth usage failed")
             return nil
         }
-        writeClaudeUsageCache(body)
-        let status = buildClaudeStatus(from: root, note: "claude desktop oauth")
+        let status = buildClaudeStatus(from: writeClaudeUsageCache(body) ?? root, note: "claude desktop oauth")
         saveSnapshot(status)
         return status.withCooldownHint(0)
     }
@@ -180,13 +208,15 @@ extension LiveUsageDataSource {
         selectClaudeOrg(orgs, preferring: wanted)?["uuid"] as? String
     }
 
-    /// The plan an organization's capabilities name: `claude_max` → Max, `claude_pro` → Pro,
+    /// The plan an organization's capabilities name: `claude_max` → Max (Ultra on the 20x tier), `claude_pro` → Pro,
     /// `raven` (claude.ai's Team) → Team, `enterprise` → Enterprise. nil for a free one.
     static func claudeOrgPlan(_ org: [String: Any]) -> String? {
         let caps = org["capabilities"] as? [String] ?? []
         if caps.contains(where: { $0.contains("enterprise") }) { return "Enterprise" }
         if caps.contains(where: { $0.contains("raven") }) { return "Team" }
-        if caps.contains(where: { $0.contains("claude_max") }) { return "Max" }
+        if caps.contains(where: { $0.contains("claude_max") }) {
+            return AccountInfo.claudePlan("claude_max", rateLimitTier: org["rate_limit_tier"] as? String)
+        }
         if caps.contains(where: { $0.contains("claude_pro") }) { return "Pro" }
         return nil
     }

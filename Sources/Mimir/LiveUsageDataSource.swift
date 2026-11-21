@@ -24,31 +24,33 @@ final class UsageStore: ObservableObject {
 
     private static let dismissedKey = "popover.dismissedUnavailable"
 
-    /// When each card's login was last renewed, so a card that stays grey (no network, say, where
+    /// When each Codex login was last renewed, so a card that stays grey (no network, say, where
     /// renewing can't help) isn't renewed on every open.
     private var lastRenewal: [String: Date] = [:]
 
-    /// Opening Mimir renews any grey Claude/Codex card's login itself — the CLI's own `doctor`, at
-    /// most every 10 minutes per card — and reads again, the logo spinning throughout. Claude
-    /// Desktop's card is another account's claude.ai session: there is no CLI login to renew for it.
+    /// Opening Mimir renews grey Codex logins through the CLI's own `doctor`, at most every 10
+    /// minutes per card, then reads again with the logo spinning throughout.
+    static func loginsDueForRenewal(_ services: [ServiceStatus], lastRenewal: [String: Date],
+                                    now: Date) -> [ServiceStatus] {
+        services.filter { service in
+            service.isStale && service.providerTitle == "Codex"
+                && now.timeIntervalSince(lastRenewal[service.name] ?? .distantPast) >= 10 * 60
+        }
+    }
+
     private func renewStaleLogins(_ services: [ServiceStatus]) {
         let now = Date()
-        let due = services.filter { s in
-            s.isStale && ["Claude", "Codex"].contains(s.providerTitle)
-                && s.name != LiveUsageDataSource.claudeDesktopCardName
-                && now.timeIntervalSince(lastRenewal[s.name] ?? .distantPast) >= 10 * 60
-        }
+        let due = Self.loginsDueForRenewal(services, lastRenewal: lastRenewal, now: now)
         guard !due.isEmpty else { return }
-        let jobs = due.map { s -> (provider: String, dir: URL?) in
-            lastRenewal[s.name] = now
-            let extras = s.providerTitle == "Codex" ? ExtraAccount.codex : ExtraAccount.claude
-            return (s.providerTitle, extras.first { $0.name == s.name }?.dir)
+        let dirs = due.map { service -> URL? in
+            lastRenewal[service.name] = now
+            return ExtraAccount.codex.first { $0.name == service.name }?.dir
         }
         isRefreshing = true
         let source = source
         Task {
             await Task.detached(priority: .userInitiated) {
-                for job in jobs { source.renewLogin(provider: job.provider, dir: job.dir) }
+                for dir in dirs { source.renewCodexLogin(dir: dir) }
             }.value
             isRefreshing = false
             refresh(userInitiated: true)
@@ -238,12 +240,14 @@ struct LiveUsageDataSource {
     /// when the live source later fails, instead of the card silently vanishing. Never persists
     /// an unavailable reading. Captures the two account-level windows (Claude/Codex) and/or the
     /// per-model rows (Antigravity); every key is optional, so each service writes only what it has.
-    func saveSnapshot(_ status: ServiceStatus) {
+    /// `live` false for a cache read back as a fallback: it is kept, but not counted toward the pace.
+    func saveSnapshot(_ status: ServiceStatus, live: Bool = true) {
         guard status.isAvailable else { return }
         let hasData = status.sessionRemainingPercent != nil
             || status.weeklyRemainingPercent != nil
             || !status.models.isEmpty
         guard hasData else { return }
+        if live { QuotaHistory.shared.record(status) }
 
         let iso = ISO8601DateFormatter()
         var payload: [String: Any] = ["version": 1, "savedAt": iso.string(from: Date())]
@@ -258,6 +262,8 @@ struct LiveUsageDataSource {
         // Which login the numbers belong to, so a card shown from its snapshot still names it.
         if let plan = status.account?.plan { payload["plan"] = plan }
         if let email = status.account?.email { payload["email"] = email }
+        // The organization proves that Claude.app's separate card still belongs to another account.
+        if let org = status.account?.org { payload["org"] = org }
         if !status.models.isEmpty {
             payload["models"] = status.models.map { m -> [String: Any] in
                 var dict: [String: Any] = ["name": m.name, "remainingPercent": m.remainingPercent]
@@ -356,8 +362,8 @@ struct LiveUsageDataSource {
         let weeklyWindow = (root["weeklyWindowSeconds"] as? NSNumber)
             .map(\.doubleValue)
             .flatMap { $0.isFinite && $0 > 6 * 3600 && $0 <= 366 * 86_400 ? $0 : nil }
-        let plan = root["plan"] as? String, email = root["email"] as? String
-        let account = plan == nil && email == nil ? nil : AccountInfo(plan: plan, email: email)
+        let plan = root["plan"] as? String, email = root["email"] as? String, org = root["org"] as? String
+        let account = plan == nil && email == nil && org == nil ? nil : AccountInfo(plan: plan, email: email, org: org)
 
         // Live source unreachable long enough (>4.5 h — just under the 5-hour session window, beyond
         // which the last-known session reading is from a window that has already rotated, so it's
@@ -586,17 +592,13 @@ struct LiveUsageDataSource {
         return ns.substring(with: m.range(at: 1))
     }
 
-    /// Mimir never refreshes a CLI's token itself — Claude Code's and Codex's refresh tokens are
-    /// single-use, and rotating one would log the CLI out. Their own `doctor` does: its auth check
-    /// renews an expired login and stores it where the CLI reads it (Codex's `auth.json`, Claude
-    /// Code's keychain item), so nothing is left holding the old token. Only when Mimir is opened,
+    /// Codex's own `doctor` renews an expired login in its `auth.json` when Mimir is opened,
     /// never on the timer. `dir` is a second login's config dir; nil is the main one.
-    func renewLogin(provider: String, dir: URL?) {
-        let (tool, variable) = provider == "Codex" ? ("codex", "CODEX_HOME") : ("claude", "CLAUDE_CONFIG_DIR")
-        let env = dir.map { "\(variable)='\($0.path.replacingOccurrences(of: "'", with: "'\\''"))' " } ?? ""
+    func renewCodexLogin(dir: URL?) {
+        let env = dir.map { "CODEX_HOME='\($0.path.replacingOccurrences(of: "'", with: "'\\''"))' " } ?? ""
         // `exec`, so the time limit stops doctor itself rather than only its shell. Without a limit
         // a doctor stuck on the network held `isRefreshing`, and no card refreshed until a relaunch.
-        _ = runShell("\(env)exec \(tool) doctor </dev/null >/dev/null 2>&1", timeout: 20)
+        _ = runShell("\(env)exec codex doctor </dev/null >/dev/null 2>&1", timeout: 20)
     }
 
     func runShell(_ script: String, timeout: TimeInterval? = nil) -> String {
@@ -606,8 +608,9 @@ struct LiveUsageDataSource {
     /// `stdin`, when set, is written to the process's standard input. Used to feed
     /// secrets (e.g. a curl `--config -` block) without exposing them in `arguments`,
     /// which are world-readable via the process table (`ps aux`).
+    /// `requireSuccess` discards stdout on a nonzero exit status.
     func runCommand(_ launchPath: String, _ args: [String], stdin: String? = nil,
-                    timeout: TimeInterval? = nil) -> String {
+                    timeout: TimeInterval? = nil, requireSuccess: Bool = false) -> String {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: launchPath)
         p.arguments = args
@@ -625,9 +628,17 @@ struct LiveUsageDataSource {
             if let timeout {
                 let deadline = Date().addingTimeInterval(timeout)
                 while p.isRunning && Date() < deadline { Thread.sleep(forTimeInterval: 0.1) }
-                if p.isRunning { p.terminate() }
+                if p.isRunning {
+                    p.terminate()
+                    let grace = Date().addingTimeInterval(1)
+                    while p.isRunning && Date() < grace { Thread.sleep(forTimeInterval: 0.05) }
+                    if p.isRunning { kill(p.processIdentifier, SIGKILL) }
+                    p.waitUntilExit()
+                    return ""
+                }
             }
             p.waitUntilExit()
+            if requireSuccess && p.terminationStatus != 0 { return "" }
             let data = out.fileHandleForReading.readDataToEndOfFile()
             return String(data: data, encoding: .utf8) ?? ""
         } catch {

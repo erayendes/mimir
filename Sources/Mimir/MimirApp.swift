@@ -75,7 +75,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
                 AppTarget.open(provider)
             case .openSelfAndRefresh:
                 // A stale Claude/Codex widget was tapped: open our panel with a user-initiated
-                // refresh — the only path allowed to read Claude Code's keychain and renew the token.
+                // refresh, which may read Claude Code's keychain and renew stale Codex logins.
                 // Force the resulting payload write to reload the widget at once, so the tapped widget
                 // visibly refreshes even if the numbers come back unchanged.
                 WidgetBridge.forceReloadOnNextUpdate()
@@ -256,6 +256,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
 
         maybePromptLaunchAtLogin()
         maybeOfferClaudeHook()
+        maybeAskStatusLineDisplayChoices()
     }
 
     // MARK: - Prompt-free Claude offer
@@ -500,9 +501,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     /// modifies ~/.claude/settings.json, so it's a deliberate user action here; disabling restores it.
     /// After wiring, kick a refresh so Claude's card can pick up the hook file on the next tick.
     @objc func toggleClaudeHook() {
-        let outcome = MimirStatusLineHook.isWired()
-            ? MimirStatusLineHook.disable()
-            : MimirStatusLineHook.enable()
+        let outcome: MimirStatusLineHook.Outcome
+        if MimirStatusLineHook.isWired() {
+            outcome = MimirStatusLineHook.disable()
+        } else {
+            let claudeMode = MimirStatusLineHook.hasExistingStatusLine()
+                ? statusLineDisplayMode(title: String(localized: "Claude Code already has a status line."))
+                : .keepCurrent
+            let agyMode = AntigravityStatusLineHook().hasExistingStatusLine
+                ? statusLineDisplayMode(title: String(localized: "Antigravity's agy already has a status line."))
+                : .keepCurrent
+            outcome = MimirStatusLineHook.enable(displayMode: claudeMode, antigravityDisplayMode: agyMode)
+        }
         switch outcome {
         case .failed(let why):
             let alert = NSAlert()
@@ -516,6 +526,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         case .disabled:
             Telemetry.signal("claudeHook.disabled")
             store.refresh()
+        }
+    }
+
+    /// Ask legacy installs after startup, waiting for any other launch prompt to finish.
+    private func maybeAskStatusLineDisplayChoices() {
+        guard MimirStatusLineHook.isWired() else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            guard let self, MimirStatusLineHook.isWired() else { return }
+            guard NSApp.modalWindow == nil else {
+                self.maybeAskStatusLineDisplayChoices()
+                return
+            }
+            if MimirStatusLineHook.needsDisplayChoice() {
+                let mode = self.statusLineDisplayMode(title: String(localized: "Claude Code already has a status line."))
+                MimirStatusLineHook.setDisplayMode(mode)
+            }
+            let agy = AntigravityStatusLineHook()
+            if MimirStatusLineHook.isWired(), agy.needsDisplayChoice {
+                let mode = self.statusLineDisplayMode(title: String(localized: "Antigravity's agy already has a status line."))
+                agy.setDisplayMode(mode)
+            }
+        }
+    }
+
+    private func statusLineDisplayMode(title: String) -> StatusLineDisplayMode {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = String(localized: "How should Mimir's line appear? Turning this off brings your line back.")
+        alert.addButton(withTitle: String(localized: "Show Both"))
+        alert.addButton(withTitle: String(localized: "Use Mimir's"))
+        alert.addButton(withTitle: String(localized: "Keep Current"))
+        NSApp.activate(ignoringOtherApps: true)
+        switch alert.runModal() {
+        case .alertFirstButtonReturn: return .showBoth
+        case .alertSecondButtonReturn: return .useMimir
+        default: return .keepCurrent
         }
     }
 
@@ -696,9 +742,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         checkNotifications()
     }
 
-    /// Menu-bar image: the Mimir glyph alone. Non-template; in light mode the glyph is filled black
-    /// for contrast, in dark mode the source artwork is drawn as-is. The source PNG carries wide
-    /// transparent margins, so only the glyph's own bounds are drawn — the status item hugs it.
+    /// Menu-bar image: the Mimir glyph alone, as a template — its detail is cut out in transparency,
+    /// so the system tints it for light and dark and dims it on an inactive display's menu bar. The
+    /// source PNG carries wide transparent margins, so only the glyph's own bounds are drawn.
     private func buildMenuBarImage() -> NSImage {
         // Glyph bounds inside the 1024×1024 source (bottom-left origin), with a hair of margin.
         let glyph = NSRect(x: 270, y: 140, width: 490, height: 738)
@@ -707,26 +753,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         let img = NSImage(size: NSSize(width: width, height: height), flipped: false) { [iconSource] rect in
             guard let ctx = NSGraphicsContext.current else { return true }
             ctx.imageInterpolation = .high
-            if let source = iconSource {
-                source.draw(in: rect, from: glyph, operation: .sourceOver, fraction: 1.0)
-                let isDark = NSAppearance.currentDrawing().bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-                if !isDark {
-                    ctx.compositingOperation = .sourceAtop
-                    NSColor.black.setFill()
-                    rect.fill()
-                    ctx.compositingOperation = .sourceOver
-                }
-            }
+            iconSource?.draw(in: rect, from: glyph, operation: .sourceOver, fraction: 1.0)
             return true
         }
-        img.isTemplate = false
+        img.isTemplate = true
         return img
     }
 
     private enum QuotaWindow {
         case fiveHour, weekly
         var suffix: String { self == .fiveHour ? "5h" : "weekly" }
-        var lowThreshold: Int { 10 }
+        var lowThreshold: Int { self == .fiveHour ? 15 : 10 }
     }
 
     private func checkNotifications() {
@@ -735,49 +772,65 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         // `!isStale` guard is load-bearing: a card served from a snapshot / a refilled estimate is
         // `isStale`, so a low alert is never raised off an inferred number. Refills fire off the
         // window's reset clock (see `fireRefillIfDue`), so a reading flickering back to 100 can't
-        // announce one. Antigravity is excluded by name (no service-level windows; per-group rows).
-        for service in store.services where service.isAvailable && !service.isStale && service.name != "Antigravity" {
-            evaluateWindow(service: service, window: .fiveHour,
+        // announce one. Antigravity has no service-level windows: each group row (Gemini, Claude,
+        // Argon) is its own window, read live from the app or `agy`.
+        for service in store.services where service.isAvailable && !service.isStale {
+            if service.name == "Antigravity" {
+                for row in service.models where row.valueText == nil {
+                    guard let window = row.window else { continue }
+                    // Short titles: "Gemini", "Argon", and "Claude (AGY)" so it isn't read as Claude Code.
+                    let title = row.name == "Claude" ? "Claude (AGY)"
+                        : row.name.contains("Argon") ? "Argon" : row.name
+                    evaluateWindow(name: "Antigravity \(row.name)", title: title, account: service.account?.email,
+                                   window: window == .session ? .fiveHour : .weekly,
+                                   percent: row.remainingPercent, resetAt: row.resetAt)
+                }
+                continue
+            }
+            evaluateWindow(name: service.name, title: service.providerTitle, account: service.account?.email,
+                           window: .fiveHour,
                            percent: service.sessionRemainingPercent, resetAt: service.sessionResetAt)
-            evaluateWindow(service: service, window: .weekly,
+            evaluateWindow(name: service.name, title: service.providerTitle, account: service.account?.email,
+                           window: .weekly,
                            percent: service.weeklyRemainingPercent, resetAt: service.weeklyResetAt,
                            windowSeconds: service.weeklyWindowSeconds)
         }
-        checkAntigravityWeeklyRefill()
         checkResetCreditExpiry()
     }
 
     /// A reset credit lapses unused if it isn't spent, and it's worth most on a window that's spent
     /// but not about to reset on its own — so warn while there's still time to use one: 1 day, 5 hours
-    /// and 1 hour before the FIRST credit expires. The last-fired stamp pins the expiry it belongs to,
-    /// so a newly granted credit starts a fresh set of three and a relaunch doesn't re-fire the same one.
+    /// and 1 hour before a card's FIRST credit expires. Per card, so the notice names whose credit it
+    /// is. The last-fired stamp pins the expiry it belongs to, so a newly granted credit starts a fresh
+    /// set of three and a relaunch doesn't re-fire the same one.
     private func checkResetCreditExpiry() {
-        let rows = store.services
-            .filter { $0.isAvailable && !$0.isStale }
-            .flatMap(\.models)
-            .filter { $0.valueText != nil && $0.resetAt != nil }
-        guard let expiresAt = rows.compactMap(\.resetAt).min() else { return }
+        for service in store.services where service.isAvailable && !service.isStale {
+            let rows = service.models.filter { $0.valueText != nil && $0.resetAt != nil }
+            guard let expiresAt = rows.compactMap(\.resetAt).min() else { continue }
 
-        let remaining = expiresAt.timeIntervalSinceNow
-        guard remaining > 0,
-              let threshold = Self.resetCreditThresholds.first(where: { remaining <= $0 }) else { return }
+            let remaining = expiresAt.timeIntervalSinceNow
+            guard remaining > 0,
+                  let threshold = Self.resetCreditThresholds.first(where: { remaining <= $0 }) else { continue }
 
-        let stamp = "\(Int(expiresAt.timeIntervalSince1970))-\(Int(threshold))"
-        guard UserDefaults.standard.string(forKey: Self.resetCreditNotifiedKey) != stamp else { return }
-        UserDefaults.standard.set(stamp, forKey: Self.resetCreditNotifiedKey)
+            let key = "\(Self.resetCreditNotifiedKey).\(service.name)"
+            let stamp = "\(Int(expiresAt.timeIntervalSince1970))-\(Int(threshold))"
+            guard UserDefaults.standard.string(forKey: key) != stamp else { continue }
+            UserDefaults.standard.set(stamp, forKey: key)
 
-        sendNotification(
-            identifier: "Codex-resetcredit-\(Int(threshold))",
-            title: String(format: String(localized: "⏳ Reset credit expires in %@"),
-                          TimeFormatter.duration(from: remaining)),
-            body: String(format: String(localized: "You have %@ waiting. Spend one now and it clears a used-up window — unused, it just lapses."),
-                         String(rows.count))
-        )
+            sendNotification(
+                identifier: "\(service.name)-resetcredit-\(Int(threshold))",
+                emoji: "⏳",
+                title: String(format: String(localized: "%@ reset credit expires in %@"),
+                              service.providerTitle, TimeFormatter.duration(from: remaining)),
+                body: Self.withAccount(String(localized: "Spend it now and the window resets; unused, it lapses."),
+                                       service.account?.email)
+            )
+        }
     }
 
     /// Ascending, so `first(where:)` picks the tightest bracket the countdown has entered.
     private static let resetCreditThresholds: [TimeInterval] = [3_600, 5 * 3_600, 86_400]
-    private static let resetCreditNotifiedKey = "codexResetCreditNotified"
+    private static let resetCreditNotifiedKey = "resetCreditNotified"
 
     /// HH:mm for the 5-hour low notification's reset clock.
     private static let clockFormatter: DateFormatter = {
@@ -801,9 +854,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         UserDefaults.standard.set(value, forKey: "notif.\(key).\(field)")
     }
 
-    /// Announce a refill when the armed reset has passed, then disarm so the next one can arm cleanly.
-    /// `requireDepleted` is false only for Antigravity, whose usage can't be observed while its IDE is
-    /// closed — there the reset clock is all we have.
+    /// Announce a refill when the armed reset has passed — only for a window that was run down first —
+    /// then disarm so the next one can arm cleanly.
     /// After an in-place update (Sparkle, or a manual replace) two things go stale: the widget
     /// extension process WidgetKit launched at login keeps running the *old* binary against a bundle
     /// that no longer exists on disk (every render blank — no crash, no log), and PlugInKit keeps the
@@ -814,7 +866,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     /// right away). Gated on the version so a routine launch doesn't flicker the widgets.
     private func relaunchWidgetExtensionIfUpdated() {
         let key = "widget.lastLaunchedVersion"
-        let current = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
+        // The build number too: every local build shares the release's version, and a rebuild
+        // installed over the last one left the widget running the replaced binary, blank.
+        let info = Bundle.main.infoDictionary
+        let current = "\(info?["CFBundleShortVersionString"] as? String ?? "") (\(info?["CFBundleVersion"] as? String ?? ""))"
         guard UserDefaults.standard.string(forKey: key) != current else { return }
         UserDefaults.standard.set(current, forKey: key)
         let appex = Bundle.main.bundleURL.appendingPathComponent("Contents/PlugIns/MimirWidgetExtension.appex").path
@@ -828,7 +883,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         WidgetCenter.shared.reloadAllTimelines()
     }
 
-    private func fireRefillIfDue(key: String, bucket: String, requireDepleted: Bool,
+    private func fireRefillIfDue(key: String, bucket: String,
                                  title: String, body: String) {
         let armed = notifState(key, "armed")
         let now = Date().timeIntervalSince1970
@@ -837,8 +892,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         // can be hours stale, and the window has been running (and spending) ever since — announcing
         // "back to 100%" then contradicts the live reading the user is looking at. Past the grace
         // period, clear the arming silently so the next reset still arms.
-        if now - armed <= Self.refillGrace, !requireDepleted || notifState(key, "depleted") == 1 {
-            sendNotification(identifier: "\(key)-refilled", window: bucket, title: title, body: body)
+        if now - armed <= Self.refillGrace, notifState(key, "depleted") == 1 {
+            sendNotification(identifier: "\(key)-refilled", window: bucket, emoji: "🔋", title: title, body: body)
         }
         setNotifState(key, "announced", armed)
         setNotifState(key, "depleted", 0)
@@ -856,40 +911,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         setNotifState(key, "armed", stamp)
     }
 
-    /// Antigravity's one reliable notification: the weekly quota refill. Its weekly reset time is
-    /// deterministic and known in advance, and the quota can't be spent while the IDE is closed —
-    /// so once we've seen the reset time, we can fire "refilled" exactly when it passes, with no
-    /// live data. (Low / 5h alerts stay off: those depend on usage we can't observe reliably.)
-    private func checkAntigravityWeeklyRefill() {
-        let key = "Antigravity-weekly"
-        fireRefillIfDue(
-            key: key, bucket: "weekly", requireDepleted: false,
-            title: String(format: String(localized: "🚀 %@ weekly quota refilled."), "Antigravity"),
-            body: String(localized: "Your weekly quota is back to 100%. Pick up where you left off.")
-        )
-
-        guard let antigravity = store.services.first(where: { $0.name == "Antigravity" }) else { return }
-        // Both weekly buckets share one reset time → take the earliest still ahead of us.
-        armNextReset(key: key, resetAt: antigravity.models
-            .filter { $0.window == .weekly }
-            .compactMap(\.resetAt)
-            .filter { $0 > Date() }
-            .min())
+    /// The title names the model only; the login goes at the end of the text, to keep both short.
+    private static func withAccount(_ body: String, _ email: String?) -> String {
+        email.map { "\(body) (\($0))" } ?? body
     }
 
-    private func evaluateWindow(service: ServiceStatus, window: QuotaWindow, percent: Int?, resetAt: Date?,
+    private func evaluateWindow(name: String, title: String, account: String?, window: QuotaWindow, percent: Int?, resetAt: Date?,
                                 windowSeconds: TimeInterval? = nil) {
         guard let percent else { return }
-        let key = "\(service.name)-\(window.suffix)"
+        let key = "\(name)-\(window.suffix)"
         // A window longer than a week is the ChatGPT Go monthly quota, not a weekly one — say so, and
         // report it as its own telemetry bucket rather than folding it into "weekly".
         let isMonthly = window == .weekly && (windowSeconds ?? 0) > 8 * 86_400
         let bucket = isMonthly ? "monthly" : window.suffix
-        // The 5h window keeps its flat 20%; a longer one scales its threshold by length (see
+        // The 5h window keeps its flat 15%; a longer one scales its threshold by length (see
         // `lowQuotaThreshold`) so a 30-day quota doesn't warn on day three.
         let lowThreshold = window == .fiveHour
             ? window.lowThreshold
             : lowQuotaThreshold(windowSeconds: windowSeconds, base: window.lowThreshold)
+        let label = window == .fiveHour ? String(localized: "5s")
+            : isMonthly ? String(localized: "30g") : String(localized: "7g")
 
         // A refill notice is only meaningful on a window that was actually run down first: spent for
         // the 5h one, below its low threshold for the longer one.
@@ -899,24 +940,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
 
         // Refill: the window's reset came round. Fires once per reset, on the clock rather than on the
         // percent — a reading flickering back to 100 is not a reset.
-        switch window {
-        case .fiveHour:
-            fireRefillIfDue(
-                key: key, bucket: bucket, requireDepleted: true,
-                title: String(format: String(localized: "🔋 %@ ready for a new sprint."), service.titleWithAccount),
-                body: String(localized: "Your 5-hour session is back to 100%. Pick up where you left off.")
-            )
-        case .weekly:
-            fireRefillIfDue(
-                key: key, bucket: bucket, requireDepleted: true,
-                title: String(format: isMonthly
-                              ? String(localized: "🚀 %@ monthly quota refilled.")
-                              : String(localized: "🚀 %@ weekly quota refilled."), service.titleWithAccount),
-                body: isMonthly
-                    ? String(localized: "Your monthly quota is back to 100%. Pick up where you left off.")
-                    : String(localized: "Your weekly quota is back to 100%. Pick up where you left off.")
-            )
-        }
+        fireRefillIfDue(
+            key: key, bucket: bucket,
+            title: "\(title) \(label)",
+            body: Self.withAccount(window == .fiveHour ? String(localized: "Your 5-hour quota is back to 100%. Pick up where you left off.")
+                : isMonthly ? String(localized: "Your monthly quota is back to 100%. Pick up where you left off.")
+                : String(localized: "Your weekly quota is back to 100%. Pick up where you left off."), account)
+        )
         armNextReset(key: key, resetAt: resetAt)
 
         // Low: crossed below the threshold. Warn once per window — the stored stamp is the reset the
@@ -926,49 +956,45 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         let resetStamp = resetAt?.timeIntervalSince1970 ?? 0
         // Inclusive: a 30-day window's threshold is 5, and an account sitting at exactly 5% is the
         // case the warning exists for — a strict `<` waited for 4% before saying anything.
+        // A window refilling within 15 minutes needs no warning: it would only be noise.
         guard percent <= lowThreshold,
+              resetAt.map({ $0.timeIntervalSinceNow > 15 * 60 }) ?? true,
               lowAlertIsDue(lastWarnedReset: UserDefaults.standard.object(forKey: lowKey) as? Double,
                             resetStamp: resetStamp, now: Date().timeIntervalSince1970) else { return }
         UserDefaults.standard.set(resetStamp, forKey: lowKey)
 
         let duration = resetAt.map { TimeFormatter.duration(from: $0.timeIntervalSinceNow) }
-        switch window {
-        case .fiveHour:
-            // 5h includes the reset clock (it's today) plus the countdown.
-            let body: String
-            if let resetAt, let duration {
-                body = String(format: String(localized: "Resets at %@. ~%@ to go."),
-                              Self.clockFormatter.string(from: resetAt), duration)
-            } else {
-                body = String(localized: "Your 5-hour limit is running out.")
-            }
-            sendNotification(
-                identifier: key,
-                window: bucket,
-                title: String(format: String(localized: "🪫 %@ 5-hour quota running out — %d%%"), service.titleWithAccount, percent),
-                body: body
-            )
-        case .weekly:
-            // Weekly/monthly is days out, so just the countdown (no clock).
-            let body = duration.map { String(format: String(localized: "Renews in ~%@."), $0) }
-                ?? (isMonthly ? String(localized: "Your monthly limit is running out.")
-                              : String(localized: "Your weekly limit is running out."))
-            sendNotification(
-                identifier: key,
-                window: bucket,
-                title: String(format: isMonthly
-                              ? String(localized: "🚨 %@ monthly quota running out — %d%%")
-                              : String(localized: "🚨 %@ weekly quota running out — %d%%"), service.titleWithAccount, percent),
-                body: body
-            )
+        let body: String
+        if let resetAt, let duration {
+            // 5h adds the reset clock (it's today); weekly/monthly is days out, so just the countdown.
+            body = window == .fiveHour
+                ? String(format: String(localized: "Renews in ~%@, at %@."), duration, Self.renewalClock(resetAt))
+                : String(format: String(localized: "Renews in ~%@."), duration)
+        } else {
+            body = String(format: String(localized: "Your %@ quota is running out."), label)
         }
+        sendNotification(
+            identifier: key,
+            window: bucket,
+            emoji: "🪫",
+            title: String(format: String(localized: "%@ %@ quota: %d%%"), title, label, percent),
+            body: Self.withAccount(body, account)
+        )
+    }
+
+    /// "22:40", or in Turkish "22:40'ta": the case ending follows how the time is read aloud.
+    private static func renewalClock(_ date: Date) -> String {
+        let clock = clockFormatter.string(from: date)
+        guard Bundle.main.preferredLocalizations.first == "tr" else { return clock }
+        let parts = Calendar.current.dateComponents([.hour, .minute], from: date)
+        return "\(clock)'\(turkishLocativeSuffix(hour: parts.hour ?? 0, minute: parts.minute ?? 0))"
     }
 
     private static let notificationClock: DateFormatter = {
         let f = DateFormatter(); f.dateFormat = "HH:mm"; return f
     }()
 
-    private func sendNotification(identifier: String, window: String? = nil, title: String, body: String) {
+    private func sendNotification(identifier: String, window: String? = nil, emoji: String, title: String, body: String) {
         // Derive a categorical type from the identifier: "Claude-5h", "Codex-weekly-refilled", etc.
         let parts = identifier.split(separator: "-")
         let service = parts.first.map(String.init) ?? "unknown"
@@ -980,10 +1006,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
         ])
 
         let content = UNMutableNotificationContent()
-        content.title = title
-        // Stamp the send time: the stacked banner shows no age, so "back to 100%" read the same
+        // Stamp the send time: the stacked banner shows no age, so "quota ready" read the same
         // whether it arrived a minute or four hours ago.
-        content.body = "\(body) · \(Self.notificationClock.string(from: Date()))"
+        content.title = "\(emoji) \(Self.notificationClock.string(from: Date())): \(title)"
+        content.body = body
         content.sound = .default
         let req = UNNotificationRequest(identifier: identifier, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(req)

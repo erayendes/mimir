@@ -13,10 +13,21 @@ extension LiveUsageDataSource {
         let cli = Self.claudeAccount(configFile: MimirStatusLineHook.claudeConfigFile)
         // A switched CLI login drops the previous account's cache before anything reads it.
         if let org = cli?.org { noteClaudeAccount(org) }
-        let desktopSnapshot = { cli == nil ? nil : self.loadSnapshot(for: Self.claudeDesktopCardName, iconName: "claude") }
+        let desktopSnapshot = { () -> ServiceStatus? in
+            guard let cli else { return nil }
+            let snapshot = self.loadSnapshot(for: Self.claudeDesktopCardName, iconName: "claude")
+            guard let card = Self.otherAccountCard(snapshot, cliOrg: cli.org) else {
+                // Not provably another account: a ghost of the CLI's own login, so it goes for good.
+                if snapshot != nil { try? FileManager.default.removeItem(at: self.snapshotURL(for: Self.claudeDesktopCardName)) }
+                return nil
+            }
+            return card
+        }
 
         if let cached = readClaudeUsageCache(maxAge: 5 * 60, writtenThisSession: true) {
-            let main = buildClaudeStatus(from: cached, note: "oauth usage cache").withCooldownHint(0)
+            let account = cli == nil ? loadSnapshot(for: "Claude", iconName: "claude")?.account : nil
+            let main = buildClaudeStatus(from: cached, note: "oauth usage cache")
+                .withAccount(account).withCooldownHint(0)
             return [main] + [desktopSnapshot()].compactMap { $0 }
         }
 
@@ -32,6 +43,16 @@ extension LiveUsageDataSource {
         return [main] + [desktop?.status ?? desktopSnapshot()].compactMap { $0 }
     }
 
+    /// Claude.app's last-known separate card, kept only while it names an organization other than
+    /// the CLI's. Shown while claude.ai can't be asked (Cloudflare, a 429, an unread cookie), a
+    /// snapshot without one (every one saved before the organization was kept) or of the CLI's own organization was the
+    /// same login twice: a second "Claude · Team" option in the widget, with no e-mail, showing
+    /// the first one's numbers. Pure → unit-testable.
+    static func otherAccountCard(_ card: ServiceStatus?, cliOrg: String?) -> ServiceStatus? {
+        guard let cliOrg, let org = card?.account?.org, org != cliOrg else { return nil }
+        return card
+    }
+
     /// The login a Claude Code config holds, from its `.claude.json` profile — no keychain, no
     /// network. nil when the config has no signed-in account.
     static func claudeAccount(configFile: URL) -> AccountInfo? {
@@ -44,18 +65,18 @@ extension LiveUsageDataSource {
     static func claudeAccount(oauthAccount o: [String: Any]) -> AccountInfo? {
         let user = o["accountUuid"] as? String, org = o["organizationUuid"] as? String
         guard user != nil || org != nil else { return nil }
-        return AccountInfo(plan: AccountInfo.claudePlan(o["organizationType"] as? String)
+        // Claude Code writes the plan's own name ("Ultra") when it knows it; that beats deriving one.
+        return AccountInfo(plan: (o["planDisplayName"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+                               ?? AccountInfo.claudePlan(o["organizationType"] as? String,
+                                                         rateLimitTier: o["organizationRateLimitTier"] as? String)
                                ?? org.flatMap { UserDefaults.standard.string(forKey: claudePlanKey($0)) },
                            email: o["emailAddress"] as? String,
                            id: "\(user ?? "-")|\(org ?? "-")", org: org)
     }
 
     /// Claude Code's own login: the usage cache, the statusLine hook, then its OAuth token.
-    /// `userInitiated` gates whether this fetch may read Claude Code's *own* keychain item — the
-    /// only source that pops the macOS permission prompt, because Claude Code resets the item's ACL
-    /// (wiping our "Always Allow") every time it rotates its token. A background tick passes `false`
-    /// and stays on prompt-free sources (usage cache, the on-disk credential file, Mimir's own token
-    /// cache); only a real user action — opening Mimir — passes `true` and may read that item.
+    /// `userInitiated` gates the interactive fallback for Claude Code's own keychain item.
+    /// The `/usr/bin/security` read is prompt-free; a background tick cannot use a prompting fallback.
     /// `cliOrg` is the login's organization; without one, Claude.app's OAuth token stands in.
     func fetchClaude(userInitiated: Bool, cliOrg: String?) async -> ServiceStatus {
         // No CLI login: Claude.app's own OAuth token, for when claude.ai's web API won't answer.
@@ -64,25 +85,25 @@ extension LiveUsageDataSource {
         }
 
         // When Claude Code's prompt-free statusLine hook is fresh it already carries the live
-        // session/weekly numbers, so a routine open must NOT reach for the prompting keychain read.
+        // session/weekly numbers, so a routine open need not reach the keychain fallback.
         // Claude Code wipes its item's ACL on every token refresh, so our "Always Allow" doesn't
-        // survive — a prompting read would then re-pop the dialog every few hours (once per refresh).
+        // survive — an interactive fallback could then re-pop the dialog after a refresh.
         // Gate the prompt behind "no fresh hook": while the hook covers us we do silent reads only, so
-        // the keychain (and its dialog) is touched solely when the hook can't (Claude Code idle).
+        // an interactive fallback is possible only when the hook can't cover us (Claude Code idle).
         let hookFresh = readClaudeHookUsage(maxAge: 30 * 60) != nil
 
-        // Reuse the in-memory token while it's comfortably valid, so the keychain — and its macOS
-        // permission prompt — is touched only at launch and around token expiry, not every refresh.
+        // Reuse the in-memory token while it's comfortably valid, so keychain data is read only at
+        // launch and around token expiry, not every refresh.
         var tokenInfo = await Self.claudeTokenCache.get()
         let needsKeychain = tokenInfo.map { $0.expiresAt.map { $0.timeIntervalSinceNow <= 300 } ?? false } ?? true
 
         if needsKeychain {
             guard let read = readClaudeTokenInfo(userInitiated: userInitiated && !hookFresh) else {
-                // No prompt-free source had a usable token. We deliberately did NOT read Claude
-                // Code's keychain item in the background; opening Mimir (a user action) will.
+                // No prompt-free source had a usable token. A background tick cannot use the
+                // interactive fallback; opening Mimir (a user action) may try it.
                 let note = userInitiated
                     ? String(localized: "claude token missing")
-                    : String(localized: "open Mimir to refresh Claude")
+                    : String(localized: "open Claude Code to refresh Claude")
                 return claudeFailure(note: note)
             }
             tokenInfo = read
@@ -125,8 +146,8 @@ extension LiveUsageDataSource {
             guard 200 ... 299 ~= http.statusCode else {
                 // A rejected token is likely stale (rotated out by Claude Code); drop both caches so
                 // the next refresh re-reads a fresh token instead of replaying the dead one. Dropping
-                // Mimir's own cache is load-bearing in the background: the keychain that holds a fresh
-                // token is gated to user actions, so a kept-but-dead cache would 401 on every tick.
+                // Mimir's own cache may hold the rejected token; keeping it would 401 on every tick
+                // instead of trying the fresh Claude Code keychain data.
                 if http.statusCode == 401 || http.statusCode == 403 {
                     await Self.claudeTokenCache.set(nil)
                     deleteMimirClaudeToken()
@@ -139,11 +160,11 @@ extension LiveUsageDataSource {
                   Self.claudeHasQuota(root) else {
                 return claudeFailure(note: "claude response parse fail")
             }
-            writeClaudeUsageCache(data)
+            let cachedRoot = writeClaudeUsageCache(data) ?? root
             if Self.claudeAccount(configFile: MimirStatusLineHook.claudeConfigFile)?.plan == nil {
                 await rememberClaudePlan(token.accessToken)
             }
-            let status = buildClaudeStatus(from: root, note: "oauth usage api")
+            let status = buildClaudeStatus(from: cachedRoot, note: "oauth usage api")
             saveSnapshot(status)
             return status.withCooldownHint(0)   // live success → clear any cooldown
         } catch {
@@ -158,16 +179,17 @@ extension LiveUsageDataSource {
                                expired: Bool = false) -> ServiceStatus {
         // Prompt-free statusLine hook first — the live session/weekly numbers Claude Code itself
         // renders, available without a token, so a background tick whose Mimir token cache expired (or
-        // any live-fetch failure) stays fresh instead of falling to "open Mimir to refresh". Fresher
+        // any live-fetch failure) stays fresh instead of showing the Claude Code prompt. Fresher
         // than the 24h cache/snapshot below, so it wins.
         if let hook = readClaudeHookUsage(maxAge: 30 * 60) {
-            let card = claudeCardFromHook(hook)
+            let card = claudeCardFromHook(hook, cached: readClaudeUsageCache(maxAge: 24 * 60 * 60) ?? [:],
+                                          plan: Self.claudeAccount(configFile: MimirStatusLineHook.claudeConfigFile)?.plan)
             saveSnapshot(card)
             return card
         }
         let card = claudeLastKnown(note: note, staleNote: staleNote)
-        // An expired login can't refresh these numbers until it is renewed: grey, so opening Mimir
-        // renews it, however much of the windows is still left.
+        // An expired login can't refresh these numbers until Claude Code renews it: grey, however
+        // much of the windows is still left.
         return expired && card.isAvailable ? card.markedStale(staleNote) : card
     }
 
@@ -177,7 +199,7 @@ extension LiveUsageDataSource {
         // since this cache was written shouldn't show a phantom percent.
         if let cached = readClaudeUsageCache(maxAge: 24 * 60 * 60) {
             let status = buildClaudeStatus(from: cached, note: note, live: false)
-            saveSnapshot(status)
+            saveSnapshot(status, live: false)
             return status
         }
         // Persisted snapshot, else an older cache trusted by reset time (windows still within their
@@ -186,7 +208,7 @@ extension LiveUsageDataSource {
             return snap
         }
         if let stale = claudeCardFromStaleCache(staleNote: staleNote) {
-            saveSnapshot(stale)
+            saveSnapshot(stale, live: false)
             return stale
         }
         return unavailableService(name: "Claude", iconName: "claude", models: [], note: note)
@@ -205,7 +227,7 @@ extension LiveUsageDataSource {
     }
 
     /// Parse an HTTP `Retry-After` header (delta-seconds or HTTP-date) into a backoff interval.
-    private func retryAfterSeconds(_ http: HTTPURLResponse) -> TimeInterval? {
+    func retryAfterSeconds(_ http: HTTPURLResponse) -> TimeInterval? {
         guard let raw = http.value(forHTTPHeaderField: "Retry-After")?
             .trimmingCharacters(in: .whitespaces), !raw.isEmpty else { return nil }
         if let secs = TimeInterval(raw) { return max(0, secs) }
@@ -296,6 +318,11 @@ extension LiveUsageDataSource {
     func claudeResetGrantRows(_ root: [String: Any], now: Date = Date()) -> [ModelStatus] {
         guard let cedar = root["cedar_ember"] as? [String: Any],
               let grants = cedar["grants"] as? [[String: Any]] else { return [] }
+        // Models with their own weekly row ("Fable"): a grant that names one in its label gives
+        // back that model's usage only.
+        let scopedModels = (root["limits"] as? [[String: Any]] ?? []).compactMap {
+            (($0["scope"] as? [String: Any])?["model"] as? [String: Any])?["display_name"] as? String
+        }
 
         return grants.compactMap { grant -> (date: Date, rows: [ModelStatus])? in
             let left = (doubleValue(grant["resets_left"])).map(Int.init) ?? 0
@@ -309,9 +336,16 @@ extension LiveUsageDataSource {
             // still spend, and a count tucked into one line reads as a quantity, not as two things
             // you could use on two different days.
             // One line per pass. The chip above them carries the count; these carry the dates.
+            // Each line also says what it gives back: a grant that clears the weekly window resets
+            // the week, otherwise it is the model its label names. `type` is "full" for both.
             let date = Self.shortDateFormatter.string(from: endsAt)
+            let label = grant["label"] as? String ?? ""
+            let kind = (grant["clears"] as? [String])?.contains("seven_day") == true
+                ? String(localized: "Weekly")
+                : scopedModels.first { label.contains($0) }
+            let name = kind.map { "\($0) · \(date)" } ?? date
             return (endsAt, (0 ..< left).map { _ in
-                ModelStatus(name: date, remainingPercent: 0, resetAt: endsAt,
+                ModelStatus(name: name, remainingPercent: 0, resetAt: endsAt,
                             valueText: TimeFormatter.duration(from: endsAt.timeIntervalSince(now)),
                             symbol: "plus.circle",
                             groupLabel: String(localized: "Renewal credit"))
@@ -426,10 +460,9 @@ extension LiveUsageDataSource {
     ///   1. the on-disk credential file (`file`) — no keychain prompt;
     ///   2. Mimir's own cached access token (`mimirCache`) — only while it still has more than
     ///      5 minutes of validity (it carries no refresh token, so a near-dead one is useless);
-    ///   3. Claude Code's keychain item (`keychain`) — the only prompting source, read solely on a
-    ///      user action (`userInitiated`).
+    ///   3. Claude Code's keychain item (`keychain`) — interactive fallback only on a user action.
     /// `mimirCache` and `keychain` are closures so a source is touched only if it's actually reached
-    /// — in particular the keychain (the prompt) is never invoked when a prompt-free source suffices.
+    /// — in particular keychain data is never read when an earlier source suffices.
     /// Pure: the ordering/gating rules are testable without the filesystem, the keychain, or the clock.
     static func selectClaudeToken(
         file: ClaudeToken?,
@@ -443,12 +476,9 @@ extension LiveUsageDataSource {
         if let cached = mimirCache(), let exp = cached.expiresAt, exp.timeIntervalSince(now) > 300 {
             return cached
         }
-        // A SILENT keychain read (interaction-not-allowed): returns a token only if Mimir was already
-        // granted access to Claude Code's item, so even a background tick stays on LIVE data once the
-        // user has allowed it once — and it never pops the macOS dialog (fails quietly otherwise).
+        // Try /usr/bin/security first, then an interaction-not-allowed in-process read.
         if let silent = silentKeychain() { return silent }
-        // The one-time GRANT read can show the dialog, so it's reserved for a user action; a background
-        // tick stops here and rides the prompt-free hook/usage cache instead of ever prompting.
+        // Only the in-process fallback here may show the dialog, so reserve it for a user action.
         guard userInitiated else { return nil }
         return keychain()
     }
@@ -456,7 +486,7 @@ extension LiveUsageDataSource {
     /// In-memory cache of the Claude OAuth token so the keychain is read only at launch and around
     /// token expiry — not on every refresh. The "Claude Code-credentials" item is owned by Claude
     /// Code, which resets the item's ACL each time it rewrites the entry on its own token refresh;
-    /// reading it repeatedly therefore re-triggers the macOS permission prompt. Mirroring Claude
+    /// an in-process fallback may therefore re-trigger the permission prompt. Mirroring Claude
     /// Code's own "read once, reuse" behaviour keeps that prompt rare. An actor because refreshes
     /// run off the main thread.
     private actor ClaudeTokenCache {
@@ -468,8 +498,8 @@ extension LiveUsageDataSource {
 
     /// Read the Claude Code OAuth token plus its expiry, wiring the live sources (file, Mimir's own
     /// cache, Claude Code's keychain item) into `selectClaudeToken`, which holds the prompt-free-first
-    /// ordering and the user-action gate. The keychain — the only prompting source — is a closure, so
-    /// it's reached only when no prompt-free source has a usable token and the read is user-initiated.
+    /// ordering and the user-action gate. The interactive keychain fallback is a closure, so
+    /// it's reached only when no earlier source has a usable token and the read is user-initiated.
     /// `expiresAt` drives whether `fetchClaude` refreshes before calling the usage API.
     private func readClaudeTokenInfo(userInitiated: Bool) -> ClaudeToken? {
         Self.selectClaudeToken(
@@ -539,14 +569,14 @@ extension LiveUsageDataSource {
     /// A second Claude Code login (`ExtraAccount`). Its status line hook file is prompt-free, but
     /// Claude Code only renders a status line in an interactive session (a login driven by `claude -p`
     /// never writes it) and it carries no per-model limits. So the login's own keychain item serves
-    /// the API too, under the main card's rules: silent once granted, the prompting read only on a
+    /// the API too, under the main card's rules: security first, interactive fallback only on a
     /// user action and only when no fresh hook covers us. Then the snapshot.
     func fetchClaudeExtraAccount(name: String, dir: URL, userInitiated: Bool,
                                  accountID: String? = nil) async -> ServiceStatus {
         let service = Self.claudeKeychainService(forConfigDir: dir.path)
         let hookPath = dir.appendingPathComponent("mimir-usage.json").path
-        // Mimir's own copy of this login's access token: read back without a prompt, so the keychain
-        // prompt comes at most once per token, not on every open.
+        // Mimir's own copy of this login's access token avoids repeat keychain reads and any
+        // interactive fallback on every open.
         let mirror = "\(Self.mimirClaudeKeychainService)-\(service)"
         // Another login in the same dir: the previous one's token, hook and snapshot would show its
         // numbers under the new login's name, so they go before anything reads them.
@@ -602,7 +632,7 @@ extension LiveUsageDataSource {
         }
         let note = expired ? String(localized: "token expired — open Claude Code") : String(localized: "out of date")
         let snapshot = loadSnapshot(for: name, iconName: "claude", staleNote: note)
-        // An expired login can't refresh these numbers: grey, so opening Mimir renews it.
+        // An expired login can't refresh these numbers: grey until Claude Code renews it.
         return (expired ? snapshot?.markedStale(note) : snapshot)
             ?? unavailableService(name: name, iconName: "claude", models: [])
     }
@@ -625,7 +655,8 @@ extension LiveUsageDataSource {
     /// The organization and plan in an `/api/oauth/profile` answer. Pure → unit-testable.
     static func claudeProfilePlan(_ root: [String: Any]) -> (org: String, plan: String)? {
         guard let org = root["organization"] as? [String: Any], let uuid = org["uuid"] as? String,
-              let plan = AccountInfo.claudePlan(org["organization_type"] as? String) else { return nil }
+              let plan = AccountInfo.claudePlan(org["organization_type"] as? String,
+                                                rateLimitTier: org["rate_limit_tier"] as? String) else { return nil }
         return (uuid, plan)
     }
 
@@ -668,8 +699,9 @@ extension LiveUsageDataSource {
     /// cached copy is exactly the refilled window's stale percent — and `live: true` below skips
     /// reset-classification, so carrying it would show that percent as current. Dropped, the window
     /// reads as 0% used, which after a reset is the truth.
-    func claudeCardFromHook(_ hook: (five: (used: Double, reset: Date?)?, seven: (used: Double, reset: Date?)?)) -> ServiceStatus {
-        var root = readClaudeUsageCache(maxAge: 24 * 60 * 60) ?? [:]
+    func claudeCardFromHook(_ hook: (five: (used: Double, reset: Date?)?, seven: (used: Double, reset: Date?)?),
+                            cached: [String: Any], plan: String? = nil) -> ServiceStatus {
+        var root = cached
         let iso = ISO8601DateFormatter()
         func windowDict(_ w: (used: Double, reset: Date?)) -> [String: Any] {
             var d: [String: Any] = ["utilization": w.used]
@@ -677,13 +709,16 @@ extension LiveUsageDataSource {
             return d
         }
         // A window the account has but the hook left out has reset: it reads as refilled. One the
-        // account never had (a Team seat without a weekly limit) stays absent.
-        let had = (five: LiveUsageDataSource.claudeHasWindow(root, "five_hour"),
-                   seven: LiveUsageDataSource.claudeHasWindow(root, "seven_day"))
+        // account never had (a Team seat without a weekly limit) stays absent. Ultra loses the
+        // five-hour window outright after verification, so there an older cache's copy would come
+        // back as a full 100% ghost: its plan keeps the window from being rebuilt.
+        let hadFive = LiveUsageDataSource.claudeHasWindow(root, "five_hour")
+            && plan?.caseInsensitiveCompare("Ultra") != .orderedSame
+        let hadSeven = LiveUsageDataSource.claudeHasWindow(root, "seven_day")
         for k in root.keys where k == "five_hour" || k.hasPrefix("five_hour_")
             || k == "seven_day" || k.hasPrefix("seven_day_") { root.removeValue(forKey: k) }
-        if let five = hook.five { root["five_hour"] = windowDict(five) } else if had.five { root["five_hour"] = ["utilization": 0.0] }
-        if let seven = hook.seven { root["seven_day"] = windowDict(seven) } else if had.seven { root["seven_day"] = ["utilization": 0.0] }
+        if let five = hook.five { root["five_hour"] = windowDict(five) } else if hadFive { root["five_hour"] = ["utilization": 0.0] }
+        if let seven = hook.seven { root["seven_day"] = windowDict(seven) } else if hadSeven { root["seven_day"] = ["utilization": 0.0] }
         return buildClaudeStatus(from: root, note: "statusline hook", live: true)
     }
 
@@ -764,33 +799,58 @@ extension LiveUsageDataSource {
         return root
     }
 
-    func writeClaudeUsageCache(_ data: Data) {
-        let url = claudeUsageCacheURL()
+    /// Write a usage answer to the cache and return the root to build the card from. An answer that
+    /// doesn't carry the reset grants at all (the OAuth endpoint never does — see
+    /// `claudeResetGrantRows`) keeps the ones the previous cache knew while any is still unexpired,
+    /// so falling back from Claude.app's session to OAuth doesn't wipe them. The cache is dropped on
+    /// an account switch (`noteClaudeAccount`), so they never cross accounts.
+    @discardableResult
+    func writeClaudeUsageCache(_ data: Data, to url: URL? = nil, now: Date = Date()) -> [String: Any]? {
+        guard var root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        let url = url ?? claudeUsageCacheURL()
+        var out = data
+        if !(root["cedar_ember"] is [String: Any]),
+           let old = try? Data(contentsOf: url),
+           let previous = try? JSONSerialization.jsonObject(with: old) as? [String: Any],
+           let cedar = previous["cedar_ember"] as? [String: Any],
+           (cedar["grants"] as? [[String: Any]] ?? []).contains(where: {
+               (($0["ends_at"] as? String).flatMap(parseISO8601) ?? .distantPast) > now
+           }) {
+            root["cedar_ember"] = cedar
+            out = (try? JSONSerialization.data(withJSONObject: root)) ?? data
+        }
         do {
             try FileManager.default.createDirectory(
                 at: url.deletingLastPathComponent(),
                 withIntermediateDirectories: true
             )
-            try data.write(to: url, options: .atomic)
+            try out.write(to: url, options: .atomic)
         } catch {
             // Cache is an optimization; the live result is still usable.
         }
+        return root
     }
 
     private func claudeUsageCacheURL() -> URL {
         LiveUsageDataSource.supportDirectory.appendingPathComponent("claude_usage.json")
     }
 
-    private func parseClaudeToken(_ raw: String) -> ClaudeToken? {
+    /// nil unless the login holds a usable (non-blank) access token: an entry carrying only an MCP
+    /// login, or an emptied `accessToken`, is no login — so the next source gets its turn instead of
+    /// a blank token winning (and 401ing) ahead of a valid one.
+    func parseClaudeToken(_ raw: String) -> ClaudeToken? {
         if raw.hasPrefix("sk-ant-") || raw.hasPrefix("sk-ant-oat") {
             return ClaudeToken(accessToken: raw, expiresAt: nil)
         }
         guard let data = raw.data(using: .utf8),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
-        if let oauth = obj["claudeAiOauth"] as? [String: Any], let token = oauth["accessToken"] as? String {
+        func usable(_ token: Any?) -> String? {
+            (token as? String).flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 }
+        }
+        if let oauth = obj["claudeAiOauth"] as? [String: Any], let token = usable(oauth["accessToken"]) {
             return ClaudeToken(accessToken: token, expiresAt: epochMillisToDate(oauth["expiresAt"]))
         }
-        if let token = obj["accessToken"] as? String {
+        if let token = usable(obj["accessToken"]) {
             return ClaudeToken(accessToken: token, expiresAt: epochMillisToDate(obj["expiresAt"]))
         }
         return nil
@@ -851,26 +911,65 @@ extension LiveUsageDataSource {
         return "\(claudeKeychainService)-\(hash.prefix(8))"
     }
 
-    /// Modification date of the keychain item we last attempted a DATA read on. Reading data is the
-    /// only prompting op, so we skip it while the item is unchanged since our last attempt — the token
-    /// hasn't rotated, so re-reading would only re-prompt (and, if it was already rejected, 401 again).
+    /// Modification date of the keychain item we last attempted an interactive in-process read on.
+    /// Skip that fallback while unchanged; `/usr/bin/security` is still tried on every read.
     /// Guarded by `lastKeychainReadLock` against concurrent mutation by parallel account fetches.
     private static let lastKeychainReadLock = NSLock()
     nonisolated(unsafe) private static var lastKeychainReadMdate: [String: Date] = [:]
 
-    /// Read the DATA of a SINGLE Claude Code keychain item — the newest-modified one, which is the
-    /// login Claude Code last wrote (on macOS normally the plain "Claude Code-credentials"). Reading an
-    /// item's data pops the macOS permission prompt when Mimir isn't in that item's ACL, so we read
-    /// exactly ONE item: one prompt, not one per item. Looping data-reads over every candidate (24+
-    /// stale per-config items on a long-lived machine) fired a prompt for each until one parsed — a
-    /// storm — and because each item has its own ACL, the user's "Always Allow" on one never covered
-    /// the next, so the storm never stopped. Reading the same single item every time means one
-    /// "Always Allow" sticks (grant tied to Mimir's stable release signature). If it doesn't parse we
-    /// return nil rather than reach for the next item: the prompt-free hook/usage cache already carry
-    /// the card, so a missed enrichment is far cheaper than a prompt storm.
+    /// The first candidate, newest first, whose data holds a usable login. Only the newest may be read
+    /// `interactive`ly (the one prompt); every later one is read silently, so an entry holding only an
+    /// MCP login or a blank token hands over to the next without ever adding a prompt. Pure over
+    /// `read` → unit-testable without the keychain.
+    func firstUsableClaudeKeychainItem(
+        in candidates: [(service: String, account: String?, modifiedAt: Date?)],
+        interactive: Bool,
+        read: ((service: String, account: String?, modifiedAt: Date?), Bool) -> String?
+    ) -> String? {
+        for (i, candidate) in candidates.enumerated() {
+            if let value = read(candidate, interactive && i == 0),
+               parseClaudeToken(value.trimmingCharacters(in: .whitespacesAndNewlines)) != nil { return value }
+        }
+        return nil
+    }
+
+    /// Read the DATA of the newest-modified Claude Code keychain item that holds a usable login — the
+    /// login Claude Code last wrote (on macOS normally the plain "Claude Code-credentials"). Try
+    /// `/usr/bin/security` first; if it fails, at most ONE item — the newest — is read in-process with
+    /// interaction allowed: one possible prompt, not one per item. Looping
+    /// prompting reads over every candidate (24+ stale per-config items on a long-lived machine) fired a
+    /// prompt for each until one parsed — a storm — and because each item has its own ACL, the user's
+    /// "Always Allow" on one never covered the next. Older items are therefore read only silently
+    /// (interaction not allowed): a newest item that holds just an MCP login or a blank token falls
+    /// through to the next real login without a single extra prompt.
     /// `service` names a second login's item outright (see `claudeKeychainService(forConfigDir:)`).
     private func readClaudeKeychainItem(interactive: Bool, service: String? = nil) -> String? {
-        guard let candidate = service.map(keychainAttributes) ?? claudeKeychainCandidates().first else { return nil }
+        let candidates = service.map { [keychainAttributes($0)] } ?? claudeKeychainCandidates()
+        return firstUsableClaudeKeychainItem(in: candidates, interactive: interactive) {
+            readClaudeKeychainData($0, interactive: $1)
+        }
+    }
+
+    /// One Claude Code item's data: prompt-free `/usr/bin/security` first, then the existing fallback.
+    private func readClaudeKeychainData(_ candidate: (service: String, account: String?, modifiedAt: Date?),
+                                        interactive: Bool) -> String? {
+        var args = ["find-generic-password", "-s", candidate.service]
+        if let account = candidate.account { args += ["-a", account] }
+        args.append("-w")
+        let output = runCommand("/usr/bin/security", args, timeout: 5, requireSuccess: true)
+        return Self.claudeKeychainData(securityOutput: output) {
+            readClaudeKeychainDataInProcess(candidate, interactive: interactive)
+        }
+    }
+
+    static func claudeKeychainData(securityOutput: String, fallback: () -> String?) -> String? {
+        var value = securityOutput
+        while value.last == "\n" || value.last == "\r" { value.removeLast() }
+        return value.isEmpty ? fallback() : value
+    }
+
+    private func readClaudeKeychainDataInProcess(_ candidate: (service: String, account: String?, modifiedAt: Date?),
+                                                 interactive: Bool) -> String? {
         let query: [String: Any] = {
             var q: [String: Any] = [
                 kSecClass as String: kSecClassGenericPassword,
@@ -909,8 +1008,7 @@ extension LiveUsageDataSource {
         var result: CFTypeRef?
         guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
               let data = result as? Data,
-              let value = String(data: data, encoding: .utf8),
-              parseClaudeToken(value.trimmingCharacters(in: .whitespacesAndNewlines)) != nil else {
+              let value = String(data: data, encoding: .utf8) else {
             return nil
         }
         return value
@@ -946,8 +1044,8 @@ extension LiveUsageDataSource {
     }
 
     /// Drop Mimir's cached access token. Called when the server rejects it (401/403): otherwise a
-    /// background tick would keep replaying the dead token, since the keychain holding a fresh one is
-    /// read only on a user action. Safe to call when the item is absent (`SecItemDelete` no-ops).
+    /// background tick would keep replaying the dead token instead of trying fresh keychain data.
+    /// Safe to call when the item is absent (`SecItemDelete` no-ops).
     private func deleteMimirClaudeToken(service: String = mimirClaudeKeychainService) {
         SecItemDelete([
             kSecClass as String: kSecClassGenericPassword,

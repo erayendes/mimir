@@ -29,18 +29,11 @@ struct MetricOption: AppEntity {
     static func all() -> [MetricOption] {
         (WidgetStore.read()?.providers ?? []).filter(\.isAvailable).flatMap { p in
             p.fiveHour.map { m in
-                // A family ("Claude" in Antigravity) shares its name with a provider: its subtitle
-                // names the app it belongs to.
                 MetricOption(id: ProviderPayload.optionID(provider: p.name, label: m.label), title: p.displayLabel(m),
-                             subtitle: [m.label == p.name ? nil : p.title ?? p.name, p.plan, p.email]
-                                .compactMap { $0 }.joined(separator: " · ").nilIfEmpty)
+                             subtitle: p.optionSubtitle(m))
             }
         }
     }
-}
-
-private extension String {
-    var nilIfEmpty: String? { isEmpty ? nil : self }
 }
 
 /// Dynamic options: the picker lists whatever 5h windows the live App Group snapshot currently

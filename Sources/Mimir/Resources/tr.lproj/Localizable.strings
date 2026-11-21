@@ -39,26 +39,22 @@
 "Not Now" = "Şimdi Değil";
 
 /* Notifications */
-"🚀 %@ weekly quota refilled." = "🚀 %@ haftalık kota yenilendi.";
+"30g" = "30g";
+"%@ %@ quota: %d%%" = "%@ %@ kotası %%%d";
+"Your 5-hour quota is back to 100%. Pick up where you left off." = "5 saatlik kotanız %100 oldu. Kaldığınız yerden devam edebilirsiniz.";
 "Your weekly quota is back to 100%. Pick up where you left off." = "Haftalık kotanız %100 oldu. Kaldığınız yerden devam edebilirsiniz.";
-"🚀 %@ monthly quota refilled." = "🚀 %@ aylık kota yenilendi.";
 "Your monthly quota is back to 100%. Pick up where you left off." = "Aylık kotanız %100 oldu. Kaldığınız yerden devam edebilirsiniz.";
-"🔋 %@ ready for a new sprint." = "🔋 %@ yeni sprint için hazır.";
-"Your 5-hour session is back to 100%. Pick up where you left off." = "5 saatlik oturum %100 oldu. Kaldığınız yerden devam edebilirsiniz.";
-"🪫 %@ 5-hour quota running out — %d%%" = "🪫 %@ 5 saatlik kota tükeniyor. — %%%d";
-"Resets at %@. ~%@ to go." = "Yenilenme saati %@. ~%@ içinde yenilenecek.";
-"Your 5-hour limit is running out." = "5 saatlik limitin tükeniyor.";
-"🚨 %@ weekly quota running out — %d%%" = "🚨 %@ haftalık kota tükeniyor. — %%%d";
+"Spend it now and the window resets; unused, it lapses." = "Şimdi kullanırsanız pencere sıfırlanır; kullanmazsanız hak yanar.";
+"Renews in ~%@, at %@." = "~%@ içinde, %@ yenilenecek.";
+"Your %@ quota is running out." = "%@ kotanız tükeniyor.";
+"%@ reset credit expires in %@" = "%@ yenileme hakkının süresi %@ sonra doluyor";
 "Renews in ~%@." = "~%@ sonra yenilenecek.";
-"Your weekly limit is running out." = "Haftalık limitin tükeniyor.";
-"🚨 %@ monthly quota running out — %d%%" = "🚨 %@ aylık kota tükeniyor. — %%%d";
-"Your monthly limit is running out." = "Aylık limitin tükeniyor.";
 
 /* Status notes */
 "out of date" = "güncel değil";
-"token expired — open Claude Code" = "token süresi doldu — Claude Code'u aç";
+"token expired — open Claude Code" = "token süresi doldu — Claude Code'u açın";
 "claude token missing" = "Claude token'ı bulunamadı";
-"open Mimir to refresh Claude" = "Claude'u yenilemek için Mimir'i aç";
+"open Claude Code to refresh Claude" = "Claude'u yenilemek için Claude Code'u açın";
 "open Antigravity or Cockpit" = "Antigravity veya Cockpit'i aç";
 "no local source" = "yerel kaynak yok";
 
@@ -79,6 +75,7 @@
 "popover.unavailable" = "%@ verisi alınamadı — açmak için dokun";
 "popover.unavailable.dismiss" = "Bu uyarıyı gizle";
 "widget.empty" = "Kotayı yüklemek için Mimir'i aç.";
+"widget.choose" = "Seçilen hesap şu an yok. Başka birini seçmek için widget'ı düzenleyin.";
 "widget.config.model" = "Model";
 "widget.config.description" = "Widget'ın hangi modeli göstereceğini seç.";
 
@@ -87,6 +84,12 @@
 "Quit Mimir" = "Mimir'den Çık";
 
 /* Prompt-free Claude hook */
+"Claude Code already has a status line." = "Claude Code'da zaten bir durum satırı var.";
+"Antigravity's agy already has a status line." = "Antigravity'nin agy'sinde zaten bir durum satırı var.";
+"How should Mimir's line appear? Turning this off brings your line back." = "Mimir'in satırı nasıl görünsün? Anahtarı kapatınca eski satırınız geri gelir.";
+"Show Both" = "İkisini de Göster";
+"Use Mimir's" = "Mimir'inkini Kullan";
+"Keep Current" = "Mevcut Satırı Koru";
 "Prompt-free Claude tracking" = "Parolasız Claude takibi";
 "Couldn't update Claude tracking" = "Claude takibi güncellenemedi";
 "Track Claude without the keychain prompt?" = "Claude'u parola sormadan takip et?";
@@ -97,8 +100,6 @@
 "%@ session" = "%@ oturum";
 "Renewal credit" = "Yenileme hakkı";
 "Weekly limit for this model" = "Bu modelin haftalık sınırı";
-"⏳ Reset credit expires in %@" = "⏳ Yenileme hakkı %@ sonra doluyor";
-"You have %@ waiting. Spend one now and it clears a used-up window — unused, it just lapses." = "Bekleyen %@ hakkın var. Şimdi kullanırsan tükenmiş pencereyi sıfırlar; kullanmazsan yanar.";
 "Cloud session credits" = "Bulut oturum kredisi";
 "expires %@" = "bitiş %@";
 "token expired — run codex login" = "oturum süresi doldu — codex login çalıştır";
@@ -118,3 +119,15 @@
 "Version" = "Sürüm";
 "Support Mimir" = "Mimir'e destek ol";
 "Join the beta" = "Beta'ya katıl";
+
+/* Pace of a long window */
+"pace.short.hours" = "~%lld saat kotasız";
+"pace.short.days" = "~%lld gün kotasız";
+"pace.lasts.hours" = "Kotanız bu tempoyla ~%lld saat sürer";
+"pace.lasts.days" = "Kotanız bu tempoyla ~%lld gün sürer";
+"pace.empty.hours" = "Yenilenene kadar ~%lld saat kotasız kalırsınız";
+"pace.empty.days" = "Yenilenene kadar ~%lld gün kotasız kalırsınız";
+"pace.leftAtReset" = "Bu tempoyla ~%%%lld kotanızı kullanmayacaksınız";
+"pace.early.minutes" = "Tahmin %lld dakika sonra başlar";
+"pace.early.hours" = "Tahmin %lld saat sonra başlar";
+"pace.early.days" = "Tahmin %lld gün sonra başlar";

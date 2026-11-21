@@ -439,10 +439,10 @@ extension View {
 
     /// Set, not pushed: the panel never becomes key, so AppKit keeps resetting the cursor to the
     /// arrow and a one-off push on entry was lost straight away. Setting it on every move holds.
-    func pointingHandCursor() -> some View {
+    func pointingHandCursor(_ enabled: Bool = true) -> some View {
         onContinuousHover { phase in
             switch phase {
-            case .active: NSCursor.pointingHand.set()
+            case .active: if enabled { NSCursor.pointingHand.set() }
             case .ended: NSCursor.arrow.set()
             }
         }
@@ -532,7 +532,7 @@ struct PopoverBackdrop: View {
 
 /// One provider = one card. The card is the widget: each quota pair is drawn as the medium
 /// widget's face — the five-hour window tints that share of the panel from the left, its number
-/// sits top right with the reset clock and countdown, and the long window rides a capsule below.
+/// sits top right with its reset countdown, and the long window rides a capsule below.
 /// Popover and widget then say the same thing the same way. A provider with independent families
 /// (Antigravity) gets one panel per family; everyone else gets one.
 ///
@@ -551,6 +551,8 @@ struct ServiceCard: View {
         VStack(alignment: .leading, spacing: 9) {
             ForEach(Array(panels.enumerated()), id: \.offset) { _, panel in
                 ProviderPanel(panel: panel.promotingLoneWindow(), now: now)
+                    // Its bubbles may reach past its bottom edge: over the rows below, not under them.
+                    .zIndex(1)
             }
 
             ForEach(Array(modelLimitRows.enumerated()), id: \.offset) { _, row in
@@ -563,7 +565,7 @@ struct ServiceCard: View {
                     // The rest of the passes, each a pill like the chip, counting down to 1.
                     ForEach(Array(passes.dropFirst().enumerated()), id: \.offset) { i, row in
                         renewalPill(count: passes.count - 1 - i, expiry: row.resetAt,
-                                    fallback: row.valueText)
+                                    fallback: row.valueText, kind: passKind(row))
                     }
                 }
             }
@@ -601,7 +603,9 @@ struct ServiceCard: View {
         Button {
             withAnimation(.easeOut(duration: 0.16)) { passesOpen.toggle() }
         } label: {
+            // Closed over several passes it is their total, so it names none of them.
             renewalPill(count: passes.count, expiry: soonestPass, fallback: passes.first?.valueText,
+                        kind: passes.count == 1 || passesOpen ? passes.first.flatMap(passKind) : nil,
                         chevron: passes.count > 1)
         }
         .buttonStyle(.plain)
@@ -613,13 +617,14 @@ struct ServiceCard: View {
     /// One pill: the count badge, the label, how long until it lapses. Its text takes the urgency
     /// colour of that expiry — a pass you lose tomorrow should not read the same as one with a
     /// month on it.
-    private func renewalPill(count: Int, expiry: Date?, fallback: String?, chevron: Bool = false) -> some View {
+    private func renewalPill(count: Int, expiry: Date?, fallback: String?, kind: String? = nil,
+                             chevron: Bool = false) -> some View {
         HStack(spacing: 6) {
             Text("\(count)")
                 .monospacedDigit()
                 .padding(.horizontal, 5).padding(.vertical, 1)
                 .background(Capsule().fill(Color.primary.opacity(0.10)))
-            Text(String(localized: "Renewal credit"))
+            Text(kind.map { "\(String(localized: "Renewal credit")) · \($0)" } ?? String(localized: "Renewal credit"))
             Text("|").foregroundStyle(Color.primary.opacity(0.18))
             Text(relDuration(expiry, now) ?? fallback ?? "—").monospacedDigit()
             if chevron {
@@ -635,8 +640,8 @@ struct ServiceCard: View {
         .contentShape(Capsule())
     }
 
-    /// A model's own weekly as a full-width row: what's left, the model, when it resets — in the
-    /// quota's own green / amber / red, the same colours its panel number would take.
+    /// A model's own weekly as a full-width row: what's left, the model, when it resets — green / amber /
+    /// red by its pace, the same as a panel's capsule, but without the line.
     private func modelLimitPill(_ row: (name: String, percent: Int, resetAt: Date?)) -> some View {
         HStack(spacing: 6) {
             Text("\(row.percent)%")
@@ -648,7 +653,7 @@ struct ServiceCard: View {
             Text(relDuration(row.resetAt, now) ?? "—").monospacedDigit()
         }
         .font(.system(size: 10.5, weight: .medium))
-        .foregroundStyle(quotaStatusColor(row.percent))
+        .foregroundStyle(paceColor(pace(row.name, row.percent, row.resetAt, 7 * 86_400), row.percent))
         .padding(.horizontal, Self.chipInset).padding(.vertical, 4)
         .frame(maxWidth: .infinity)
         .background(Capsule().fill(Color.primary.opacity(0.06)))
@@ -707,7 +712,8 @@ struct ServiceCard: View {
                           weekly: family.weekly.map { ($0.percent, $0.resetAt) },
                           weeklyLabel: "7\(TimeFormatter.dayUnit)",
                           sessionFallback: 5 * 3600, weeklyWindow: 7 * 86_400,
-                          gated: family.weekly?.percent == 0)
+                          gated: family.weekly?.percent == 0,
+                          pace: pace(family.name, family.weekly?.percent, family.weekly?.resetAt, 7 * 86_400))
             }
         }
         return [PanelData(title: service.providerTitle, iconName: service.iconName,
@@ -716,7 +722,10 @@ struct ServiceCard: View {
                           weeklyLabel: longWindowLabel ?? "7\(TimeFormatter.dayUnit)",
                           sessionFallback: 5 * 3600,
                           weeklyWindow: service.weeklyWindowSeconds ?? 7 * 86_400,
-                          gated: service.weeklyRemainingPercent == 0 && service.sessionRemainingPercent != nil)]
+                          gated: QuotaPace.gated(weekly: service.weeklyRemainingPercent,
+                                                 session: service.sessionRemainingPercent),
+                          pace: pace("weekly", service.weeklyRemainingPercent, service.weeklyResetAt,
+                                     service.weeklyWindowSeconds ?? 7 * 86_400))]
             // A quota beside the plan's own (Codex's Luna Reserve) is a quota in its own right, so it
             // gets its own panel under its own name — the same treatment as an Antigravity family.
             + families(in: service.models.filter { $0.groupLabel == LiveUsageDataSource.codexExtraLimitGroup })
@@ -730,9 +739,25 @@ struct ServiceCard: View {
                 }
     }
 
+    /// A long window's pace from this card's live readings (see `QuotaPace`). None on a last-known card:
+    /// its numbers aren't live, so neither is a pace drawn from them.
+    private func pace(_ window: String, _ percent: Int?, _ resetAt: Date?, _ length: TimeInterval) -> QuotaPace? {
+        guard !service.isStale, let percent, let resetAt else { return nil }
+        return QuotaPace.compute(remaining: percent, resetAt: resetAt, window: length, now: now,
+                                 history: QuotaHistory.shared.readings(QuotaHistory.key(service.name, window),
+                                                                       resetAt: resetAt))
+    }
+
     /// The renewal passes, soonest to lapse first.
     private var renewalRows: [ModelStatus] {
         service.models.filter { $0.groupLabel == String(localized: "Renewal credit") }
+    }
+
+    /// What a pass gives back ("Fable"), from a Claude row named "Fable · 09.03.27". Codex's rows
+    /// carry only the date, so they have none.
+    private func passKind(_ row: ModelStatus) -> String? {
+        let parts = row.name.components(separatedBy: " · ")
+        return parts.count > 1 ? parts[0] : nil
     }
 
     private var soonestPass: Date? {
@@ -824,6 +849,10 @@ struct PanelData {
     /// The login, on the card's first panel only: plan beside the title, e-mail under it.
     var plan: String? = nil
     var email: String? = nil
+    /// The long window's pace; nil where it isn't judged (a plan's extra quota, a last-known card).
+    var pace: QuotaPace? = nil
+    /// The long window was promoted to the face, so the face and the big number take its pace.
+    var paceOnFace = false
 
     /// A plan with one long window and no session (Codex Go's 30 days) shows it where the session
     /// sits — the big number, the clock and the face — instead of an empty corner above a capsule.
@@ -831,14 +860,15 @@ struct PanelData {
         guard session == nil, let weekly else { return self }
         return PanelData(title: title, iconName: iconName, session: weekly, weekly: nil,
                          weeklyLabel: weeklyLabel, sessionFallback: weeklyWindow,
-                         weeklyWindow: weeklyWindow, gated: false, stale: stale, plan: plan, email: email)
+                         weeklyWindow: weeklyWindow, gated: false, stale: stale, plan: plan, email: email,
+                         pace: pace, paceOnFace: true)
     }
 }
 
 /// The medium widget, shrunk to fit a card. The panel's face IS the five-hour gauge: what's left
 /// of that window tints the same share of the panel from the left, so the reading is the shape of
-/// the thing, not a bar next to it. Its number sits top right with the reset clock above the
-/// countdown; the long window runs along the bottom as a capsule carrying its own percent.
+/// the thing, not a bar next to it. Its number sits top right with its reset countdown (a click
+/// shows the clock instead); the long window runs along the bottom as a capsule carrying its own percent.
 ///
 /// Deliberately the same geometry as `DetailedWidget`'s medium size — a user who has both on
 /// screen should not have to learn two pictures of one quota.
@@ -850,9 +880,9 @@ struct ProviderPanel: View {
         let f = DateFormatter(); f.dateFormat = "HH:mm"; return f
     }()
 
-    /// The login's e-mail, raised by a click on the plan and gone again on its own.
-    @State private var accountShown = ProcessInfo.processInfo.environment["MIMIR_DEMO_ACCOUNT"] != nil
-    @State private var hideAccount: Task<Void, Never>?
+    /// A click anywhere on the panel turns it over: the back carries the login and where the long
+    /// window's pace leads. Another click turns it back, and so does the popover going away.
+    @State private var boxOpen = ProcessInfo.processInfo.environment["MIMIR_DEMO_PACE"] != nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -865,22 +895,16 @@ struct ProviderPanel: View {
                 capsule(percent: 0, resetAt: nil).hidden()
             }
         }
+        // The back takes the front's exact room, so the card keeps its size either way.
+        .opacity(boxOpen && hasBox ? 0 : 1)
+        .overlay { if boxOpen, hasBox { back.transition(.opacity) } }
         .padding(9)
-        .overlay(alignment: .topLeading) {
-            // Just the address, just under the plan it came from, over whatever sits there.
-            if accountShown, let email = panel.email {
-                Text(email)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(Color.primary.opacity(0.75))
-                    .lineLimit(1)
-                    .fixedSize()
-                    .padding(.horizontal, 8).padding(.vertical, 3)
-                    .background(Capsule().fill(.regularMaterial))
-                    .overlay(Capsule().stroke(Color.primary.opacity(0.1), lineWidth: 1))
-                    .padding(.top, 28).padding(.leading, 6)
-                    .onTapGesture { setAccountShown(false) }
-                    .transition(.opacity)
-            }
+        .contentShape(Rectangle())
+        .onTapGesture { if hasBox { setBox(!boxOpen) } }
+        .pointingHandCursor(hasBox)
+        // The popover hiding (or another app coming forward) takes the key window away.
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification)) { _ in
+            boxOpen = false
         }
         .background(
             ZStack(alignment: .leading) {
@@ -898,12 +922,56 @@ struct ProviderPanel: View {
     }
 
     private var faceColor: Color {
-        panel.gated || panel.stale ? lockedQuotaColor : quotaStatusColor(panel.session?.percent ?? 0)
+        panel.gated || panel.stale ? lockedQuotaColor : sessionColor(panel.session?.percent ?? 0)
+    }
+
+    /// The face's colour: a five-hour window by what's left, a promoted long window by its pace.
+    private func sessionColor(_ percent: Int) -> Color {
+        panel.paceOnFace ? paceColor(panel.pace, percent) : quotaStatusColor(percent)
+    }
+
+    /// Where the long window's pace leads (see `QuotaPace.info`); none on a last-known card.
+    private var paceInfo: String? { panel.gated || panel.stale ? nil : panel.pace?.info }
+
+    private var hasBox: Bool { panel.email != nil || paceInfo != nil }
+
+    /// The panel turned over: the login's e-mail in the plan's tone, then where the pace leads.
+    private var back: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let email = panel.email {
+                Text(email)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Color.primary.opacity(0.42))
+                    .lineLimit(1)
+            }
+            if let info = paceInfo {
+                Text(info)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(Color.primary.opacity(0.75))
+                    .lineSpacing(3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    /// The long window's countdown and the day it resets.
+    private func weeklyReset(_ resetAt: Date?) -> some View {
+        HStack(spacing: 10) {
+            labelled("timer", relDuration(resetAt, now)
+                     ?? TimeFormatter.duration(from: panel.weeklyWindow))
+            if let clock = dayClockText(resetAt) {
+                labelled("clock", clock)
+            }
+            Spacer(minLength: 0)
+        }
+        .font(.system(size: 10.5, weight: .medium).monospacedDigit())
+        .foregroundStyle(Color.primary.opacity(0.42))
     }
 
     /// The name with its plan beside it in a quieter tone — "Claude Team", as Claude's own usage page
-    /// writes it — then the reset clock over the countdown and the number. The plan is the way to the
-    /// login: a click shows the e-mail the card reads, just under it.
+    /// writes it — then the reset clock over the countdown and the number.
     private var header: some View {
         HStack(alignment: .top, spacing: 8) {
             HStack(spacing: 4) {
@@ -917,18 +985,11 @@ struct ProviderPanel: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
                 if let plan = panel.plan {
-                    let label = Text(plan)
+                    Text(plan)
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(Color.primary.opacity(0.42))
                         .lineLimit(1)
                         .fixedSize()
-                    if panel.email != nil {
-                        Button { setAccountShown(!accountShown) } label: { label }
-                            .buttonStyle(.plain)
-                            .pointingHandCursor()
-                    } else {
-                        label
-                    }
                 }
             }
             // Every point left of the clock goes to the name before the spacer takes any: shared
@@ -941,15 +1002,8 @@ struct ProviderPanel: View {
         }
     }
 
-    private func setAccountShown(_ shown: Bool) {
-        hideAccount?.cancel()
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) { accountShown = shown }
-        guard shown else { return }
-        hideAccount = Task { @MainActor in
-            try? await Task.sleep(for: .seconds(2.5))
-            guard !Task.isCancelled else { return }
-            withAnimation(.easeOut(duration: 0.2)) { accountShown = false }
-        }
+    private func setBox(_ open: Bool) {
+        withAnimation(.spring(response: 0.32, dampingFraction: 0.82)) { boxOpen = open }
     }
 
     /// The reset clock over the countdown, then the number. Every line keeps its place whether or not
@@ -977,7 +1031,7 @@ struct ProviderPanel: View {
                     .font(.system(size: 30, weight: .semibold)).monospacedDigit().tracking(-0.5)
                 Text("%").font(.system(size: 16, weight: .semibold))
             }
-            .foregroundStyle(panel.gated || panel.stale ? lockedQuotaColor : quotaStatusColor(percent))
+            .foregroundStyle(panel.gated || panel.stale ? lockedQuotaColor : sessionColor(percent))
             .fixedSize()
             .offset(y: -6)
             .frame(height: 22, alignment: .top)
@@ -993,38 +1047,35 @@ struct ProviderPanel: View {
     }
 
     /// The long window: a capsule with its percent riding the fill, and the countdown and reset
-    /// clock underneath.
+    /// clock underneath. The fill takes the window's pace; a click on the panel says where it leads.
     private func capsule(percent: Int, resetAt: Date?) -> some View {
-        let color = panel.gated || panel.stale ? lockedQuotaColor : quotaStatusColor(percent)
+        let locked = panel.gated || panel.stale
+        let pace = locked ? nil : panel.pace
+        let color = locked ? lockedQuotaColor : paceColor(pace, percent)
         return VStack(alignment: .leading, spacing: 9) {
             GeometryReader { geo in
-                let fill = max(18, geo.size.width * CGFloat(clampPct(percent)) / 100)
-                let number = Text("\(clampPct(percent))%")
-                    .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
+                let width = geo.size.width
+                let fill = max(18, width * CGFloat(clampPct(percent)) / 100)
                 ZStack(alignment: .leading) {
                     Capsule().fill(Color.primary.opacity(0.09))
                     Capsule().fill(color).frame(width: fill)
-                    // White on the fill while it's wide enough to hold the number; past the end
-                    // otherwise, where the fill can't carry it.
-                    if fill >= 46 {
-                        number.foregroundStyle(.white.opacity(0.92)).padding(.leading, 9)
-                    } else {
-                        number.foregroundStyle(Color.primary.opacity(0.9)).padding(.leading, fill + 6)
-                    }
+                    // Always in the same spot: white over the fill, the track's colour where a narrow fill ends under it.
+                    let number = Text("\(clampPct(percent))%").font(.system(size: 10.5, weight: .semibold).monospacedDigit())
+                    number.foregroundStyle(Color.primary.opacity(0.9))
+                        .overlay(alignment: .leading) {
+                            number.foregroundStyle(Color.white.opacity(0.92))
+                                .mask(alignment: .leading) { Rectangle().frame(width: max(0, fill - 9)) }
+                        }
+                        .padding(.leading, 9)
                 }
+                .clipShape(Capsule())
             }
             .frame(height: 18)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(["\(clampPct(percent))%", pace?.info]
+                .compactMap { $0 }.joined(separator: ", "))
 
-            HStack(spacing: 10) {
-                labelled("timer", relDuration(resetAt, now)
-                         ?? TimeFormatter.duration(from: panel.weeklyWindow))
-                if let clock = dayClockText(resetAt) {
-                    labelled("clock", clock)
-                }
-                Spacer(minLength: 0)
-            }
-            .font(.system(size: 10.5, weight: .medium).monospacedDigit())
-            .foregroundStyle(Color.primary.opacity(0.42))
+            weeklyReset(resetAt)
         }
     }
 
@@ -1079,6 +1130,17 @@ func quotaStatusColor(_ percent: Int) -> Color {
     })
 }
 
+/// A long window's colour by its pace (see `QuotaPace`): green when it lasts to the reset, amber or red
+/// by how long it would sit empty. Early in the window, or with no pace at all, by what's left.
+func paceColor(_ pace: QuotaPace?, _ percent: Int) -> Color {
+    switch pace?.tone {
+    case .green: quotaStatusColor(100)
+    case .amber: quotaStatusColor(20)
+    case .red: quotaStatusColor(0)
+    case .early, nil: quotaStatusColor(percent)
+    }
+}
+
 extension NSColor {
     convenience init(hex: UInt32) {
         self.init(
@@ -1113,3 +1175,4 @@ struct BrandIconView: View {
         }
     }
 }
+

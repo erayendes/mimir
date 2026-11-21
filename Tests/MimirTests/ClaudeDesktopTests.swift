@@ -7,6 +7,17 @@ import XCTest
 final class ClaudeDesktopTests: XCTestCase {
     private let ds = LiveUsageDataSource()
 
+    func testBootstrapEmail() {
+        let address = Data(#"{"account":{"email_address":"desktop@example.com","email":"fallback@example.com"}}"#.utf8)
+        XCTAssertEqual(LiveUsageDataSource.claudeBootstrapEmail(address), "desktop@example.com")
+
+        let fallback = Data(#"{"account":{"email":"fallback@example.com"}}"#.utf8)
+        XCTAssertEqual(LiveUsageDataSource.claudeBootstrapEmail(fallback), "fallback@example.com")
+
+        let missing = Data(#"{"account":{"name":"Claude"}}"#.utf8)
+        XCTAssertNil(LiveUsageDataSource.claudeBootstrapEmail(missing))
+    }
+
     func testOrgSelectionPrefersChatCapabilityThenFirst() {
         let orgs: [[String: Any]] = [
             ["uuid": "a", "capabilities": ["billing"]],

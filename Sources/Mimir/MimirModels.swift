@@ -149,13 +149,23 @@ struct AccountInfo: Equatable {
     var org: String? = nil
 
     /// `claude_team` → "Team", `claude_max` → "Max". Unknown values keep their own word, so a new
-    /// plan shows up as itself instead of vanishing.
-    static func claudePlan(_ organizationType: String?) -> String? {
-        planWord(organizationType.map { $0.hasPrefix("claude_") ? String($0.dropFirst(7)) : $0 })
+    /// plan shows up as itself instead of vanishing. Max 20x ($200) is sold as "Ultra" now, but its
+    /// organization type still says `claude_max`; only the rate-limit tier tells the two apart.
+    static func claudePlan(_ organizationType: String?, rateLimitTier: String? = nil) -> String? {
+        if organizationType == "claude_max", rateLimitTier?.hasSuffix("max_20x") == true { return "Ultra" }
+        return planWord(organizationType.map { $0.hasPrefix("claude_") ? String($0.dropFirst(7)) : $0 })
     }
 
-    /// Codex's `chatgpt_plan_type`: `plus` → "Plus", `team` → "Team".
-    static func codexPlan(_ planType: String?) -> String? { planWord(planType) }
+    /// Codex's `chatgpt_plan_type`: `plus` → "Plus", `team` → "Team". The Pro tiers take the names
+    /// Codex's own `/status` gives them, since `prolite`/`promax` don't read as words.
+    static func codexPlan(_ planType: String?) -> String? {
+        switch planType {
+        case "pro": "Pro 200"
+        case "prolite": "Pro 100"
+        case "promax": "Pro 500"
+        default: planWord(planType)
+        }
+    }
 
     /// Antigravity's `userTier.name`: "Google AI Pro" → "Pro", the same short word Claude's and
     /// Codex's plans read as — a family name ("Gemini") has to fit beside it.
@@ -338,12 +348,16 @@ func refillIsDue(armed: Double, announced: Double, now: Double) -> Bool {
 
 /// The reset to arm next, or nil to leave the current arming alone: only when nothing is armed, the
 /// reset is still in the future, and it isn't the one already announced (so the data rolling forward
-/// at reset time can't clobber a refill we still owe).
-func nextArmedReset(armed: Double, announced: Double, resetAt: Date?, now: Date) -> Double? {
-    guard armed == 0, let resetAt else { return nil }
-    let stamp = resetAt.timeIntervalSince1970
-    guard stamp > now.timeIntervalSince1970, stamp != announced else { return nil }
-    return stamp
+/// at reset time can't clobber a refill we still owe). An arming still in the future moves with a
+/// reset that was pushed later — otherwise "quota renewed" fires at the old, now early time — but
+/// only past `jitter`, so a reset clock wobbling by seconds doesn't rewrite it every poll.
+func nextArmedReset(armed: Double, announced: Double, resetAt: Date?, now: Date,
+                    jitter: TimeInterval = 60) -> Double? {
+    guard let resetAt else { return nil }
+    let stamp = resetAt.timeIntervalSince1970, nowStamp = now.timeIntervalSince1970
+    guard stamp > nowStamp, stamp != announced else { return nil }
+    if armed == 0 { return stamp }
+    return armed > nowStamp && stamp > armed + jitter ? stamp : nil
 }
 
 /// Remaining-percent at which a long quota window counts as "running out". Anchored on the 7-day
@@ -351,6 +365,15 @@ func nextArmedReset(armed: Double, announced: Double, resetAt: Date?, now: Date)
 /// quota is three days' worth of budget still in hand, announced as if the month were over. Scaling
 /// by length puts the warning at a comparable time-to-empty instead, with a 5% floor so it can never
 /// tighten to the point of arriving too late to act on. Windows at or under the base keep the base.
+/// The Turkish locative ending a clock time takes ("22:40'ta", "13:00'te", "09:30'da"). It follows
+/// the last number read aloud: the minutes, or the hour on the hour.
+func turkishLocativeSuffix(hour: Int, minute: Int) -> String {
+    let n = minute == 0 ? hour : minute
+    let ones = ["da", "de", "de", "te", "te", "te", "da", "de", "de", "da"]   // sıfır, bir … dokuz
+    let tens = ["da", "da", "de", "da", "ta", "de"]                         // –, on, yirmi, otuz, kırk, elli
+    return n % 10 != 0 || n == 0 ? ones[n % 10] : tens[n / 10]
+}
+
 func lowQuotaThreshold(windowSeconds: TimeInterval?,
                        base: Int = 10,
                        baseWindow: TimeInterval = 7 * 86_400,

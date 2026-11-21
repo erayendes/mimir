@@ -118,6 +118,48 @@ final class UsageParsingTests: XCTestCase {
     }
 
     /// No length reported → nil, so the UI keeps its plain weekly badge instead of printing a guess.
+    /// A workspace member capped only by a monthly credit limit: no rate-limit windows, just
+    /// `spend_control.individual_limit`. It becomes the 30-day window instead of an empty card.
+    func testCodexStatusReadsTheMonthlyIndividualLimit() {
+        let root: [String: Any] = [
+            "rate_limit": NSNull(),
+            "spend_control": ["reached": false,
+                              "individual_limit": ["limit": 200, "used": 50, "reset_at": 1_785_822_607]],
+        ]
+        XCTAssertNotNil(ds.codexIndividualLimit(root))
+        let status = ds.codexStatus(fromUsageRoot: root)
+        XCTAssertNil(status.sessionRemainingPercent)
+        XCTAssertEqual(status.weeklyRemainingPercent, 75)
+        XCTAssertEqual(status.weeklyResetAt, Date(timeIntervalSince1970: 1_785_822_607))
+        XCTAssertEqual(quotaWindowDays(status.weeklyWindowSeconds), 30)
+    }
+
+    /// The rate-limit windows win; a `null` cap (what most accounts send) changes nothing.
+    func testCodexStatusPrefersRateLimitOverIndividualLimit() {
+        let root: [String: Any] = [
+            "rate_limit": ["primary_window": ["used_percent": 10.0, "limit_window_seconds": 604800, "reset_at": 1_785_822_607.0]],
+            "spend_control": ["individual_limit": NSNull()],
+        ]
+        XCTAssertNil(ds.codexIndividualLimit(root))
+        XCTAssertEqual(ds.codexStatus(fromUsageRoot: root).weeklyRemainingPercent, 90)
+        XCTAssertEqual(quotaWindowDays(ds.codexStatus(fromUsageRoot: root).weeklyWindowSeconds), 7)
+    }
+
+    /// Antigravity's fallback: a family the answer carries no quota for gets no row — not a made-up
+    /// 0% — and Argon's own weekly never stands in for Gemini.
+    func testAntigravityFallbackDropsFamiliesWithoutQuota() {
+        let root: [String: Any] = ["models": [
+            "gemini-3.8-flash": ["displayName": "Gemini 3.8 Flash"],
+            "gemini-4-argon": ["displayName": "Gemini 4 Argon",
+                               "quotaInfo": ["remainingFraction": 0, "resetTime": "2099-01-01T00:00:00Z"]],
+            "claude-sonnet-5-5": ["displayName": "Claude Sonnet 5.5",
+                                  "quotaInfo": ["remainingFraction": 0.4, "resetTime": "2099-01-01T00:00:00Z"]],
+        ]]
+        let rows = ds.normalizeAntigravityModels(root)
+        XCTAssertEqual(rows.map(\.name), ["Claude"])
+        XCTAssertEqual(rows.first?.remainingPercent, 40)
+    }
+
     func testCodexStatusWithoutWindowLengthLeavesItNil() {
         let root: [String: Any] = [
             "rate_limit": ["secondary_window": ["used_percent": 5.0, "reset_at": 1_785_822_607.0]],
@@ -336,6 +378,23 @@ final class UsageParsingTests: XCTestCase {
                                     resetAt: next, now: now))                             // already announced
     }
 
+    /// #111: a reset pushed later moves a still-future arming, so "quota renewed" can't fire at the
+    /// old, early time — but a wobble of seconds, or a reset already due, leaves it alone.
+    func testArmingFollowsAResetPushedLater() {
+        let now = Date(timeIntervalSince1970: 1_785_000_000)
+        let armed = now.timeIntervalSince1970 + 3_600
+        XCTAssertEqual(nextArmedReset(armed: armed, announced: 0,
+                                      resetAt: Date(timeIntervalSince1970: armed + 1_800), now: now),
+                       armed + 1_800)                                                     // pushed later
+        XCTAssertNil(nextArmedReset(armed: armed, announced: 0,
+                                    resetAt: Date(timeIntervalSince1970: armed + 20), now: now))   // jitter
+        XCTAssertNil(nextArmedReset(armed: armed, announced: 0,
+                                    resetAt: Date(timeIntervalSince1970: armed - 600), now: now))  // earlier
+        XCTAssertNil(nextArmedReset(armed: armed, announced: 0,
+                                    resetAt: Date(timeIntervalSince1970: armed + 18_000),
+                                    now: Date(timeIntervalSince1970: armed + 5)))                  // refill owed
+    }
+
     /// Codex's 5-hour `reset_at` drifts forward inside one window, so the low warning must key on
     /// "has that reset actually come round" rather than on the stamp changing — otherwise the same
     /// spent window warned again on every poll.
@@ -353,6 +412,17 @@ final class UsageParsingTests: XCTestCase {
     /// The low-quota threshold scales with the window: a flat 10% warns on day three of a 30-day
     /// ChatGPT Go quota. Anything at or under a week keeps the base, and the floor stops the scaling
     /// from tightening past a usable warning.
+    func testTurkishClockTakesTheEndingOfItsLastNumber() {
+        XCTAssertEqual(turkishLocativeSuffix(hour: 22, minute: 40), "ta")  // kırk
+        XCTAssertEqual(turkishLocativeSuffix(hour: 13, minute: 0), "te")   // on üç
+        XCTAssertEqual(turkishLocativeSuffix(hour: 9, minute: 30), "da")   // otuz
+        XCTAssertEqual(turkishLocativeSuffix(hour: 20, minute: 0), "de")   // yirmi
+        XCTAssertEqual(turkishLocativeSuffix(hour: 10, minute: 0), "da")   // on
+        XCTAssertEqual(turkishLocativeSuffix(hour: 0, minute: 0), "da")    // sıfır
+        XCTAssertEqual(turkishLocativeSuffix(hour: 18, minute: 52), "de")  // iki
+        XCTAssertEqual(turkishLocativeSuffix(hour: 16, minute: 6), "da")   // altı
+    }
+
     func testLowQuotaThresholdScalesWithWindowLength() {
         XCTAssertEqual(lowQuotaThreshold(windowSeconds: nil), 10)             // unknown → base
         XCTAssertEqual(lowQuotaThreshold(windowSeconds: 7 * 86_400), 10)      // the week itself
@@ -481,7 +551,7 @@ final class UsageParsingTests: XCTestCase {
             sessionResetAt: nil, weeklyResetAt: past,
             weeklyRemainingPercent: 12, weeklyWindowSeconds: month,
             models: [], isAvailable: true, statusNote: nil)
-        ds.saveSnapshot(status)
+        ds.saveSnapshot(status, live: false)
         defer { try? FileManager.default.removeItem(at: ds.snapshotURL(for: "RoundTrip")) }
 
         let card = try XCTUnwrap(ds.loadSnapshot(for: "RoundTrip", iconName: "codex"))
@@ -520,7 +590,7 @@ final class UsageParsingTests: XCTestCase {
                      ModelStatus(name: "Luna", remainingPercent: 40, resetAt: future, window: .session,
                                  groupLabel: LiveUsageDataSource.codexExtraLimitGroup)],
             isAvailable: true, statusNote: nil)
-        ds.saveSnapshot(status)
+        ds.saveSnapshot(status, live: false)
         defer { try? FileManager.default.removeItem(at: ds.snapshotURL(for: "RoundTrip")) }
 
         let card = try XCTUnwrap(ds.loadSnapshot(for: "RoundTrip", iconName: "codex"))
@@ -866,6 +936,44 @@ final class ClaudeResetGrantTests: XCTestCase {
         later["ends_at"] = "2026-12-01T16:00:00+00:00"
         let rows = ds.claudeResetGrantRows(root([later, liveGrant]), now: now)
         XCTAssertEqual(rows.map(\.name), ["22.10.26", "01.12.26"])
+    }
+
+    /// Two grants from a live answer, 2026-11-11: both say `type: "full"`, yet one resets the week
+    /// and the other gives back only Fable's usage.
+    func testEachLineSaysWhatItGivesBack() {
+        let grants: [[String: Any]] = [
+            ["label": "One full limit reset (November 2026)", "resets_left": 1, "usable_now": true,
+             "type": "full", "clears": ["five_hour", "seven_day", "seven_day_overage_included"],
+             "ends_at": "2026-12-10T12:00:00+00:00"],
+            ["label": "New model launch: one Fable reset for Max, Team Premium and Enterprise Premium",
+             "resets_left": 1, "usable_now": true, "type": "full", "gives_back_weekly": true,
+             "clears": ["five_hour", "seven_day_overage_included"], "ends_at": "2027-03-09T07:59:00+00:00"],
+        ]
+        var r = root(grants)
+        r["limits"] = [["kind": "weekly_scoped", "group": "weekly", "percent": 0,
+                        "scope": ["model": ["display_name": "Fable"]]]]
+        let names = ds.claudeResetGrantRows(r, now: now).map(\.name)
+        XCTAssertEqual(names, ["\(String(localized: "Weekly")) · 10.12.26", "Fable · 09.03.27"])
+    }
+
+    /// #111: an OAuth answer (no `cedar_ember`) refreshing the cache keeps the last known, still
+    /// unexpired grants instead of wiping them.
+    func testOAuthAnswerKeepsTheLastKnownResetGrants() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("mimir-cache-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        var desktop = root([liveGrant])
+        desktop["five_hour"] = ["utilization": 10.0]
+        ds.writeClaudeUsageCache(try JSONSerialization.data(withJSONObject: desktop), to: url, now: now)
+        let oauth = try JSONSerialization.data(withJSONObject: ["five_hour": ["utilization": 20.0]])
+        let merged = try XCTUnwrap(ds.writeClaudeUsageCache(oauth, to: url, now: now))
+        XCTAssertEqual(ds.claudeResetGrantRows(merged, now: now).count, 1)
+        XCTAssertEqual((merged["five_hour"] as? [String: Any])?["utilization"] as? Double, 20)
+        let onDisk = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
+        XCTAssertEqual(ds.claudeResetGrantRows(onDisk ?? [:], now: now).count, 1)
+        // Once every grant has lapsed, nothing is carried.
+        let later = ISO8601DateFormatter().date(from: "2026-11-01T00:00:00Z")!
+        XCTAssertNil(ds.writeClaudeUsageCache(oauth, to: url, now: later)?["cedar_ember"])
     }
 
     func testTheCLIPathHasNoSuchFieldAndGetsNoRows() {

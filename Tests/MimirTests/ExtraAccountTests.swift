@@ -38,6 +38,17 @@ final class ExtraAccountTests: XCTestCase {
         XCTAssertEqual(payload.providers.flatMap { $0.fiveHour.map(\.label) }, ["Codex", "Codex Work"])
     }
 
+    @MainActor
+    func testOnlyStaleCodexLoginsAreDueForRenewal() {
+        let cards = ["Claude", "Claude Work", "Codex", "Codex Work"].map { name in
+            ServiceStatus(name: name, iconName: name.lowercased(), sessionResetAt: nil,
+                          weeklyResetAt: nil, models: [], isAvailable: false,
+                          statusNote: nil, isStale: true)
+        }
+        let due = UsageStore.loginsDueForRenewal(cards, lastRenewal: [:], now: Date())
+        XCTAssertEqual(due.map(\.name), ["Codex", "Codex Work"])
+    }
+
     func testMainClaudeCardSkipsASecondLoginsKeychainItem() {
         let work = LiveUsageDataSource.claudeKeychainService(forConfigDir: "/Users/me/.claude-work")
         XCTAssertTrue(work.hasPrefix("Claude Code-credentials-"))
