@@ -9,6 +9,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [3.2] - 2026-11-21
+
+**Pace, not just percentage.** Weekly and 30-day bars are coloured by whether your current pace lasts until the reset. A mark in the bar shows where you should be with even use, and red bars say how long you'd go without quota. Click a card to turn it over: the account's e-mail, when the quota runs out at this pace, or how much will go unused. The widget shows the same colours. The idea and the method behind the forecast come from the script [@ilkerutlu](https://github.com/ilkerutlu) shared, thank you.
+
+**Your quota in the terminal.** With Prompt-free Claude tracking on, Claude Code and Antigravity's `agy` show a line with the model's name, a coloured bar per window, the remaining percentage and the time until reset, following Mimir's pace. With Fable selected, the weekly part is Fable's own quota. Codex gets its own five-hour and weekly limit items. If you already had a status line, Mimir asks whether to show both, only its own, or only yours.
+
+**Fewer keychain prompts.** Mimir reads Claude Code's login through macOS's `security` tool, the way Claude Code does, so the keychain password prompt shouldn't come back after each token renewal. Opening Mimir no longer runs `claude doctor` for a grey Claude card.
+
+Also: Claude's renewal credits say what they renew (Weekly or Fable), Claude's $200 plan shows as Ultra, Codex plans show their package (Pro 100, Pro 200). Antigravity quotas show up sooner after the Mac starts, are found when Gemini.app installed it, and a used-up quota shows 0% instead of disappearing. The menu bar icon dims on an inactive display.
+
 ### [3.2-beta.8] - 2026-11-19
 
 The keychain password prompt for Claude Code's login should no longer come back. Claude Code rewrites its keychain item each time it renews its token, and macOS dropped Mimir's "Always Allow" with it. Mimir now reads the item through macOS's `security` tool, the way Claude Code itself does, which needs no permission. This covers second Claude accounts too.
@@ -746,6 +756,16 @@ Bu projedeki tüm önemli değişiklikler bu dosyada belgelenecektir.
 
 Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
+
+### [3.2] - 2026-11-21
+
+**Yüzde değil, tempo.** Haftalık ve 30 günlük çubuklar artık mevcut temponuzun sıfırlanmaya kadar yetip yetmeyeceğine göre renkleniyor. Çubuktaki işaret, eşit kullanımda olmanız gereken yeri gösteriyor; kırmızı çubuklar ne kadar kotasız kalacağınızı söylüyor. Karta tıklayınca kart dönüyor: hesabın e-postası, bu tempoyla kotanın ne zaman biteceği ya da ne kadarının kullanılmadan kalacağı. Widget da aynı renkleri gösteriyor. Tahmin fikri ve yöntemi [@ilkerutlu](https://github.com/ilkerutlu)'nun paylaştığı betikten geliyor, teşekkürler.
+
+**Kotanız terminalde.** Parolasız Claude takibi açıkken Claude Code'da ve Antigravity'nin `agy`'sinde bir satır çıkıyor: modelin adı, her pencere için renkli bir çubuk, kalan yüzde ve sıfırlanmaya kalan süre, Mimir'in temposuna göre. Fable seçiliyken haftalık kısım Fable'ın kendi kotası. Codex'e kendi beş saatlik ve haftalık limit öğeleri ekleniyor. Önceden bir durum satırınız varsa Mimir ikisini birden mi, yalnızca kendisininkini mi, yalnızca sizinkini mi göstereceğini soruyor.
+
+**Daha az anahtar zinciri penceresi.** Mimir, Claude Code girişini Claude Code gibi macOS'in `security` aracıyla okuyor; böylece her token yenilemesinden sonra parola penceresi geri gelmemeli. Mimir açılınca gri Claude kartı için artık `claude doctor` çalıştırmıyor.
+
+Ayrıca: Claude'un yenileme hakları neyi yenilediğini söylüyor (Haftalık ya da Fable), Claude'un 200 dolarlık planı Ultra olarak görünüyor, Codex planları paketini gösteriyor (Pro 100, Pro 200). Antigravity kotaları Mac açıldıktan sonra daha erken geliyor, Gemini.app'in kurduğu Antigravity de bulunuyor ve biten kota karttan kaybolmak yerine %0 gösteriyor. Menü çubuğu simgesi etkin olmayan ekranda soluklaşıyor.
 
 ### [3.2-beta.8] - 2026-11-19
 
