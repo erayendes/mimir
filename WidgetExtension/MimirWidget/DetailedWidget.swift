@@ -256,15 +256,22 @@ private struct PlainFace: View {
             MetricHeader(metric: metric)
             Spacer(minLength: 0)
             if let note = metric.loginNote {
-                // The icon on its own line: beside it the note lost a third of the width and its end.
-                VStack(alignment: .leading, spacing: 4) {
-                    Image(systemName: "person.crop.circle.badge.exclamationmark")
-                    Text(note).lineLimit(4).fixedSize(horizontal: false, vertical: true)
+                // On the spent face's first row, in its size: the two hidden rows hold that place.
+                ZStack(alignment: .topLeading) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        IconText(symbol: "clock", text: "0", size: 11); IconText(symbol: "clock", text: "0", size: 11)
+                    }.hidden()
+                    HStack(alignment: .firstTextBaseline, spacing: 3) {
+                        Image(systemName: "person.crop.circle.badge.exclamationmark")
+                            .font(.system(size: 11 * 0.92)).imageScale(.small)
+                        // A word joiner keeps "/login" whole: a line may otherwise break right after its slash.
+                        Text(note.replacingOccurrences(of: "/", with: "/\u{2060}"))
+                            .font(.system(size: 11)).lineLimit(3).fixedSize(horizontal: false, vertical: true)
+                    }
                 }
-                .font(.system(size: 12, weight: .medium)).foregroundStyle(Tok.secondary)
-                Spacer(minLength: 0)
+                .foregroundStyle(Tok.secondary)
             } else if let at = metric.spentAt(now) {
-                // The reset row's own icons and tone: nothing here is usable, so nothing shouts.
+                // The reset row's own icons and size, in the spent colour: this window is out until then.
                 VStack(alignment: .leading, spacing: 4) {
                     IconText(symbol: "gauge.with.needle",
                              text: SpentFace.countdown(at.timeIntervalSince(now),
@@ -272,7 +279,7 @@ private struct PlainFace: View {
                              size: 11)
                     IconText(symbol: "clock", text: SpentFace.moment(at), size: 11)
                 }
-                .foregroundStyle(Tok.tertiary)
+                .foregroundStyle(statusColor(0))
             }
         }
         .padding(16)

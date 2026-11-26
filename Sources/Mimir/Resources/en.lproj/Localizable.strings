@@ -52,7 +52,7 @@
 
 /* Status notes */
 "out of date" = "out of date";
-"token expired — run /login in Claude Code" = "token expired — run /login in Claude Code";
+"token expired — run /login in Claude Code" = "Run /login in Claude Code.";
 "claude token missing" = "claude token missing";
 "open Claude Code to refresh Claude" = "open Claude Code to refresh Claude";
 "open Antigravity or Cockpit" = "open Antigravity or Cockpit";
@@ -102,7 +102,7 @@
 "Weekly limit for this model" = "Weekly limit for this model";
 "Cloud session credits" = "Cloud session credits";
 "expires %@" = "expires %@";
-"token expired — run codex login" = "token expired — run codex login";
+"token expired — run codex login" = "Run codex login in Terminal.";
 "%@ limit" = "%@ limit";
 "Cloud credit" = "Cloud credit";
 "Open at login" = "Open at login";

@@ -947,20 +947,27 @@ struct ProviderPanel: View {
     /// What to run to log in again, where the numbers were — they're last-known and can't come back
     /// until the login does.
     private func loginFace(_ note: String) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 5) {
             titleRow
-            Spacer(minLength: 6)
-            Label(note, systemImage: "person.crop.circle.badge.exclamationmark")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(Color.primary.opacity(0.8))
-                .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 0)
+            // On the spent face's first row, in its size: the two hidden rows hold that place.
+            ZStack(alignment: .topLeading) {
+                VStack(alignment: .leading, spacing: 5) { labelled("clock", "0"); labelled("clock", "0") }.hidden()
+                HStack(alignment: .firstTextBaseline, spacing: 3) {
+                    Image(systemName: "person.crop.circle.badge.exclamationmark").font(.system(size: 9, weight: .regular))
+                    // A word joiner keeps "/login" whole: a line may otherwise break right after its slash.
+                    Text(note.replacingOccurrences(of: "/", with: "/\u{2060}"))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .font(.system(size: 10.5, weight: .medium))
+            .foregroundStyle(Color.primary.opacity(0.8))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     /// A spent window: how long until it refills and the day and hour it does, in the reset row's
-    /// own quiet tone — nothing on it is usable, so nothing on it shouts.
+    /// size and the spent colour — this window is out until then.
     private func spentFace(_ at: Date) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             titleRow
@@ -969,7 +976,7 @@ struct ProviderPanel: View {
             labelled("clock", SpentFace.moment(at))
         }
         .font(.system(size: 10.5, weight: .medium).monospacedDigit())
-        .foregroundStyle(Color.primary.opacity(0.42))
+        .foregroundStyle(quotaStatusColor(0))
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
