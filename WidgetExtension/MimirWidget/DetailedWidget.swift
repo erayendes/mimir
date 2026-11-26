@@ -256,9 +256,12 @@ private struct PlainFace: View {
             MetricHeader(metric: metric)
             Spacer(minLength: 0)
             if let note = metric.loginNote {
-                Label(note, systemImage: "person.crop.circle.badge.exclamationmark")
-                    .font(.system(size: 12, weight: .medium)).foregroundStyle(Tok.secondary)
-                    .lineLimit(3).fixedSize(horizontal: false, vertical: true)
+                // The icon on its own line: beside it the note lost a third of the width and its end.
+                VStack(alignment: .leading, spacing: 4) {
+                    Image(systemName: "person.crop.circle.badge.exclamationmark")
+                    Text(note).lineLimit(4).fixedSize(horizontal: false, vertical: true)
+                }
+                .font(.system(size: 12, weight: .medium)).foregroundStyle(Tok.secondary)
                 Spacer(minLength: 0)
             } else if let at = metric.spentAt(now) {
                 // The reset row's own icons and tone: nothing here is usable, so nothing shouts.
