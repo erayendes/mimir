@@ -8,7 +8,30 @@
     <description>Mimir update feed</description>
     <language>en</language>
 
-                                                                                                    <item>
+                                                                                                        <item>
+      <title>Mimir 3.3-beta.1</title>
+      <sparkle:channel>beta</sparkle:channel>
+      <sparkle:version>300299001</sparkle:version>
+      <sparkle:shortVersionString>3.3-beta.1</sparkle:shortVersionString>
+      <pubDate>Thu, 26 Nov 2026 09:03:43 +0000</pubDate>
+      <description><![CDATA[
+<p><b>Cards say what's wrong.</b> When a login has ended, the card shows what to run in place of its numbers: `/login` in Claude Code, `codex login` for Codex. A quota spent to 0% shows the time until it refills and the day and hour it does, the weekly or 30-day window first, then the five-hour one. The widget shows the same.</p>
+<p><b>The pace calms down after a burst.</b> Heavy use still turns a weekly bar red right away. Once you stop, the last day's burst fades back toward the week's average over a few hours, so the bar turns amber, then green, when what's left will last.</p>
+<p>Antigravity: a model that hasn't been used no longer shows a reset in 1970.</p>
+<hr>
+<p><b>Kartlar sorunu söylüyor.</b> Giriş süresi dolunca kart, sayıların yerine çalıştırmanız gereken komutu gösteriyor: Claude Code'da `/login`, Codex için `codex login`. Yüzde 0'a inen kota, dolmasına kalan süreyi ve dolacağı gün ile saati gösteriyor; önce haftalık ya da 30 günlük pencere, sonra beş saatlik. Widget da aynısını gösteriyor.</p>
+<p><b>Tempo yoğun kullanımdan sonra duruluyor.</b> Yoğun kullanım haftalık çubuğu yine hemen kırmızıya çeviriyor. Kullanmayı bıraktığınızda son günün yoğunluğu birkaç saat içinde haftanın ortalamasına doğru sönüyor; kalan kota yetecekse çubuk önce sarıya, sonra yeşile dönüyor.</p>
+<p>Antigravity: hiç kullanılmamış bir model artık 1970'te sıfırlanıyor gibi görünmüyor.</p>
+      ]]></description>
+      <enclosure
+        url="https://github.com/erayendes/mimir/releases/download/v3.3-beta.1/Mimir.zip"
+        sparkle:edSignature="0MXrghJ3hD/AuztQATeqGoH7aGj1nMhnm89dGh2gJwD8V9k1PKUkEo1Riz/ygZ8ynmBn1SPSI5f3RpMen6/yDQ=="
+        length="7270770"
+        type="application/octet-stream"
+        sparkle:minimumSystemVersion="14.0"/>
+    </item>
+
+<item>
       <title>Mimir 3.2</title>
       <sparkle:version>300200000</sparkle:version>
       <sparkle:shortVersionString>3.2</sparkle:shortVersionString>
