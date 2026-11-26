@@ -41,13 +41,17 @@ struct QuotaPace: Equatable {
         let average = (100 - remaining) / elapsed
         // The last day's pace, from the reading nearest a day back, once that spans at least three hours.
         // History reaches a little past a day, so a night with the Mac off doesn't leave a hole here.
-        let first = history.filter { now.timeIntervalSince($0.at) <= QuotaHistory.keep }
-            .min { abs(now.timeIntervalSince($0.at) - 86_400) < abs(now.timeIntervalSince($1.at) - 86_400) }
+        let day = history.filter { now.timeIntervalSince($0.at) <= QuotaHistory.keep }.sorted { $0.at < $1.at }
+        let first = day.min { abs(now.timeIntervalSince($0.at) - 86_400) < abs(now.timeIntervalSince($1.at) - 86_400) }
         let span = first.map { now.timeIntervalSince($0.at) } ?? 0
         let recent = first.flatMap { span >= 3 * 3600 ? max(0, Double($0.percent) - remaining) / span : nil }
+        // How long nothing more has been spent: since the first of the latest readings already at this level.
+        let idle = day.reversed().prefix { Double($0.percent) <= remaining }.last.map { now.timeIntervalSince($0.at) } ?? 0
+        // Today's pace fades back to the window's average once use stops: most of it gone in half a day.
+        let paced = recent.map { average + ($0 - average) * exp(-idle / (6 * 3600)) }
         // A full day of readings is how it's being spent now, faster or slower than the week so far.
         // Less than that only ever adds to the average: a quiet week shouldn't hide today's burst.
-        let rate = if let recent, span >= 20 * 3600 { recent } else { max(average, recent ?? 0) }
+        let rate = if let paced, span >= 20 * 3600 { paced } else { max(average, paced ?? 0) }
         guard rate > 0 else {
             return QuotaPace(tone: .green, idealPercent: ideal, lastsFor: nil, emptyFor: nil,
                              leftAtReset: Int(remaining))

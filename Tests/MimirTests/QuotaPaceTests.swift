@@ -126,9 +126,9 @@ final class QuotaPaceTests: XCTestCase {
         // 30 used, but only 2 of it in the last day: 2 a day leaves 63 of 70 at the reset.
         let slow = [QuotaReading(at: now.addingTimeInterval(-86_400), percent: 72, resetAt: reset)]
         XCTAssertEqual(halfway(30, history: slow).leftAtReset, 63)
-        // Nothing spent today: it all lasts.
+        // Nothing spent today: the pace falls back to the week's average, not to zero.
         let idle = [QuotaReading(at: now.addingTimeInterval(-21 * 3600), percent: 70, resetAt: reset)]
-        XCTAssertEqual(halfway(30, history: idle).leftAtReset, 70)
+        XCTAssertEqual(halfway(30, history: idle).leftAtReset, 41)
         // A night with the Mac off: the reading just past a day back still anchors it, not this morning's.
         let night = [QuotaReading(at: now.addingTimeInterval(-24.5 * 3600), percent: 72, resetAt: reset),
                      QuotaReading(at: now.addingTimeInterval(-15 * 3600), percent: 72, resetAt: reset)]
@@ -136,6 +136,41 @@ final class QuotaPaceTests: XCTestCase {
         // A day short of 20 hours is not a full day yet.
         let partial = [QuotaReading(at: now.addingTimeInterval(-19 * 3600), percent: 70, resetAt: reset)]
         XCTAssertEqual(halfway(30, history: partial).leftAtReset, 40)
+    }
+
+    /// A week window `elapsed` hours in, with readings given as (hours ago, percent), oldest first.
+    private func week(_ remaining: Int, elapsed: Double, _ readings: [(Double, Int)]) -> QuotaPace {
+        let reset = now.addingTimeInterval(week - elapsed * 3600)
+        let history = readings.map { QuotaReading(at: now.addingTimeInterval(-$0.0 * 3600), percent: $0.1, resetAt: reset) }
+        return QuotaPace.compute(remaining: remaining, resetAt: reset, window: week, now: now, history: history)!
+    }
+
+    /// 88 → 68 in a burst yesterday, nothing since: the burst fades and what's left lasts.
+    func testABurstThenIdleFadesBackToTheAverage() {
+        let pace = week(68, elapsed: 73, [(18, 88), (17.8, 71), (17.5, 68), (1, 68), (0.2, 68)])
+        XCTAssertEqual(pace.tone, .green)
+        XCTAssertEqual(pace.leftAtReset, 23)
+    }
+
+    func testABurstJustNowIsRed() {
+        let pace = week(68, elapsed: 56, (2...24).reversed().map { (Double($0), 88) } + [(1, 71), (0.8, 68)])
+        XCTAssertEqual(pace.tone, .red)
+        XCTAssertEqual(pace.emptyFor!, 27.07 * 3600, accuracy: 60)
+    }
+
+    /// 2 an hour all day, then three hours off: still red.
+    func testHeavyUseStaysRedThroughALunchBreak() {
+        let day: [(Double, Int)] = (3...24).reversed().map { (Double($0), 34 + 2 * $0) }
+        let pace = week(40, elapsed: 108, day + [(2, 40), (1, 40)])
+        XCTAssertEqual(pace.tone, .red)
+        XCTAssertEqual(pace.emptyFor!, 28.75 * 3600, accuracy: 60)
+    }
+
+    /// The Mac was off through the burst: no reading at this level yet, so nothing has faded.
+    func testABurstWhileTheMacWasOffIsRed() {
+        let pace = week(68, elapsed: 73, [(20, 88)])
+        XCTAssertEqual(pace.tone, .red)
+        XCTAssertEqual(pace.emptyFor!, 27 * 3600, accuracy: 60)
     }
 
     func testSpanRoundsToHoursThenDays() {
