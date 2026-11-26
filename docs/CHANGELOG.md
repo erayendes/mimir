@@ -9,6 +9,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [3.3-beta.1] - 2026-11-26
+
+**Cards say what's wrong.** When a login has ended, the card shows what to run in place of its numbers: `/login` in Claude Code, `codex login` for Codex. A quota spent to 0% shows the time until it refills and the day and hour it does, the weekly or 30-day window first, then the five-hour one. The widget shows the same.
+
+**The pace calms down after a burst.** Heavy use still turns a weekly bar red right away. Once you stop, the last day's burst fades back toward the week's average over a few hours, so the bar turns amber, then green, when what's left will last.
+
+Antigravity: a model that hasn't been used no longer shows a reset in 1970.
+
 ### [3.2] - 2026-11-21
 
 **Pace, not just percentage.** Weekly and 30-day bars are coloured by whether your current pace lasts until the reset. A mark in the bar shows where you should be with even use, and red bars say how long you'd go without quota. Click a card to turn it over: the account's e-mail, when the quota runs out at this pace, or how much will go unused. The widget shows the same colours. The idea and the method behind the forecast come from the script [@ilkerutlu](https://github.com/ilkerutlu) shared, thank you.
@@ -756,6 +764,14 @@ Bu projedeki tüm önemli değişiklikler bu dosyada belgelenecektir.
 
 Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
+
+### [3.3-beta.1] - 2026-11-26
+
+**Kartlar sorunu söylüyor.** Giriş süresi dolunca kart, sayıların yerine çalıştırmanız gereken komutu gösteriyor: Claude Code'da `/login`, Codex için `codex login`. Yüzde 0'a inen kota, dolmasına kalan süreyi ve dolacağı gün ile saati gösteriyor; önce haftalık ya da 30 günlük pencere, sonra beş saatlik. Widget da aynısını gösteriyor.
+
+**Tempo yoğun kullanımdan sonra duruluyor.** Yoğun kullanım haftalık çubuğu yine hemen kırmızıya çeviriyor. Kullanmayı bıraktığınızda son günün yoğunluğu birkaç saat içinde haftanın ortalamasına doğru sönüyor; kalan kota yetecekse çubuk önce sarıya, sonra yeşile dönüyor.
+
+Antigravity: hiç kullanılmamış bir model artık 1970'te sıfırlanıyor gibi görünmüyor.
 
 ### [3.2] - 2026-11-21
 
