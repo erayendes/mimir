@@ -591,8 +591,9 @@ struct ServiceCard: View {
                         .stroke(Color.primary.opacity(0.08), lineWidth: 1)
                 )
         )
-        // Dim a stale snapshot so it reads as "last known, not live".
-        .opacity(service.isStale ? 0.66 : 1)
+        // Dim a stale snapshot so it reads as "last known, not live" — but not a lost login, whose
+        // front carries what to do about it.
+        .opacity(service.isStale && !service.needsLogin ? 0.66 : 1)
     }
 
     // MARK: Renewal passes
@@ -696,7 +697,10 @@ struct ServiceCard: View {
     /// exactly one pair and so exactly one panel.
     private var panels: [PanelData] {
         var panels = quotaPanels
-        for i in panels.indices { panels[i].stale = service.isStale }
+        for i in panels.indices {
+            panels[i].stale = service.isStale
+            panels[i].loginNote = service.needsLogin ? service.statusNote : nil
+        }
         if !panels.isEmpty {
             panels[0].plan = service.account?.plan
             panels[0].email = service.account?.email
@@ -853,6 +857,8 @@ struct PanelData {
     var pace: QuotaPace? = nil
     /// The long window was promoted to the face, so the face and the big number take its pace.
     var paceOnFace = false
+    /// The login is gone: the front says what to run instead of showing last-known numbers.
+    var loginNote: String? = nil
 
     /// A plan with one long window and no session (Codex Go's 30 days) shows it where the session
     /// sits — the big number, the clock and the face — instead of an empty corner above a capsule.
@@ -861,7 +867,7 @@ struct PanelData {
         return PanelData(title: title, iconName: iconName, session: weekly, weekly: nil,
                          weeklyLabel: weeklyLabel, sessionFallback: weeklyWindow,
                          weeklyWindow: weeklyWindow, gated: false, stale: stale, plan: plan, email: email,
-                         pace: pace, paceOnFace: true)
+                         pace: pace, paceOnFace: true, loginNote: loginNote)
     }
 }
 
@@ -895,9 +901,17 @@ struct ProviderPanel: View {
                 capsule(percent: 0, resetAt: nil).hidden()
             }
         }
-        // The back takes the front's exact room, so the card keeps its size either way.
-        .opacity(boxOpen && hasBox ? 0 : 1)
-        .overlay { if boxOpen, hasBox { back.transition(.opacity) } }
+        // The back and the plain faces take the gauge's exact room, so the card keeps its size.
+        .opacity((boxOpen && hasBox) || plainFace ? 0 : 1)
+        .overlay {
+            if boxOpen, hasBox {
+                back.transition(.opacity)
+            } else if let note = panel.loginNote {
+                loginFace(note)
+            } else if let spentAt {
+                spentFace(spentAt)
+            }
+        }
         .padding(9)
         .contentShape(Rectangle())
         .onTapGesture { if hasBox { setBox(!boxOpen) } }
@@ -914,11 +928,49 @@ struct ProviderPanel: View {
                     // it, so a full window reads as a tinted face rather than a solid block.
                     Rectangle()
                         .fill(faceColor.opacity(0.12))
-                        .frame(width: geo.size.width * CGFloat(clampPct(panel.session?.percent ?? 0)) / 100)
+                        .frame(width: plainFace ? 0
+                               : geo.size.width * CGFloat(clampPct(panel.session?.percent ?? 0)) / 100)
                 }
             }
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         )
+    }
+
+    /// When the spent window refills — the long one first, as it gates the session beside it.
+    private var spentAt: Date? {
+        SpentFace.reset(session: panel.session, long: panel.weekly, now: now)
+    }
+
+    /// A lost login or a spent window: no gauge, just what matters now.
+    private var plainFace: Bool { panel.loginNote != nil || spentAt != nil }
+
+    /// What to run to log in again, where the numbers were — they're last-known and can't come back
+    /// until the login does.
+    private func loginFace(_ note: String) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            titleRow
+            Spacer(minLength: 6)
+            Label(note, systemImage: "person.crop.circle.badge.exclamationmark")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(Color.primary.opacity(0.8))
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    /// A spent window: how long until it refills and the day and hour it does, in the reset row's
+    /// own quiet tone — nothing on it is usable, so nothing on it shouts.
+    private func spentFace(_ at: Date) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            titleRow
+            Spacer(minLength: 0)
+            labelled("timer", SpentFace.countdown(at.timeIntervalSince(now), dayUnit: TimeFormatter.dayUnit))
+            labelled("clock", SpentFace.moment(at))
+        }
+        .font(.system(size: 10.5, weight: .medium).monospacedDigit())
+        .foregroundStyle(Color.primary.opacity(0.42))
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private var faceColor: Color {
@@ -974,32 +1026,36 @@ struct ProviderPanel: View {
     /// writes it — then the reset clock over the countdown and the number.
     private var header: some View {
         HStack(alignment: .top, spacing: 8) {
-            HStack(spacing: 4) {
-                BrandIconView(iconName: panel.iconName, size: 13)
-                    .foregroundStyle(Color.primary.opacity(0.9))
-                    .frame(width: 13, height: 13)
-                    .padding(.trailing, 2)
-                Text(panel.title)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color.primary.opacity(0.9))
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
-                if let plan = panel.plan {
-                    Text(plan)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(Color.primary.opacity(0.42))
-                        .lineLimit(1)
-                        .fixedSize()
-                }
-            }
-            // Every point left of the clock goes to the name before the spacer takes any: shared
-            // evenly, the spacer took half and cut "Claude" to "Clau…".
-            .layoutPriority(1)
+            titleRow
             // No minimum: the row's own spacing already parts the name from the clock, and the
             // six points it held are what "Claude Team" was short of.
             Spacer(minLength: 0)
             sessionBlock
         }
+    }
+
+    private var titleRow: some View {
+        HStack(spacing: 4) {
+            BrandIconView(iconName: panel.iconName, size: 13)
+                .foregroundStyle(Color.primary.opacity(0.9))
+                .frame(width: 13, height: 13)
+                .padding(.trailing, 2)
+            Text(panel.title)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(Color.primary.opacity(0.9))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            if let plan = panel.plan {
+                Text(plan)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Color.primary.opacity(0.42))
+                    .lineLimit(1)
+                    .fixedSize()
+            }
+        }
+        // Every point left of the clock goes to the name before the spacer takes any: shared
+        // evenly, the spacer took half and cut "Claude" to "Clau…".
+        .layoutPriority(1)
     }
 
     private func setBox(_ open: Bool) {

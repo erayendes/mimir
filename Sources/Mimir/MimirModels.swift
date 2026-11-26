@@ -34,6 +34,9 @@ struct ServiceStatus: Identifiable {
     /// Which login this card reads — its plan and e-mail, shown under the provider's name so two
     /// cards of one provider can be told apart. nil when the source doesn't say.
     let account: AccountInfo?
+    /// The login itself is gone (token expired, and Mimir never refreshes it): the card's front says
+    /// what to do — `statusNote` carries the words — instead of greying last-known numbers.
+    let needsLogin: Bool
 
     init(
         name: String,
@@ -50,7 +53,8 @@ struct ServiceStatus: Identifiable {
         infoText: String? = nil,
         cooldownHint: TimeInterval? = nil,
         dataUnavailable: Bool = false,
-        account: AccountInfo? = nil
+        account: AccountInfo? = nil,
+        needsLogin: Bool = false
     ) {
         self.name = name
         self.iconName = iconName
@@ -67,6 +71,7 @@ struct ServiceStatus: Identifiable {
         self.cooldownHint = cooldownHint
         self.dataUnavailable = dataUnavailable
         self.account = account
+        self.needsLogin = needsLogin
     }
 
     /// Return a copy with `infoText` attached. Lets the data layer set the explainer once
@@ -76,7 +81,7 @@ struct ServiceStatus: Identifiable {
     }
 
     /// Return a copy with a different `statusNote` — used to stamp an actionable reason
-    /// (e.g. "token expired — open Claude Code") onto a loaded snapshot without rebuilding it.
+    /// (e.g. "token expired — run /login in Claude Code") onto a loaded snapshot without rebuilding it.
     func withStatusNote(_ note: String?) -> ServiceStatus {
         copy(statusNote: .some(note))
     }
@@ -84,6 +89,11 @@ struct ServiceStatus: Identifiable {
     /// Return a dimmed copy that says why it's old — a reading the live source couldn't confirm.
     func markedStale(_ note: String) -> ServiceStatus {
         copy(statusNote: .some(note), isStale: true)
+    }
+
+    /// A stale copy whose front asks for a new login, in `note`'s words.
+    func markedNeedsLogin(_ note: String) -> ServiceStatus {
+        copy(statusNote: .some(note), isStale: true, needsLogin: true)
     }
 
     /// Return a copy carrying a cooldown signal for `UsageStore` (see `cooldownHint`).
@@ -116,7 +126,8 @@ struct ServiceStatus: Identifiable {
         isStale: Bool? = nil,
         infoText: String?? = nil,
         cooldownHint: TimeInterval?? = nil,
-        account: AccountInfo?? = nil
+        account: AccountInfo?? = nil,
+        needsLogin: Bool? = nil
     ) -> ServiceStatus {
         ServiceStatus(
             name: name,
@@ -133,7 +144,8 @@ struct ServiceStatus: Identifiable {
             infoText: infoText ?? self.infoText,
             cooldownHint: cooldownHint ?? self.cooldownHint,
             dataUnavailable: dataUnavailable,
-            account: account ?? self.account
+            account: account ?? self.account,
+            needsLogin: needsLogin ?? self.needsLogin
         )
     }
 }

@@ -105,7 +105,7 @@ Mimir's entire UI lives in the menu bar as a small **Mimir glyph**. Click it for
 | 🟡 Amber | 10–39% | Running low |
 | 🔴 Red | below 10% | Near the limit |
 
-**The popover** — click the glyph to open it. Each service is a card with its name and brand icon, the session (5-hour) quota shown prominently with percentage and countdown, a weekly summary row, per-model quota or credit rows, an (i) info icon, and a status note (e.g. *"token expired — open Claude Code"*). When a service has no session window, the weekly reading is promoted into that spot instead. Reset times use short units — e.g. `2h 15m`.
+**The popover** — click the glyph to open it. Each service is a card with its name and brand icon, the session (5-hour) quota shown prominently with percentage and countdown, a weekly summary row, per-model quota or credit rows, an (i) info icon, and a status note (e.g. *"token expired — run /login in Claude Code"*). When a service has no session window, the weekly reading is promoted into that spot instead. Reset times use short units — e.g. `2h 15m`.
 
 **Refreshing & stale state** — Mimir refreshes every minute and on each popover open; if a service hits a rate limit (HTTP 429) it backs off and shows the last-known data. When a live source disappears (e.g. the Antigravity IDE closes), the card is shown **dimmed** with the last snapshot instead of vanishing. If it stays unreachable long enough, a notice appears at the top of the popover; dismiss it with the **×** in its corner and that service's dots leave the menu bar with it. Both return once the service reports data again, so a later outage is still announced.
 
@@ -133,7 +133,7 @@ GET https://api.anthropic.com/api/oauth/usage
 
 3. **Claude Code's status line** — with **Prompt-free Claude tracking** on (right-click menu). A small hook in `~/.claude/settings.json` receives the session JSON Claude Code already fetched, with its official 5-hour and 7-day numbers, and saves it to `~/.claude/mimir-usage.json`; it also prints Mimir's line in Claude Code's status line (see [Status line](#status-line)). No Keychain, no token, no network, no prompt. While the hook is fresh (Claude Code rendered a status line in the last 30 minutes) a background refresh never touches the Keychain, and it fills the card whenever the token is expired or can't be read silently. An existing `statusLine` command is kept, not replaced: Mimir asks once whether to show both lines, only Mimir's, or only yours; `settings.json` is backed up before the first write.
 
-**Tokens are read, never refreshed.** Anthropic rotates the refresh token single-use, so a refresh from outside would sign Claude Code out. Mimir only reads the token Claude Code currently holds and uses it while valid; once it has expired, the card shows **token expired — open Claude Code** and Claude Code refreshes it on its own next use.
+**Tokens are read, never refreshed.** Anthropic rotates the refresh token single-use, so a refresh from outside would sign Claude Code out. Mimir only reads the token Claude Code currently holds and uses it while valid; once it has expired, the card shows **token expired — run /login in Claude Code**: Claude Code usually refreshes it on its next use, and `/login` covers a login that has ended.
 
 **What's shown.** Session (5-hour) and weekly remaining percentages with reset times.
 
@@ -417,7 +417,7 @@ GET https://api.anthropic.com/api/oauth/usage
 | Belirti | Olası neden / çözüm |
 |---|---|
 | Claude kartı yok | Claude Code'a hiç giriş yapılmamış olabilir — bir kez açıp giriş yapın |
-| "token süresi doldu" notu | Claude Code'u açın; token yenilenince düzelir |
+| "oturum süresi doldu" notu | Claude Code'da `/login` yapın; token yenilenince düzelir |
 | "open Mimir to refresh Claude" notu | Token izin penceresi olmadan okunamadı; popover'ı açmak bunu sağlayan kullanıcı eylemidir |
 | Tekrarlayan Keychain izin pencereleri | Claude Code her token yenilemesinde Keychain kaydını yeniden yazar ve *Her Zaman İzin Ver* düşer; Mimir kaydı Claude Code gibi macOS'in `security` aracıyla okuduğu için izin istememesi gerekir. Yine de isterse **Parolasız Claude takibi**'ni açın |
 | Veri donuk / soluk | Geçici hata ya da hız sınırı; Mimir son bilinen veriyi gösterir, kısa süre sonra yeniler |

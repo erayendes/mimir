@@ -10,6 +10,8 @@ enum DemoShot {
         let now = Date()
         // A tight day: the quotas that make the extra rows earn their place.
         let tight = ProcessInfo.processInfo.environment["MIMIR_DEMO_TIGHT"] != nil
+        // The plain faces: a lost login, a spent week (Codex) and a spent 5 hours (Gemini).
+        let plain = ProcessInfo.processInfo.environment["MIMIR_DEMO_PLAIN"] != nil
         let claude = ServiceStatus(
             name: "Claude", iconName: "claude",
             sessionResetAt: now.addingTimeInterval(4 * 3600 + 23 * 60),
@@ -34,7 +36,7 @@ enum DemoShot {
             account: AccountInfo(plan: "Max", email: "you@example.com"))
 
         // A second login of the same provider: same name, told apart by plan and e-mail.
-        let claudeWork = ServiceStatus(
+        let claudeWorkLive = ServiceStatus(
             name: "Claude Work", iconName: "claude",
             sessionResetAt: now.addingTimeInterval(2 * 3600 + 5 * 60),
             weeklyResetAt: nil,
@@ -42,6 +44,9 @@ enum DemoShot {
             sessionRemainingPercent: tight ? 22 : 64,
             models: [], isAvailable: true, statusNote: "demo",
             account: AccountInfo(plan: "Team", email: "name.surname@acme.com.tr"))
+        let claudeWork = plain
+            ? claudeWorkLive.markedNeedsLogin(String(localized: "token expired — run /login in Claude Code"))
+            : claudeWorkLive
 
         let credits = LiveUsageDataSource().codexResetCreditRows(fromRoot: [
             "credits": [
@@ -54,7 +59,7 @@ enum DemoShot {
             name: "Codex", iconName: "codex",
             sessionResetAt: now.addingTimeInterval(13 * 60),
             weeklyResetAt: now.addingTimeInterval(6 * 86_400 + 13 * 3600),
-            sessionRemainingPercent: tight ? 31 : 91, weeklyRemainingPercent: tight ? 12 : 91,
+            sessionRemainingPercent: tight ? 31 : 91, weeklyRemainingPercent: plain ? 0 : tight ? 12 : 91,
             weeklyWindowSeconds: 7 * 86_400,
             models: [ModelStatus(name: String(localized: "Credit balance"), remainingPercent: 0,
                                  resetAt: nil, valueText: "42 kredi", symbol: "dollarsign.circle")] + credits,
@@ -75,7 +80,7 @@ enum DemoShot {
             name: "Antigravity", iconName: "antigravity",
             sessionResetAt: nil, weeklyResetAt: nil,
             models: [
-                ModelStatus(name: "Gemini", remainingPercent: 28,
+                ModelStatus(name: "Gemini", remainingPercent: plain ? 0 : 28,
                             resetAt: now.addingTimeInterval(2 * 3600 + 40 * 60), window: .session),
                 ModelStatus(name: "Gemini", remainingPercent: 44,
                             resetAt: now.addingTimeInterval(4 * 86_400), window: .weekly),

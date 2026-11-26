@@ -52,7 +52,7 @@
 
 /* Status notes */
 "out of date" = "güncel değil";
-"token expired — open Claude Code" = "token süresi doldu — Claude Code'u açın";
+"token expired — run /login in Claude Code" = "oturum süresi doldu — Claude Code'da /login yapın";
 "claude token missing" = "Claude token'ı bulunamadı";
 "open Claude Code to refresh Claude" = "Claude'u yenilemek için Claude Code'u açın";
 "open Antigravity or Cockpit" = "Antigravity veya Cockpit'i aç";
@@ -102,7 +102,7 @@
 "Weekly limit for this model" = "Bu modelin haftalık sınırı";
 "Cloud session credits" = "Bulut oturum kredisi";
 "expires %@" = "bitiş %@";
-"token expired — run codex login" = "oturum süresi doldu — codex login çalıştır";
+"token expired — run codex login" = "oturum süresi doldu — codex login çalıştırın";
 "%@ limit" = "%@ limit";
 "Cloud credit" = "Bulut kredisi";
 "Open at login" = "Girişte aç";

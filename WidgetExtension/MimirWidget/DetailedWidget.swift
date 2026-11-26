@@ -37,6 +37,15 @@ private struct FlatMetric: Identifiable {
     let metric: WindowMetric
     let label: String          // what the header reads: "Claude" for "Claude Work", "Gemini" for a family
     let plan: String?
+    let loginNote: String?     // the login is gone → the face says what to run instead of numbers
+
+    /// When the spent window refills (the long one first, as it gates the session). nil = nothing spent.
+    func spentAt(_ now: Date) -> Date? {
+        let m = metric
+        let long = m.isWeekly ? (percent: m.percent, resetAt: m.resetAt)
+            : m.weeklyPercent.map { (percent: $0, resetAt: m.weeklyResetAt) }
+        return SpentFace.reset(session: m.isWeekly ? nil : (m.percent, m.resetAt), long: long, now: now)
+    }
 }
 
 /// The app rewrites the payload at least every few minutes while it runs (see `WidgetBridge`), so
@@ -67,7 +76,7 @@ private extension WidgetPayload {
     func fiveHourFlat(at now: Date) -> [FlatMetric] {
         let frozen = now.timeIntervalSince(generatedAt) > payloadMaxAge
         return providers.filter(\.isAvailable)
-            .flatMap { p in p.fiveHour.map { FlatMetric(iconName: p.iconName, providerName: p.name, unavailable: p.unavailable, isStale: p.isStale || frozen, metric: $0.live(at: now), label: p.displayLabel($0), plan: p.plan) } }
+            .flatMap { p in p.fiveHour.map { FlatMetric(iconName: p.iconName, providerName: p.name, unavailable: p.unavailable, isStale: p.isStale || frozen, metric: $0.live(at: now), label: p.displayLabel($0), plan: p.plan, loginNote: p.loginNote) } }
     }
 }
 
@@ -89,7 +98,9 @@ struct DetailedWidgetView: View {
         // never an out-of-range crash.
         if let payload = entry.payload, case let flat = payload.fiveHourFlat(at: entry.date), !flat.isEmpty {
             if let metric = smallMetric(flat) {
-                if family == .systemMedium {
+                if !metric.unavailable, metric.loginNote != nil || metric.spentAt(entry.date) != nil {
+                    PlainFace(metric: metric, now: entry.date)
+                } else if family == .systemMedium {
                     MediumView(metric: metric, now: entry.date)
                 } else {
                     SmallView(metric: metric, now: entry.date)
@@ -234,6 +245,39 @@ private struct SmallView: View {
 }
 
 // MARK: - Shared face pieces
+
+/// A lost login or a spent window: no gauge, no bar. The login's words in place of the numbers,
+/// or how long until the spent window refills and the day and hour it does.
+private struct PlainFace: View {
+    let metric: FlatMetric
+    let now: Date
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            MetricHeader(metric: metric)
+            Spacer(minLength: 0)
+            if let note = metric.loginNote {
+                Label(note, systemImage: "person.crop.circle.badge.exclamationmark")
+                    .font(.system(size: 12, weight: .medium)).foregroundStyle(Tok.secondary)
+                    .lineLimit(3).fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+            } else if let at = metric.spentAt(now) {
+                // The reset row's own icons and tone: nothing here is usable, so nothing shouts.
+                VStack(alignment: .leading, spacing: 4) {
+                    IconText(symbol: "gauge.with.needle",
+                             text: SpentFace.countdown(at.timeIntervalSince(now),
+                                                       dayUnit: String(localized: "duration.unit.day")),
+                             size: 11)
+                    IconText(symbol: "clock", text: SpentFace.moment(at), size: 11)
+                }
+                .foregroundStyle(Tok.tertiary)
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        // A lost login or a frozen reading: the tap goes to the host, which refreshes or says why.
+        .widgetURL(metric.isStale ? widgetOpenURL(metric.providerName) : nil)
+    }
+}
 
 /// The face wash: a light tint spanning that share of the width, edge to edge (the widget's own
 /// mask rounds the corners). Solid at 0.22 went muddy against the face's grey.

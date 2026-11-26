@@ -121,7 +121,7 @@ extension LiveUsageDataSource {
                 // after Claude Code wrote fresh hook numbers. We make NO network call with a dead token,
                 // so there's nothing to rate-limit; fall straight to claudeFailure, which reads the fresh
                 // hook every tick and shows live session/weekly numbers without a prompt.
-                let note = String(localized: "token expired — open Claude Code")
+                let note = String(localized: "token expired — run /login in Claude Code")
                 return claudeFailure(note: note, staleNote: note, expired: true)
             }
             await Self.claudeTokenCache.set(tokenInfo)
@@ -190,7 +190,7 @@ extension LiveUsageDataSource {
         let card = claudeLastKnown(note: note, staleNote: staleNote)
         // An expired login can't refresh these numbers until Claude Code renews it: grey, however
         // much of the windows is still left.
-        return expired && card.isAvailable ? card.markedStale(staleNote) : card
+        return expired && card.isAvailable ? card.markedNeedsLogin(staleNote) : card
     }
 
     private func claudeLastKnown(note: String, staleNote: String) -> ServiceStatus {
@@ -630,10 +630,10 @@ extension LiveUsageDataSource {
             saveSnapshot(status)
             return status
         }
-        let note = expired ? String(localized: "token expired — open Claude Code") : String(localized: "out of date")
+        let note = expired ? String(localized: "token expired — run /login in Claude Code") : String(localized: "out of date")
         let snapshot = loadSnapshot(for: name, iconName: "claude", staleNote: note)
         // An expired login can't refresh these numbers: grey until Claude Code renews it.
-        return (expired ? snapshot?.markedStale(note) : snapshot)
+        return (expired ? snapshot?.markedNeedsLogin(note) : snapshot)
             ?? unavailableService(name: name, iconName: "claude", models: [])
     }
 

@@ -35,10 +35,12 @@ public struct ProviderPayload: Codable, Equatable {
     public var title: String?
     public var plan: String?
     public var email: String?
+    /// The login is gone: the face shows these words (what to run) in place of the numbers.
+    public var loginNote: String?
 
     public init(name: String, iconName: String, isAvailable: Bool, fiveHour: [WindowMetric],
                 unavailable: Bool = false, isStale: Bool = false,
-                title: String? = nil, plan: String? = nil, email: String? = nil) {
+                title: String? = nil, plan: String? = nil, email: String? = nil, loginNote: String? = nil) {
         self.name = name
         self.iconName = iconName
         self.isAvailable = isAvailable
@@ -48,6 +50,7 @@ public struct ProviderPayload: Codable, Equatable {
         self.title = title
         self.plan = plan
         self.email = email
+        self.loginNote = loginNote
     }
 
     /// What a window of this provider is called on screen: an account-level window carries the
@@ -80,7 +83,7 @@ public struct ProviderPayload: Codable, Equatable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case name, iconName, isAvailable, fiveHour, unavailable, isStale, title, plan, email
+        case name, iconName, isAvailable, fiveHour, unavailable, isStale, title, plan, email, loginNote
     }
 
     // Custom decode so a payload written by an older app version (no `unavailable`/`isStale` key) still
@@ -96,6 +99,7 @@ public struct ProviderPayload: Codable, Equatable {
         title = try c.decodeIfPresent(String.self, forKey: .title)
         plan = try c.decodeIfPresent(String.self, forKey: .plan)
         email = try c.decodeIfPresent(String.self, forKey: .email)
+        loginNote = try c.decodeIfPresent(String.self, forKey: .loginNote)
     }
 }
 
@@ -110,6 +114,35 @@ public struct ProviderPayload: Codable, Equatable {
 public func quotaWindowDays(_ windowSeconds: TimeInterval?) -> Int? {
     guard let windowSeconds, windowSeconds > 6 * 3600 else { return nil }
     return max(1, Int((windowSeconds / 86_400).rounded()))
+}
+
+/// A spent window's face, shared by the popover panel and the widget: no gauge, just how long until
+/// it refills and when.
+public enum SpentFace {
+    /// "04:12" under a day; past a day the whole days go in front ("3g 23:12"), since a week or a
+    /// 30-day window in bare hours is unreadable. Rounded up: "00:00" would say it's already back.
+    public static func countdown(_ interval: TimeInterval, dayUnit: String) -> String {
+        let minutes = max(0, Int((interval / 60).rounded(.up)))
+        let clock = String(format: "%02d:%02d", minutes / 60 % 24, minutes % 60)
+        return minutes >= 1440 ? "\(minutes / 1440)\(dayUnit) \(clock)" : clock
+    }
+
+    /// The day and hour it refills, as the card's reset row writes it: "Cumartesi 21:00".
+    public static func moment(_ at: Date) -> String { formatter.string(from: at) }
+
+    private static let formatter: DateFormatter = {
+        let f = DateFormatter(); f.setLocalizedDateFormatFromTemplate("EEEE HH:mm"); return f
+    }()
+
+    /// The reset of the window that's spent, the long one first (it gates the session beside it),
+    /// then the session. nil when nothing is spent, or a spent window's reset is unknown or past.
+    public static func reset(session: (percent: Int, resetAt: Date?)?,
+                             long: (percent: Int, resetAt: Date?)?, now: Date) -> Date? {
+        for window in [long, session] {
+            if let window, window.percent <= 0, let at = window.resetAt, at > now { return at }
+        }
+        return nil
+    }
 }
 
 public enum QuotaTone: String, Codable { case green, amber, red }

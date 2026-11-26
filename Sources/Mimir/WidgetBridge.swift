@@ -66,7 +66,7 @@ enum WidgetBridge {
     }
 
     private static func structuralSignature(_ providers: [ProviderPayload]?) -> [String] {
-        (providers ?? []).map { "\($0.name)|\($0.isAvailable)|\($0.unavailable)|\($0.isStale)|\($0.plan ?? "")|\($0.email ?? "")" }
+        (providers ?? []).map { "\($0.name)|\($0.isAvailable)|\($0.unavailable)|\($0.isStale)|\($0.plan ?? "")|\($0.email ?? "")|\($0.loginNote ?? "")" }
     }
 
     /// Built in display order so the widget rows match the popover and menu bar. A second login
@@ -82,7 +82,8 @@ enum WidgetBridge {
                 isStale: svc.isStale,
                 title: svc.providerTitle,
                 plan: svc.account?.plan,
-                email: svc.account?.email
+                email: svc.account?.email,
+                loginNote: svc.needsLogin ? svc.statusNote : nil
             )
         }
         return WidgetPayload(generatedAt: generatedAt, providers: providers)

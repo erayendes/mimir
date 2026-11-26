@@ -19,12 +19,12 @@ extension LiveUsageDataSource {
             saveSnapshot(local, live: note == nil)
             // An expired token means the CLI hasn't run since it lapsed, so its session file is at
             // least that old: dim it instead of passing days-old numbers off as live.
-            return note.map(local.markedStale) ?? local
+            return note.map(local.markedNeedsLogin) ?? local
         }
         // Both live sources failed — show the last-known snapshot instead of vanishing.
         let snapshot = loadSnapshot(for: name, iconName: "codex",
                                     staleNote: note ?? String(localized: "out of date"))
-        return (note.flatMap { snapshot?.markedStale($0) } ?? snapshot)?.withAccount(account) ?? local
+        return (note.flatMap { snapshot?.markedNeedsLogin($0) } ?? snapshot)?.withAccount(account) ?? local
     }
 
     /// The login a Codex home holds — e-mail, plan and ChatGPT account id from its `id_token`. Local
