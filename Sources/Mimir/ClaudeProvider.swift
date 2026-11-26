@@ -121,8 +121,7 @@ extension LiveUsageDataSource {
                 // after Claude Code wrote fresh hook numbers. We make NO network call with a dead token,
                 // so there's nothing to rate-limit; fall straight to claudeFailure, which reads the fresh
                 // hook every tick and shows live session/weekly numbers without a prompt.
-                let note = String(localized: "token expired — run /login in Claude Code")
-                return claudeFailure(note: note, staleNote: note, expired: true)
+                return claudeFailure(note: read.expiredNote, staleNote: read.expiredNote, expired: true)
             }
             await Self.claudeTokenCache.set(tokenInfo)
             // Mirror the access token into Mimir's own keychain item so the next background tick can
@@ -454,6 +453,16 @@ extension LiveUsageDataSource {
     struct ClaudeToken: Equatable {
         let accessToken: String
         let expiresAt: Date?   // nil when the source is a bare token with no expiry metadata
+        /// Claude Code holds a refresh token for it: once this one runs out, opening Claude Code renews
+        /// it, no new login needed.
+        var renewable = false
+
+        /// What a card whose token ran out should say: open Claude Code when it can renew the token,
+        /// log in again when it can't.
+        var expiredNote: String {
+            renewable ? String(localized: "token expired — open Claude Code")
+                      : String(localized: "token expired — run /login in Claude Code")
+        }
     }
 
     /// Pick which Claude token to use from the available sources, in prompt-free-first order:
@@ -590,6 +599,7 @@ extension LiveUsageDataSource {
 
         // Opening Mimir also asks the API, for what the hook lacks (Fable's own weekly, say).
         var expired = false
+        var expiredNote = String(localized: "token expired — run /login in Claude Code")
         if hook == nil || userInitiated {
             var token = await Self.extraTokenCache.get(service)
                 ?? readMimirClaudeToken(service: mirror).flatMap { ($0.expiresAt?.timeIntervalSinceNow ?? 0) > 300 ? $0 : nil }
@@ -599,6 +609,7 @@ extension LiveUsageDataSource {
                         ? readClaudeKeychainItem(interactive: true, service: service) : nil)
                 let parsed = raw.flatMap { parseClaudeToken($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
                 expired = parsed.map { ($0.expiresAt?.timeIntervalSinceNow ?? 0) <= 30 } ?? false
+                if let parsed { expiredNote = parsed.expiredNote }
                 token = expired ? nil : parsed
                 await Self.extraTokenCache.set(service, token)
                 if let token { cacheMimirClaudeToken(token, service: mirror) }
@@ -630,7 +641,7 @@ extension LiveUsageDataSource {
             saveSnapshot(status)
             return status
         }
-        let note = expired ? String(localized: "token expired — run /login in Claude Code") : String(localized: "out of date")
+        let note = expired ? expiredNote : String(localized: "out of date")
         let snapshot = loadSnapshot(for: name, iconName: "claude", staleNote: note)
         // An expired login can't refresh these numbers: grey until Claude Code renews it.
         return (expired ? snapshot?.markedNeedsLogin(note) : snapshot)
@@ -848,10 +859,12 @@ extension LiveUsageDataSource {
             (token as? String).flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 }
         }
         if let oauth = obj["claudeAiOauth"] as? [String: Any], let token = usable(oauth["accessToken"]) {
-            return ClaudeToken(accessToken: token, expiresAt: epochMillisToDate(oauth["expiresAt"]))
+            return ClaudeToken(accessToken: token, expiresAt: epochMillisToDate(oauth["expiresAt"]),
+                               renewable: usable(oauth["refreshToken"]) != nil)
         }
         if let token = usable(obj["accessToken"]) {
-            return ClaudeToken(accessToken: token, expiresAt: epochMillisToDate(obj["expiresAt"]))
+            return ClaudeToken(accessToken: token, expiresAt: epochMillisToDate(obj["expiresAt"]),
+                               renewable: usable(obj["refreshToken"]) != nil)
         }
         return nil
     }

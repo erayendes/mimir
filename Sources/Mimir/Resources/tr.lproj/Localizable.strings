@@ -52,6 +52,7 @@
 
 /* Status notes */
 "out of date" = "güncel değil";
+"token expired — open Claude Code" = "Claude Code'u açın.";
 "token expired — run /login in Claude Code" = "Claude Code'a /login olun.";
 "claude token missing" = "Claude token'ı bulunamadı";
 "open Claude Code to refresh Claude" = "Claude'u yenilemek için Claude Code'u açın";

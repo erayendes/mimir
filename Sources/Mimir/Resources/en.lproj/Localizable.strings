@@ -52,6 +52,7 @@
 
 /* Status notes */
 "out of date" = "out of date";
+"token expired — open Claude Code" = "Open Claude Code.";
 "token expired — run /login in Claude Code" = "Run /login in Claude Code.";
 "claude token missing" = "claude token missing";
 "open Claude Code to refresh Claude" = "open Claude Code to refresh Claude";

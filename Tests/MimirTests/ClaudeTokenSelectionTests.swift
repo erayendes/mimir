@@ -152,4 +152,15 @@ final class ClaudeTokenSelectionTests: XCTestCase {
         XCTAssertNil(ds.parseClaudeToken(#"{"claudeAiOauth":{"accessToken":""}}"#))
         XCTAssertNil(ds.parseClaudeToken(""))
     }
+
+    /// A token Claude Code can renew asks to open it; one it can't asks for a new login.
+    func testAnExpiredTokenSaysOpenWhenRenewableAndLoginWhenNot() {
+        let ds = LiveUsageDataSource()
+        let renewable = ds.parseClaudeToken(#"{"claudeAiOauth":{"accessToken":"a","refreshToken":"r","expiresAt":1}}"#)
+        let dead = ds.parseClaudeToken(#"{"claudeAiOauth":{"accessToken":"a","refreshToken":" ","expiresAt":1}}"#)
+        XCTAssertEqual(renewable?.renewable, true)
+        XCTAssertEqual(dead?.renewable, false)
+        XCTAssertEqual(renewable?.expiredNote, String(localized: "token expired — open Claude Code"))
+        XCTAssertEqual(dead?.expiredNote, String(localized: "token expired — run /login in Claude Code"))
+    }
 }
