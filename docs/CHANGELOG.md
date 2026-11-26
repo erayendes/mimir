@@ -9,6 +9,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [3.3-beta.2] - 2026-11-26
+
+Widget: the note on a card whose login has ended now starts under its icon, so the whole line (what to run) fits instead of being cut off.
+
 ### [3.3-beta.1] - 2026-11-26
 
 **Cards say what's wrong.** When a login has ended, the card shows what to run in place of its numbers: `/login` in Claude Code, `codex login` for Codex. A quota spent to 0% shows the time until it refills and the day and hour it does, the weekly or 30-day window first, then the five-hour one. The widget shows the same.
@@ -764,6 +768,10 @@ Bu projedeki tüm önemli değişiklikler bu dosyada belgelenecektir.
 
 Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
+
+### [3.3-beta.2] - 2026-11-26
+
+Widget: girişi biten kartın notu artık ikonun altından başlıyor; ne çalıştırmanız gerektiği kesilmeden, tamamen görünüyor.
 
 ### [3.3-beta.1] - 2026-11-26
 
