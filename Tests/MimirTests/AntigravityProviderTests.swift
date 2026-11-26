@@ -145,6 +145,18 @@ final class AntigravityProviderTests: XCTestCase {
         XCTAssertEqual(rows.first { $0.window == .weekly }?.remainingPercent, 50)
     }
 
+    func testUnsetEpochResetIsNoReset() {
+        // An unused window comes back with protobuf's unset Timestamp; read as a lapsed reset, it
+        // rolled forward to invented clocks and greyed the whole card on every snapshot read.
+        let groups: [[String: Any]] = [[
+            "name": "Claude",
+            "buckets": [["id": "3p-5h", "remaining_fraction": 1.0, "reset_time": "1970-01-01T00:00:00Z"]],
+        ]]
+        let rows = ds.antigravityQuotaSummaryRows(groups: groups)
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertNil(rows.first?.resetAt)
+    }
+
     func testFallsBackToFlatWindowFieldWhenIdIsInconclusive() {
         // An id that says nothing about the window (no "5h"/"weekly"/"session"/"hour"/"7d" hint)
         // still has to land somewhere — fall back to the old flat `window` field rather than guessing.

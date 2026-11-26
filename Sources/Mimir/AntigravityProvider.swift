@@ -446,6 +446,8 @@ extension LiveUsageDataSource {
                     ?? doubleValue(bucket["remaining_fraction"])
                 let reset = ((bucket["resetTime"] as? String) ?? (bucket["reset_time"] as? String))
                     .flatMap { parseISO8601($0) }
+                    // An unused window reports protobuf's unset Timestamp (1970-01-01): no reset, not a lapsed one.
+                    .flatMap { $0.timeIntervalSince1970 > 0 ? $0 : nil }
                 let id = (bucket["bucketId"] as? String) ?? (bucket["id"] as? String) ?? ""
                 // Google omits the fraction at zero; require a window before treating it as exhausted.
                 guard fraction != nil || reset != nil || !id.isEmpty else { continue }
