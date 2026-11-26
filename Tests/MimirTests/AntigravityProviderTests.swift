@@ -66,6 +66,24 @@ final class AntigravityProviderTests: XCTestCase {
         XCTAssertEqual(status.models.filter { $0.name == "Gemini 4 Argon" && $0.window == .weekly }.map(\.remainingPercent), [20])
     }
 
+    /// agy's status line gives an unused window the unset 1970 reset: the family stays, with no reset.
+    func testStatusLineKeepsAnUnusedFamilyWithItsUnsetReset() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let path = directory.appendingPathComponent("usage.json")
+        let unset: [String: Any] = ["remaining_fraction": 1, "reset_time": "1970-01-01T00:00:00Z", "reset_in_seconds": 0]
+        let quota: [String: [String: Any]] = [
+            "3p-5h": unset, "3p-weekly": unset,
+            "gemini-5h": ["remaining_fraction": 1, "reset_time": "2099-01-01T00:00:00Z", "reset_in_seconds": 300],
+        ]
+        try JSONSerialization.data(withJSONObject: ["quota": quota]).write(to: path)
+        let status = try XCTUnwrap(ds.readAntigravityHookUsage(path: path.path, now: Date()))
+        let claude = status.models.filter { $0.name == "Claude" }
+        XCTAssertEqual(claude.map(\.remainingPercent), [100, 100])
+        XCTAssertEqual(claude.map(\.resetAt), [nil, nil])
+    }
+
     func testSummaryFillsOnlyMissingGroupFromHook() {
         let reset = Date().addingTimeInterval(3_600)
         let summary = service([

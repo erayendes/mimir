@@ -133,9 +133,13 @@ extension LiveUsageDataSource {
                         guard let bucket = quota["\(prefix)-\(suffix)"] as? [String: Any],
                               bucket["disabled"] as? Bool != true,
                               let fraction = number(bucket["remaining_fraction"]) else { continue }
-                        let absolute = (bucket["reset_time"] as? String).flatMap { parseISO8601($0) }
+                        let stamp = (bucket["reset_time"] as? String).flatMap { parseISO8601($0) }
+                        // An unused window reports protobuf's unset Timestamp (1970) and 0 seconds: no
+                        // reset, not a lapsed one that would drop the family.
+                        let unset = stamp.map { $0.timeIntervalSince1970 <= 0 } ?? false
+                        let absolute = unset ? nil : stamp
                         // Relative resets belong to the capture time, not each later poll.
-                        let relative = number(bucket["reset_in_seconds"]).flatMap {
+                        let relative = unset ? nil : number(bucket["reset_in_seconds"]).flatMap {
                             $0 >= 0 ? captured.addingTimeInterval($0) : nil
                         }
                         let reset = absolute ?? relative
