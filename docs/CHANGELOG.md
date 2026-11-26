@@ -9,6 +9,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [3.3-beta.3] - 2026-11-26
+
+A card whose login has ended says what to run in fewer words ("Run /login in Claude Code.", "Run codex login in Terminal."), on the line where a spent card shows its countdown, in the popover and the widget. A spent window's countdown and reset day are now red.
+
 ### [3.3-beta.2] - 2026-11-26
 
 Widget: the note on a card whose login has ended now starts under its icon, so the whole line (what to run) fits instead of being cut off.
@@ -768,6 +772,10 @@ Bu projedeki tüm önemli değişiklikler bu dosyada belgelenecektir.
 
 Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
+
+### [3.3-beta.3] - 2026-11-26
+
+Girişi biten kart ne çalıştırmanız gerektiğini daha kısa söylüyor ("Claude Code'a /login olun.", "Codex'e codex login olun."); not, popover'da ve widget'ta kotası biten kartın geri sayımıyla aynı hizada. Kotası biten pencerenin geri sayımı ve sıfırlanma günü artık kırmızı.
 
 ### [3.3-beta.2] - 2026-11-26
 
