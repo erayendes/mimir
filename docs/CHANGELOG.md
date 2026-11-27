@@ -9,6 +9,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+### [3.3-beta.4] - 2026-11-27
+
+**A lost login opens in a terminal.** Click a card whose login has ended, in the popover or the widget, and Mimir opens a Terminal window that runs that account's login: Claude Code itself (a second account in its own folder), or `codex login`. When Claude Code still holds what it needs to renew an expired token, the card says "Open Claude Code." instead of asking you to log in again.
+
+A spent card now says which quota ran out: the five-hour one, the weekly one or a 30-day one.
+
+Antigravity: its Claude models no longer disappear from the card and the widget while the IDE is closed.
+
 ### [3.3-beta.3] - 2026-11-26
 
 A card whose login has ended says what to run in fewer words ("Run /login in Claude Code.", "Run codex login in Terminal."), on the line where a spent card shows its countdown, in the popover and the widget. A spent window's countdown and reset day are now red.
@@ -772,6 +780,14 @@ Bu projedeki tüm önemli değişiklikler bu dosyada belgelenecektir.
 
 Format [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) standardına,
 sürümlendirme ise [Semantic Versioning](https://semver.org/spec/v2.0.0.html) kurallarına uygundur.
+
+### [3.3-beta.4] - 2026-11-27
+
+**Biten giriş terminalde açılıyor.** Girişi biten karta popover'da ya da widget'ta tıkladığınızda Mimir, o hesabın girişini çalıştıran bir Terminal penceresi açıyor: Claude Code'un kendisi (ikinci hesapta kendi klasörüyle) ya da `codex login`. Claude Code süresi dolan token'ı kendisi yenileyebiliyorsa kart yeniden giriş istemek yerine "Claude Code'u açın." diyor.
+
+Kotası biten kart artık hangi kotanın bittiğini söylüyor: 5 saatlik, haftalık ya da 30 günlük.
+
+Antigravity: IDE kapalıyken Claude modelleri karttan ve widget'tan kaybolmuyor.
 
 ### [3.3-beta.3] - 2026-11-26
 
