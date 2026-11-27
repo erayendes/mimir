@@ -52,6 +52,9 @@
 
 /* Status notes */
 "out of date" = "out of date";
+"spent.session" = "Five-hour quota used up";
+"spent.weekly" = "Weekly quota used up";
+"spent.days" = "%d-day quota used up";
 "token expired — open Claude Code" = "Open Claude Code.";
 "token expired — run /login in Claude Code" = "Run /login in Claude Code.";
 "claude token missing" = "claude token missing";

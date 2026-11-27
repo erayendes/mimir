@@ -52,6 +52,9 @@
 
 /* Status notes */
 "out of date" = "güncel değil";
+"spent.session" = "5 saatlik kota bitti";
+"spent.weekly" = "Haftalık kota bitti";
+"spent.days" = "%d günlük kota bitti";
 "token expired — open Claude Code" = "Claude Code'u açın.";
 "token expired — run /login in Claude Code" = "Claude Code'a /login olun.";
 "claude token missing" = "Claude token'ı bulunamadı";

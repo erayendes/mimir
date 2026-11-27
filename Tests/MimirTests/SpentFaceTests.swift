@@ -32,4 +32,15 @@ final class SpentFaceTests: XCTestCase {
         XCTAssertNil(WidgetBridge.makePayload([card.markedStale("out of date")], generatedAt: now)
             .providers.first?.loginNote)
     }
+
+    /// The line names the spent window: the session, the week, or a long window by its days.
+    func testTheTitleNamesTheSpentWindow() {
+        let reset = now.addingTimeInterval(3600)
+        XCTAssertTrue(SpentFace.longIsSpent((0, reset), now: now))
+        XCTAssertFalse(SpentFace.longIsSpent((40, reset), now: now))
+        XCTAssertFalse(SpentFace.longIsSpent((0, now.addingTimeInterval(-60)), now: now))
+        XCTAssertEqual(SpentFace.title(long: false, days: nil), String(localized: "spent.session"))
+        XCTAssertEqual(SpentFace.title(long: true, days: 7), String(localized: "spent.weekly"))
+        XCTAssertEqual(SpentFace.title(long: true, days: 30), String(format: String(localized: "spent.days"), 30))
+    }
 }

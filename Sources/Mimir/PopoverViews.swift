@@ -976,9 +976,14 @@ struct ProviderPanel: View {
     /// A spent window: how long until it refills and the day and hour it does, in the reset row's
     /// size and the spent colour — this window is out until then.
     private func spentFace(_ at: Date) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
+        // A promoted lone window (Codex Go) sits in the session's place but is the long one.
+        let long = panel.paceOnFace || SpentFace.longIsSpent(panel.weekly, now: now)
+        return VStack(alignment: .leading, spacing: 5) {
             titleRow
             Spacer(minLength: 0)
+            // Which window is out: the countdown alone doesn't say whether it's the five hours or the week.
+            Text(SpentFace.title(long: long, days: long ? quotaWindowDays(panel.weeklyWindow) : nil))
+                .fontWeight(.semibold)
             labelled("timer", SpentFace.countdown(at.timeIntervalSince(now), dayUnit: TimeFormatter.dayUnit))
             labelled("clock", SpentFace.moment(at))
         }

@@ -134,6 +134,19 @@ public enum SpentFace {
         let f = DateFormatter(); f.setLocalizedDateFormatFromTemplate("EEEE HH:mm"); return f
     }()
 
+    /// Whether the spent window `reset` answers for is the long one (it wins over the session).
+    public static func longIsSpent(_ long: (percent: Int, resetAt: Date?)?, now: Date) -> Bool {
+        guard let long, long.percent <= 0, let at = long.resetAt else { return false }
+        return at > now
+    }
+
+    /// The line over the countdown that names the spent window: five-hour, weekly, or an N-day one.
+    public static func title(long: Bool, days: Int?) -> String {
+        guard long else { return String(localized: "spent.session") }
+        guard let days, days != 7 else { return String(localized: "spent.weekly") }
+        return String(format: String(localized: "spent.days"), days)
+    }
+
     /// The reset of the window that's spent, the long one first (it gates the session beside it),
     /// then the session. nil when nothing is spent, or a spent window's reset is unknown or past.
     public static func reset(session: (percent: Int, resetAt: Date?)?,

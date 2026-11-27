@@ -272,7 +272,12 @@ private struct PlainFace: View {
                 .foregroundStyle(Tok.secondary)
             } else if let at = metric.spentAt(now) {
                 // The reset row's own icons and size, in the spent colour: this window is out until then.
+                let m = metric.metric
+                let long = m.isWeekly || SpentFace.longIsSpent(m.weeklyPercent.map { ($0, m.weeklyResetAt) }, now: now)
                 VStack(alignment: .leading, spacing: 4) {
+                    // Which window is out: the countdown alone doesn't say whether it's the five hours or the week.
+                    Text(SpentFace.title(long: long, days: m.isWeekly ? quotaWindowDays(m.windowSeconds) : nil))
+                        .font(.system(size: 11, weight: .semibold))
                     IconText(symbol: "gauge.with.needle",
                              text: SpentFace.countdown(at.timeIntervalSince(now),
                                                        dayUnit: String(localized: "duration.unit.day")),
