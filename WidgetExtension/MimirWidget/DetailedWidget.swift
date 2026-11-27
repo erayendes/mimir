@@ -82,10 +82,10 @@ private extension WidgetPayload {
 
 /// Deep link the unavailable empty state taps into: `mimir://open?app=<provider>`. The host app
 /// (MimirApp) handles the scheme and launches that provider's app via AppTarget — the widget
-/// extension is sandboxed and can't launch another app itself.
-private func widgetOpenURL(_ provider: String) -> URL? {
+/// extension is sandboxed and can't launch another app itself. `login` asks it for the login instead.
+private func widgetOpenURL(_ provider: String, login: Bool = false) -> URL? {
     let q = provider.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? provider
-    return URL(string: "mimir://open?app=\(q)")
+    return URL(string: "mimir://open?app=\(q)" + (login ? "&login=1" : ""))
 }
 
 struct DetailedWidgetView: View {
@@ -284,8 +284,9 @@ private struct PlainFace: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        // A lost login or a frozen reading: the tap goes to the host, which refreshes or says why.
-        .widgetURL(metric.isStale ? widgetOpenURL(metric.providerName) : nil)
+        // A lost login opens its login in a terminal; a frozen reading goes to the host, which refreshes.
+        .widgetURL(metric.loginNote != nil ? widgetOpenURL(metric.providerName, login: true)
+                   : metric.isStale ? widgetOpenURL(metric.providerName) : nil)
     }
 }
 

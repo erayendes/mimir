@@ -68,11 +68,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SPUUpdaterDelegate {
     /// this host, which opens the provider's app via `AppTarget`.
     func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls where url.scheme == "mimir" && url.host == "open" {
-            guard let app = URLComponents(url: url, resolvingAgainstBaseURL: false)?
-                .queryItems?.first(where: { $0.name == "app" })?.value else { continue }
-            switch DeepLink.action(forApp: app) {
+            let items = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+            guard let app = items.first(where: { $0.name == "app" })?.value else { continue }
+            switch DeepLink.action(forApp: app, login: items.contains { $0.name == "login" }) {
             case .openProvider(let provider):
                 AppTarget.open(provider)
+            case .openLogin(let service):
+                AppTarget.openLogin(service)
             case .openSelfAndRefresh:
                 // A stale Claude/Codex widget was tapped: open our panel with a user-initiated
                 // refresh, which may read Claude Code's keychain and renew stale Codex logins.

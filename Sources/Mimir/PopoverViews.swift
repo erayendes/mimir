@@ -700,6 +700,7 @@ struct ServiceCard: View {
         for i in panels.indices {
             panels[i].stale = service.isStale
             panels[i].loginNote = service.needsLogin ? service.statusNote : nil
+            panels[i].service = service.name
         }
         if !panels.isEmpty {
             panels[0].plan = service.account?.plan
@@ -859,6 +860,8 @@ struct PanelData {
     var paceOnFace = false
     /// The login is gone: the front says what to run instead of showing last-known numbers.
     var loginNote: String? = nil
+    /// The card's service ("Claude Work"): a click on a lost login opens its login in a terminal.
+    var service: String? = nil
 
     /// A plan with one long window and no session (Codex Go's 30 days) shows it where the session
     /// sits — the big number, the clock and the face — instead of an empty corner above a capsule.
@@ -867,7 +870,7 @@ struct PanelData {
         return PanelData(title: title, iconName: iconName, session: weekly, weekly: nil,
                          weeklyLabel: weeklyLabel, sessionFallback: weeklyWindow,
                          weeklyWindow: weeklyWindow, gated: false, stale: stale, plan: plan, email: email,
-                         pace: pace, paceOnFace: true, loginNote: loginNote)
+                         pace: pace, paceOnFace: true, loginNote: loginNote, service: service)
     }
 }
 
@@ -914,8 +917,12 @@ struct ProviderPanel: View {
         }
         .padding(9)
         .contentShape(Rectangle())
-        .onTapGesture { if hasBox { setBox(!boxOpen) } }
-        .pointingHandCursor(hasBox)
+        // A lost login has nothing behind it to turn over: the click opens its login instead.
+        .onTapGesture {
+            if panel.loginNote != nil, let service = panel.service { AppTarget.openLogin(service) }
+            else if hasBox { setBox(!boxOpen) }
+        }
+        .pointingHandCursor(hasBox || panel.loginNote != nil)
         // The popover hiding (or another app coming forward) takes the key window away.
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResignKeyNotification)) { _ in
             boxOpen = false

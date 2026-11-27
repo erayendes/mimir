@@ -12,6 +12,18 @@ final class AppTargetTests: XCTestCase {
         XCTAssertNil(AppTarget.bundleID(for: "Codex"))
         XCTAssertNil(AppTarget.bundleID(for: "Nonexistent"))
     }
+
+    /// A lost login's card runs its own CLI's login, in its own config dir for a second login.
+    func testLoginCommandKeepsASecondLoginsDir() {
+        let dir = URL(fileURLWithPath: "/Users/me/.claude-work")
+        XCTAssertEqual(AppTarget.loginCommand(for: "Claude", dir: nil), "claude")
+        XCTAssertEqual(AppTarget.loginCommand(for: "Claude Work", dir: dir), "CLAUDE_CONFIG_DIR='/Users/me/.claude-work' claude")
+        XCTAssertEqual(AppTarget.loginCommand(for: "Codex Work", dir: URL(fileURLWithPath: "/Users/me/.codex-work")),
+                       "CODEX_HOME='/Users/me/.codex-work' codex login")
+        XCTAssertEqual(AppTarget.loginCommand(for: "Codex", dir: URL(fileURLWithPath: "/tmp/it's")),
+                       "CODEX_HOME='/tmp/it'\\''s' codex login")
+        XCTAssertNil(AppTarget.loginCommand(for: "Antigravity", dir: nil))
+    }
 }
 
 /// Build numbers decide who is offered what, so the two release tracks are pinned here. A beta

@@ -8,10 +8,13 @@ enum DeepLinkAction: Equatable {
     /// user-initiated refresh. That's the only way to pull a fresh token: a background read of
     /// Claude Code's keychain item would pop the macOS prompt, so it's gated to a user action.
     case openSelfAndRefresh
+    /// A card whose login ran out (`&login=1`) → its login in a terminal, as the popover's card does.
+    case openLogin(String)
 }
 
 enum DeepLink {
-    static func action(forApp app: String) -> DeepLinkAction {
-        AppTarget.bundleID(for: app) != nil ? .openProvider(app) : .openSelfAndRefresh
+    static func action(forApp app: String, login: Bool = false) -> DeepLinkAction {
+        if login { return .openLogin(app) }
+        return AppTarget.bundleID(for: app) != nil ? .openProvider(app) : .openSelfAndRefresh
     }
 }

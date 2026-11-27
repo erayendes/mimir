@@ -14,6 +14,10 @@ final class DeepLinkTests: XCTestCase {
         XCTAssertEqual(DeepLink.action(forApp: "Codex"), .openSelfAndRefresh)
     }
 
+    func testALostLoginOpensItsLogin() {
+        XCTAssertEqual(DeepLink.action(forApp: "Claude Work", login: true), .openLogin("Claude Work"))
+    }
+
     func testUnknownProviderDefaultsToRefreshSelf() {
         XCTAssertEqual(DeepLink.action(forApp: "Nope"), .openSelfAndRefresh)
     }

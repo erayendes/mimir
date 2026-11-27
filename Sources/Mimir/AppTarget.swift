@@ -24,4 +24,34 @@ enum AppTarget {
         guard let url = installedURL(for: provider) else { return }
         NSWorkspace.shared.open(url)
     }
+
+    /// What a card whose login ran out runs in a terminal: Claude Code itself (it renews an expired
+    /// token on start, and asks to log in when it can't), or `codex login`. A second login keeps its
+    /// own config dir. nil for a provider with no CLI login.
+    static func loginCommand(for service: String, dir: URL?) -> String? {
+        let env = dir.map { "'\($0.path.replacingOccurrences(of: "'", with: "'\\''"))' " } ?? ""
+        if service == "Claude" || service.hasPrefix("Claude ") {
+            return (dir == nil ? "" : "CLAUDE_CONFIG_DIR=" + env) + "claude"
+        }
+        if service == "Codex" || service.hasPrefix("Codex ") {
+            return (dir == nil ? "" : "CODEX_HOME=" + env) + "codex login"
+        }
+        return nil
+    }
+
+    /// Opens a terminal window that runs the login command. A `.command` file opens in Terminal (or
+    /// whatever handles them) with no Apple Events, so macOS asks no permission to control it; the
+    /// login, interactive shell (`-li`) brings the user's own PATH, where `claude` and `codex` live.
+    static func openLogin(_ service: String) {
+        let dir = (ExtraAccount.claude + ExtraAccount.codex).first { $0.name == service }?.dir
+        guard let command = loginCommand(for: service, dir: dir) else { return }
+        let url = LiveUsageDataSource.supportDirectory.appendingPathComponent("login.command")
+        let script = "#!/bin/zsh -li\ncd ~\n\(command)\n"
+        do {
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try script.write(to: url, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: url.path)
+            NSWorkspace.shared.open(url)
+        } catch {}
+    }
 }
